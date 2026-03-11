@@ -99,8 +99,17 @@ export default function Home() {
     const scored = sc as ScoredDeal
     setExtracted(extracted)
     setScored(scored)
-    const saved = await saveDeal(extracted, scored)
-    setDealId(saved?.id ?? null)
+    try {
+      const res = await fetch('/api/save-deal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extracted, scored }),
+      })
+      const data = await res.json()
+      setDealId(data.id ?? null)
+    } catch (e) {
+      console.error('save-deal failed:', e)
+    }
     setView('report')
   }}
 />

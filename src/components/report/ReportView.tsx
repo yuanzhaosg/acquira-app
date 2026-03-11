@@ -295,6 +295,9 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const [overrides, setOverrides] = useState<Record<string, number>>({})
   const [currentScored, setCurrentScored] = useState<ScoredDeal>(scored)
   const [rescoring, setRescoring] = useState(false)
+
+  // Sync when scored prop changes (new report loaded)
+  useEffect(() => { setCurrentScored(scored) }, [scored])
   const [rescoreError, setRescoreError] = useState<string | null>(null)
   const [resaved, setResaved] = useState(false)
 
