@@ -94,13 +94,13 @@ export default function Home() {
         </div>
 
         <UploadWidget
-          onResult={(ext, sc, id) => {
-            setExtracted(ext as ExtractedDeal)
-            setScored(sc as ScoredDeal)
-            setDealId(id || null)
-            setView('report')
-          }}
-        />
+  onResult={(ext, sc) => {
+    setExtracted(ext as ExtractedDeal)
+    setScored(sc as ScoredDeal)
+    setDealId(null)
+    setView('report')
+  }}
+/>
 
         <div style={{ display: 'flex', gap: 20, marginTop: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
           {['PDF Information Memorandum', 'ZIP data room', 'Max 50MB', '~60 seconds'].map(t => (
