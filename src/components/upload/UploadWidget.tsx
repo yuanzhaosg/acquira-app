@@ -1,182 +1,178 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
-import { Upload, FileText, Archive, Loader2, AlertCircle } from 'lucide-react'
-import clsx from 'clsx'
+import { createClient } from '@supabase/supabase-js'
 
-type PipelineStatus = 'idle' | 'uploading' | 'extracting' | 'scoring' | 'done' | 'error'
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface UploadWidgetProps {
   onResult: (extracted: unknown, scored: unknown) => void
 }
 
+type Stage =
+  | { kind: 'idle' }
+  | { kind: 'uploading'; pct: number; filename: string }
+  | { kind: 'processing'; filename: string; elapsed: number }
+  | { kind: 'error'; message: string; filename?: string }
+
 export default function UploadWidget({ onResult }: UploadWidgetProps) {
-  const [status, setStatus] = useState<PipelineStatus>('idle')
-  const [error, setError] = useState<string | null>(null)
-  const [filename, setFilename] = useState<string | null>(null)
+  const [stage, setStage] = useState<Stage>({ kind: 'idle' })
+  const [dragging, setDragging] = useState(false)
 
-  // FIX: wrap in useCallback so onDrop's stale closure always has the latest version
-  const runPipeline = useCallback(async (file: File) => {
-    setFilename(file.name)
-    setError(null)
+  const process = useCallback(async (file: File) => {
+    const filename = file.name
+    setStage({ kind: 'uploading', pct: 0, filename })
 
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
+    const storagePath = `pipeline/${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`
 
-      // FIX: show 'uploading' while the request is in-flight
-      // The pipeline route handles both extraction + scoring server-side in one
-      // request, so we animate through the steps with timed delays to give
-      // the user meaningful feedback during the ~60s wait.
-      setStatus('uploading')
+    const progressInterval = setInterval(() => {
+      setStage(prev =>
+        prev.kind === 'uploading'
+          ? { ...prev, pct: Math.min(prev.pct + 6, 88) }
+          : prev
+      )
+    }, 500)
 
-      // Start the fetch — don't await yet
-      const fetchPromise = fetch('/api/pipeline', {
-        method: 'POST',
-        body: formData,
+    const { error: uploadError } = await supabase.storage
+      .from('uploads')
+      .upload(storagePath, file, {
+        cacheControl: '300',
+        upsert: false,
+        contentType: file.type || 'application/pdf',
       })
 
-      // After 3s, advance to 'extracting' (still waiting on server)
-      const extractTimer = setTimeout(() => setStatus('extracting'), 3000)
-      // After 20s, advance to 'scoring'
-      const scoreTimer = setTimeout(() => setStatus('scoring'), 20000)
+    clearInterval(progressInterval)
 
-      const res = await fetchPromise
-      clearTimeout(extractTimer)
-      clearTimeout(scoreTimer)
+    if (uploadError) {
+      setStage({ kind: 'error', message: `Upload failed: ${uploadError.message}`, filename })
+      return
+    }
 
-      const data = await res.json()
+    setStage({ kind: 'uploading', pct: 100, filename })
+    await new Promise(r => setTimeout(r, 400))
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Pipeline failed')
+    const startTime = Date.now()
+    setStage({ kind: 'processing', filename, elapsed: 0 })
+
+    const elapsedInterval = setInterval(() => {
+      setStage(prev =>
+        prev.kind === 'processing'
+          ? { ...prev, elapsed: Math.floor((Date.now() - startTime) / 1000) }
+          : prev
+      )
+    }, 1000)
+
+    try {
+      const res = await fetch('/api/pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePath, filename }),
+      })
+
+      clearInterval(elapsedInterval)
+
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch {
+        setStage({ kind: 'error', message: `Unexpected response: ${text.slice(0, 120)}`, filename })
+        return
       }
 
-      setStatus('done')
+      if (!res.ok || data.error) {
+        setStage({ kind: 'error', message: data.error || `HTTP ${res.status}`, filename })
+        return
+      }
+
+      supabase.storage.from('uploads').remove([storagePath])
       onResult(data.extracted, data.scored)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Something went wrong')
-      setStatus('error')
+    } catch (err: any) {
+      clearInterval(elapsedInterval)
+      setStage({ kind: 'error', message: err.message || 'Network error', filename })
     }
   }, [onResult])
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (accepted[0]) runPipeline(accepted[0])
-  }, [runPipeline])
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files?.length) return
+    const file = files[0]
+    if (!file.name.match(/\.(pdf|zip)$/i)) {
+      setStage({ kind: 'error', message: 'Please upload a PDF or ZIP file' })
+      return
+    }
+    process(file)
+  }, [process])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'application/zip': ['.zip'],
-      'application/x-zip-compressed': ['.zip'],
-    },
-    maxFiles: 1,
-    maxSize: 50 * 1024 * 1024,
-    disabled: status !== 'idle' && status !== 'error' && status !== 'done',
-  })
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setDragging(false)
+    handleFiles(e.dataTransfer.files)
+  }, [handleFiles])
 
-  const statusMessages: Record<PipelineStatus, string> = {
-    idle:       'Drop your IM or data room here',
-    uploading:  'Uploading...',
-    extracting: 'Extracting data from documents...',
-    scoring:    'Scoring across 10 dimensions...',
-    done:       'Done — report ready',
-    error:      'Something went wrong',
-  }
-
-  const steps: PipelineStatus[] = ['uploading', 'extracting', 'scoring', 'done']
-  const currentIdx = steps.indexOf(status)
+  const s = stage
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div
-        {...getRootProps()}
-        className={clsx(
-          'border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-200',
-          isDragActive
-            ? 'border-teal-400 bg-teal-400/5'
-            : status === 'error'
-            ? 'border-red-500/50 bg-red-500/5'
-            : status === 'done'
-            ? 'border-teal-500/50 bg-teal-500/5'
-            : 'border-white/10 hover:border-white/20 hover:bg-white/5'
-        )}
-      >
-        <input {...getInputProps()} />
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: '40px 24px' }}>
+      {s.kind === 'idle' && (
+        <label
+          onDragOver={e => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          style={{
+            display: 'block', cursor: 'pointer',
+            border: `2px dashed ${dragging ? '#00b4a0' : 'rgba(255,255,255,0.15)'}`,
+            borderRadius: 12, padding: '60px 32px', textAlign: 'center',
+            background: dragging ? 'rgba(0,180,160,0.06)' : 'rgba(255,255,255,0.02)',
+            transition: 'all 0.2s',
+          }}
+        >
+          <input type="file" accept=".pdf,.zip" style={{ display: 'none' }} onChange={e => handleFiles(e.target.files)} />
+          <div style={{ fontSize: 40, marginBottom: 16 }}>📄</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Drop your IM here</div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 20 }}>PDF or ZIP data room · Any size</div>
+          <div style={{ display: 'inline-block', background: '#00b4a0', color: '#0d1b2a', fontWeight: 700, fontSize: 14, padding: '10px 24px', borderRadius: 8 }}>Choose file</div>
+        </label>
+      )}
 
-        {/* Icon */}
-        <div className="flex justify-center mb-4">
-          {status === 'idle' || status === 'done' ? (
-            <Upload className="w-10 h-10 text-white/30" />
-          ) : status === 'error' ? (
-            <AlertCircle className="w-10 h-10 text-red-400" />
-          ) : (
-            <Loader2 className="w-10 h-10 text-teal-400 animate-spin" />
-          )}
+      {s.kind === 'uploading' && (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontFamily: "'DM Mono', monospace" }}>{s.filename}</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 24 }}>{s.pct < 100 ? 'Uploading…' : 'Upload complete ✓'}</div>
+          <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 100, height: 6, overflow: 'hidden', marginBottom: 12 }}>
+            <div style={{ height: '100%', borderRadius: 100, background: '#00b4a0', width: `${s.pct}%`, transition: 'width 0.4s ease' }} />
+          </div>
+          <div style={{ fontSize: 13, color: '#00b4a0', fontFamily: "'DM Mono', monospace" }}>{s.pct}%</div>
         </div>
+      )}
 
-        {/* Status message */}
-        <p className="text-white/60 text-sm mb-2">
-          {statusMessages[status]}
-        </p>
-
-        {/* Filename */}
-        {filename && (
-          <div className="flex items-center justify-center gap-2 mt-3">
-            {filename.endsWith('.zip')
-              ? <Archive className="w-4 h-4 text-white/40" />
-              : <FileText className="w-4 h-4 text-white/40" />
-            }
-            <span className="text-xs text-white/40 font-mono">{filename}</span>
+      {s.kind === 'processing' && (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 8, fontFamily: "'DM Mono', monospace" }}>{s.filename}</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 8 }}>Analysing with Acquira…</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 32 }}>Extracting metrics · Scoring 10 dimensions · Mapping competitors</div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b4a0', animation: `abounce 1.2s ${i * 0.2}s infinite ease-in-out` }} />
+            ))}
           </div>
-        )}
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>{s.elapsed}s elapsed · typically 45–90s</div>
+          <style>{`@keyframes abounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }`}</style>
+        </div>
+      )}
 
-        {/* Progress steps */}
-        {status !== 'idle' && status !== 'error' && (
-          <div className="flex justify-center gap-6 mt-6">
-            {steps.map((step, stepIdx) => {
-              const isDone = stepIdx < currentIdx || status === 'done'
-              const isActive = stepIdx === currentIdx && status !== 'done'
-              return (
-                <div key={step} className="flex flex-col items-center gap-1">
-                  <div className={clsx(
-                    'w-2 h-2 rounded-full transition-all',
-                    isDone ? 'bg-teal-400' : isActive ? 'bg-teal-400 animate-pulse' : 'bg-white/10'
-                  )} />
-                  <span className={clsx(
-                    'text-xs',
-                    isDone || isActive ? 'text-white/60' : 'text-white/20'
-                  )}>
-                    {step === 'uploading' ? 'upload' : step === 'extracting' ? 'extract' : step === 'scoring' ? 'score' : 'done'}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Error message */}
-        {error && (
-          <p className="mt-4 text-sm text-red-400">{error}</p>
-        )}
-
-        {/* Reset after done or error */}
-        {(status === 'done' || status === 'error') && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setStatus('idle'); setFilename(null); setError(null) }}
-            className="mt-4 text-xs text-white/40 hover:text-white/60 underline"
-          >
+      {s.kind === 'error' && (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <div style={{ fontSize: 32, marginBottom: 16 }}>⚠️</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 8 }}>Something went wrong</div>
+          {s.filename && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Mono', monospace", marginBottom: 12 }}>{s.filename}</div>}
+          <div style={{ fontSize: 13, color: '#ef4444', marginBottom: 28 }}>{s.message}</div>
+          <button onClick={() => setStage({ kind: 'idle' })} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 20px', color: 'rgba(255,255,255,0.6)', fontSize: 13, cursor: 'pointer' }}>
             Upload another
           </button>
-        )}
-      </div>
-
-      {/* Accepted formats hint */}
-      {status === 'idle' && (
-        <p className="text-center text-xs text-white/25 mt-3">
-          PDF Information Memorandum · ZIP data room · Max 50MB
-        </p>
+        </div>
       )}
     </div>
   )

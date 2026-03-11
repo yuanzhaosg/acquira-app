@@ -5,6 +5,12 @@ import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import AdmZip from 'adm-zip'
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+)
 import { EXTRACTION_SYSTEM_PROMPT } from '@/lib/prompts/extraction-v1'
 import { SCORING_SYSTEM_PROMPT } from '@/lib/prompts/scoring-v1'
 
@@ -130,12 +136,28 @@ export async function POST(req: NextRequest) {
   mkdirSync(workDir, { recursive: true })
 
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File
-    if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    // ── Support both old formData and new storagePath JSON ──
+    let fileBuffer: Buffer
+    let filename: string
 
-    const filename = file.name.toLowerCase()
-    const fileBuffer = Buffer.from(await file.arrayBuffer())
+    const contentType = req.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      // New path: file was uploaded directly to Supabase Storage
+      const { storagePath, filename: originalName } = await req.json()
+      if (!storagePath) return NextResponse.json({ error: 'No storagePath provided' }, { status: 400 })
+      filename = (originalName || storagePath).toLowerCase()
+
+      const { data, error } = await supabaseAdmin.storage.from('uploads').download(storagePath)
+      if (error || !data) return NextResponse.json({ error: `Storage download failed: ${error?.message}` }, { status: 500 })
+      fileBuffer = Buffer.from(await data.arrayBuffer())
+    } else {
+      // Legacy path: direct formData upload (local dev)
+      const formData = await req.formData()
+      const file = formData.get('file') as File
+      if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      filename = file.name.toLowerCase()
+      fileBuffer = Buffer.from(await file.arrayBuffer())
+    }
 
     // ── STEP 1: Collect text from all relevant files ──
     let combinedText = ''
@@ -190,7 +212,7 @@ print('\\n'.join(out[:500]))
       // Single PDF IM
       const pdfPath = join(workDir, 'input.pdf')
       writeFileSync(pdfPath, fileBuffer)
-      sourceFiles.push(file.name)
+      sourceFiles.push(filename)
 
       let text = extractPdfText(pdfPath)
       if (isPdfScanned(text)) {
