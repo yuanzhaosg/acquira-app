@@ -1,5 +1,5 @@
 'use client'
-
+import CompetitiveMap from '@/components/map/CompetitiveMap'
 import { useState, useEffect } from 'react'
 import type { ScoredDeal, ScoredDimension, DimensionId, Conditional } from '@/types/scored'
 import type { ExtractedDeal } from '@/types/extracted'
@@ -627,7 +627,21 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             </div>
           </div>
         )}
-
+{/* COMPETITIVE MAP */}
+        {extracted.centre?.address && (
+          <div style={{ marginBottom: 40 }}>
+            <SectionTitle>Competitive Map</SectionTitle>
+            <CompetitiveMap
+              address={extracted.centre.address}
+              suburb={extracted.centre.suburb || ''}
+              state={extracted.centre.state || ''}
+              postcode={extracted.centre.postcode || ''}
+              licensed_places={extracted.centre.licensed_places || 0}
+              centre_name={scored.centre_name || ''}
+              overall_score={currentScored.overall_score}
+            />
+          </div>
+        )}
         {/* FLAGS */}
         {(currentScored.hard_flags_triggered?.length > 0 || currentScored.score_capped) && (
           <>
