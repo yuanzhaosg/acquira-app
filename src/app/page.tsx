@@ -6,7 +6,7 @@ import UnifiedNav from '@/components/nav/UnifiedNav'
 import UploadWidget from '@/components/upload/UploadWidget'
 import ReportView from '@/components/report/ReportView'
 import DealList from '@/components/deals/DealList'
-import { getDeal } from '@/lib/deals'
+import { getDeal, saveDeal } from '@/lib/deals'
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 
@@ -94,10 +94,13 @@ export default function Home() {
         </div>
 
         <UploadWidget
-  onResult={(ext, sc) => {
-    setExtracted(ext as ExtractedDeal)
-    setScored(sc as ScoredDeal)
-    setDealId(null)
+  onResult={async (ext, sc) => {
+    const extracted = ext as ExtractedDeal
+    const scored = sc as ScoredDeal
+    setExtracted(extracted)
+    setScored(scored)
+    const saved = await saveDeal(extracted, scored)
+    setDealId(saved?.id ?? null)
     setView('report')
   }}
 />
