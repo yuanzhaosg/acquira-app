@@ -187,17 +187,20 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
                 ))}
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Mono', monospace" }}>
-                Acquira · Bright Futures Childcare
+                Acquira · Kidz R Kidz Cranbourne North
+              </div>
+              <div style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: '#00b4a0', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                ● Live Report
               </div>
             </div>
 
             {/* KPI strip */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', padding: '12px 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', padding: '10px 14px', gap: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               {[
-                { val: '78%', label: 'Occupancy', color: '#22c55e' },
-                { val: '80', label: 'Places', color: '#fff' },
-                { val: '$1.32M', label: 'Revenue', color: '#f59e0b' },
-                { val: '$425K', label: 'EBITDA', color: '#fff' },
+                { val: '71%', label: 'Occupancy', color: '#f59e0b' },
+                { val: '74', label: 'Places', color: '#fff' },
+                { val: '$1.29M', label: 'Revenue', color: '#fff' },
+                { val: '$289K', label: 'EBITDA', color: '#22c55e' },
               ].map(k => (
                 <div key={k.label} style={{ textAlign: 'center' }}>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 500, color: k.color }}>{k.val}</div>
@@ -207,33 +210,33 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
             </div>
 
             {/* Mock map + score sidebar */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px' }}>
               {/* Mini map */}
-              <div style={{ padding: 0, overflow: 'hidden', height: 180 }}>
-                <svg viewBox="0 0 280 180" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
-                  <rect width="280" height="180" fill="#e8f0e0" />
-                  <line x1="0" y1="60" x2="280" y2="60" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
-                  <line x1="0" y1="120" x2="280" y2="120" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
-                  <line x1="80" y1="0" x2="80" y2="180" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
-                  <line x1="190" y1="0" x2="190" y2="180" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
-                  <rect x="10" y="10" width="30" height="20" rx="2" fill="rgba(180,180,160,0.5)"/>
-                  <rect x="90" y="10" width="50" height="20" rx="2" fill="rgba(180,180,160,0.45)"/>
-                  <rect x="200" y="10" width="40" height="20" rx="2" fill="rgba(180,180,160,0.5)"/>
-                  <rect x="10" y="75" width="40" height="18" rx="2" fill="rgba(180,180,160,0.45)"/>
-                  <rect x="90" y="72" width="60" height="22" rx="2" fill="rgba(180,180,160,0.4)"/>
-                  <rect x="200" y="75" width="50" height="18" rx="2" fill="rgba(180,180,160,0.45)"/>
-                  <circle cx="130" cy="88" r="68" fill="rgba(34,197,94,0.18)" stroke="rgba(34,197,94,0.5)" strokeWidth="1.5" strokeDasharray="6,3"/>
-                  <circle cx="210" cy="100" r="44" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.45)" strokeWidth="1.5" strokeDasharray="6,3"/>
-                  <circle cx="128" cy="86" r="18" fill="#0d1b2a" stroke="white" strokeWidth="2"/>
-                  <text x="128" y="91" textAnchor="middle" fontSize="11" fill="white" fontWeight="700" fontFamily="DM Sans">8.0</text>
-                  <circle cx="78" cy="58" r="12" fill="#16a34a" stroke="white" strokeWidth="1.5"/>
-                  <text x="78" y="62" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
-                  <circle cx="185" cy="95" r="11" fill="#d97706" stroke="white" strokeWidth="1.5"/>
-                  <text x="185" y="99" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
-                  <circle cx="155" cy="130" r="10" fill="#ef4444" stroke="white" strokeWidth="1.5"/>
-                  <text x="155" y="134" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
-                  <rect x="54" y="32" width="30" height="13" rx="6" fill="white" opacity="0.9"/>
-                  <text x="69" y="42" textAnchor="middle" fontSize="8" fill="#1a2e42" fontWeight="700">4.2 k/p</text>
+              <div style={{ padding: 0, overflow: 'hidden', height: 155 }}>
+                <svg viewBox="0 0 280 155" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+                  <rect width="280" height="155" fill="#e8f0e0" />
+                  <line x1="0" y1="52" x2="280" y2="52" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
+                  <line x1="0" y1="104" x2="280" y2="104" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
+                  <line x1="80" y1="0" x2="80" y2="155" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
+                  <line x1="190" y1="0" x2="190" y2="155" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
+                  <rect x="10" y="10" width="30" height="16" rx="2" fill="rgba(180,180,160,0.5)"/>
+                  <rect x="90" y="10" width="50" height="16" rx="2" fill="rgba(180,180,160,0.45)"/>
+                  <rect x="200" y="10" width="40" height="16" rx="2" fill="rgba(180,180,160,0.5)"/>
+                  <rect x="10" y="65" width="40" height="15" rx="2" fill="rgba(180,180,160,0.45)"/>
+                  <rect x="90" y="62" width="60" height="18" rx="2" fill="rgba(180,180,160,0.4)"/>
+                  <rect x="200" y="65" width="50" height="15" rx="2" fill="rgba(180,180,160,0.45)"/>
+                  <circle cx="128" cy="74" r="56" fill="rgba(34,197,94,0.15)" stroke="rgba(34,197,94,0.5)" strokeWidth="1.5" strokeDasharray="6,3"/>
+                  <circle cx="200" cy="90" r="36" fill="rgba(245,158,11,0.13)" stroke="rgba(245,158,11,0.45)" strokeWidth="1.5" strokeDasharray="6,3"/>
+                  <circle cx="128" cy="74" r="15" fill="#0d1b2a" stroke="white" strokeWidth="2"/>
+                  <text x="128" y="79" textAnchor="middle" fontSize="10" fill="white" fontWeight="700" fontFamily="DM Sans">6.9</text>
+                  <circle cx="72" cy="48" r="10" fill="#16a34a" stroke="white" strokeWidth="1.5"/>
+                  <text x="72" y="52" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
+                  <circle cx="178" cy="82" r="9" fill="#00b4a0" stroke="white" strokeWidth="1.5"/>
+                  <text x="178" y="86" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
+                  <circle cx="148" cy="112" r="9" fill="#d97706" stroke="white" strokeWidth="1.5"/>
+                  <text x="148" y="116" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
+                  <rect x="50" y="26" width="26" height="11" rx="5" fill="white" opacity="0.9"/>
+                  <text x="63" y="34" textAnchor="middle" fontSize="7" fill="#1a2e42" fontWeight="700">3.1 k/p</text>
                 </svg>
               </div>
 
@@ -241,35 +244,67 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
               <div style={{
                 background: 'rgba(255,255,255,0.03)',
                 borderLeft: '1px solid rgba(255,255,255,0.06)',
-                padding: '12px 10px',
-                display: 'flex', flexDirection: 'column', gap: 8,
+                padding: '10px 8px',
+                display: 'flex', flexDirection: 'column', gap: 5,
               }}>
-                <div style={{ textAlign: 'center', padding: '4px 0' }}>
-                  <svg viewBox="0 0 80 50" style={{ width: 80, height: 50 }}>
+                <div style={{ textAlign: 'center', padding: '2px 0' }}>
+                  <svg viewBox="0 0 80 50" style={{ width: 68, height: 40 }}>
                     <path d="M 10 45 A 30 30 0 0 1 70 45" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" strokeLinecap="round"/>
-                    <path d="M 10 45 A 30 30 0 0 1 70 45" fill="none" stroke="#00b4a0" strokeWidth="7" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset="18.8"/>
+                    <path d="M 10 45 A 30 30 0 0 1 70 45" fill="none" stroke="#00b4a0" strokeWidth="7" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset="28"/>
                   </svg>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 900, color: '#fff', marginTop: -8 }}>8.0</div>
-                  <div style={{ fontSize: 10, color: '#00b4a0', fontWeight: 700, letterSpacing: '0.05em' }}>Strong Buy</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 900, color: '#fff', marginTop: -6 }}>6.9</div>
+                  <div style={{ fontSize: 9, color: '#00b4a0', fontWeight: 700, letterSpacing: '0.05em' }}>Attractive</div>
                 </div>
                 {[
-                  { label: 'Demand', val: 9, color: '#22c55e' },
-                  { label: 'Staffing', val: 8, color: '#22c55e' },
-                  { label: 'Revenue', val: 7, color: '#f59e0b' },
-                  { label: 'Lease', val: 7, color: '#f59e0b' },
-                  { label: 'Reg.', val: 8, color: '#22c55e' },
+                  { label: 'Demand', val: 7, color: '#00b4a0' },
+                  { label: 'Labour', val: 7, color: '#00b4a0' },
+                  { label: 'Revenue', val: 7, color: '#00b4a0' },
+                  { label: 'Lease', val: 8, color: '#22c55e' },
+                  { label: 'Valuation', val: 6, color: '#f59e0b' },
                 ].map(d => (
-                  <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>{d.label}</span>
+                  <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.45)' }}>{d.label}</span>
                     <span style={{ color: d.color, fontFamily: "'DM Mono', monospace", fontWeight: 600 }}>{d.val}</span>
                   </div>
                 ))}
-                <div style={{ marginTop: 4, background: 'rgba(239,68,68,0.08)', borderRadius: 6, padding: '6px 8px' }}>
-                  <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 700, marginBottom: 3 }}>⚠ Red Flags</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>· Lease exp. 2027</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>· Director departure</div>
-                </div>
               </div>
+            </div>
+
+            {/* Analyst summary */}
+            <div style={{ padding: '9px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,180,160,0.04)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#00b4a0', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 4 }}>Analyst Summary</div>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, margin: 0 }}>
+                Kidz R Kidz presents as an <span style={{ color: '#00b4a0', fontWeight: 600 }}>attractive acquisition</span> at 71% occupancy with $289K EBITDA and a 22.4% margin. Labour at 55.3% is well-controlled. POA asking price limits valuation certainty.
+              </p>
+            </div>
+
+            {/* Conditionals */}
+            <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>Conditionals</div>
+              {[
+                { id: 'D1', text: 'Occupancy uplift to 80%+ within 12 months', impact: '+0.8' },
+                { id: 'D8', text: 'Confirm asking price — POA limits valuation certainty', impact: '-1.0' },
+              ].map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>{c.id}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', flex: 1 }}>{c.text}</span>
+                  <span style={{ fontSize: 10, fontFamily: "'DM Mono', monospace", color: c.impact.startsWith('+') ? '#22c55e' : '#ef4444', flexShrink: 0 }}>{c.impact}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)' }}>
+              {[
+                { label: 'Labour ratio', val: '55.3%', color: '#22c55e' },
+                { label: 'Rent ratio', val: '9.6%', color: '#22c55e' },
+                { label: 'Lease remaining', val: '10yr', color: '#22c55e' },
+              ].map((s, i) => (
+                <div key={s.label} style={{ padding: '8px 12px', borderRight: i < 2 ? '1px solid rgba(255,255,255,0.04)' : 'none', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 500, color: s.color }}>{s.val}</div>
+                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
