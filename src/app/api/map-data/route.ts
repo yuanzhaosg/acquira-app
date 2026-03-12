@@ -86,11 +86,11 @@ export async function POST(req: NextRequest) {
 
     // ── 1. Geocode (skip if lat/lng passed directly from interactive map drag) ──
     let coords: { lat: number; lng: number } | null = null
+    const fullAddress = `${address}, ${suburb} ${state} ${postcode}`
 
     if (lat_override !== undefined && lng_override !== undefined) {
       coords = { lat: lat_override, lng: lng_override }
     } else {
-      const fullAddress = `${address}, ${suburb} ${state} ${postcode}`
       coords = await geocodeAddress(fullAddress)
     }
 
