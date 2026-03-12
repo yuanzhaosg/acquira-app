@@ -3,11 +3,16 @@
 import { useEffect, useRef } from 'react'
 import UnifiedNav from '@/components/nav/UnifiedNav'
 
+import type { User } from '@supabase/supabase-js'
+
 interface LandingPageProps {
   onGoToApp: () => void
+  onViewSample?: () => void
+  onSignIn?: () => void
+  user?: User | null
 }
 
-export default function LandingPage({ onGoToApp }: LandingPageProps) {
+export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }: LandingPageProps) {
   // Scroll-based fade-in for sections
   const observerRef = useRef<IntersectionObserver | null>(null)
   useEffect(() => {
@@ -90,6 +95,8 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
         mode="landing"
         onLogoClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         onUpload={onGoToApp}
+        onSignIn={onSignIn}
+        user={user}
       />
 
       {/* ══════════════ HERO ══════════════ */}
@@ -149,7 +156,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
 
           <div className="land-fade d3" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 48 }}>
             <button className="land-btn-primary" onClick={onGoToApp}>Upload an IM Free →</button>
-            <button className="land-btn-ghost" onClick={onGoToApp}>▶ See sample report</button>
+            <button className="land-btn-ghost" onClick={onViewSample ?? onGoToApp}>▶ See sample report</button>
           </div>
 
           <div className="land-fade d4" style={{ display: 'flex', gap: 40 }}>

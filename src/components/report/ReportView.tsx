@@ -2,11 +2,7 @@
 import CompetitiveMap from '@/components/map/CompetitiveMap'
 import { useState, useEffect } from 'react'
 import type {
-  ScoredDeal, BaseDimension, DimensionId, Conditional,
-  CCSRiskDimension, LeaseTailDimension, CapexDimension,
-  StaffQualificationDimension, FeeBenchmarkingDimension,
-  OperatorQualityDimension, EnrolmentTrendDimension,
-  DealBreakerFlag,
+  ScoredDeal, DimensionId, Conditional, DealBreakerFlag,
 } from '@/types/scored'
 import type { ExtractedDeal } from '@/types/extracted'
 
@@ -443,9 +439,9 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'teal' |
 
 // ── MAIN REPORT VIEW ──────────────────────────────────────────────────────────
 
-export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew }: {
+export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew, sampleMode }: {
   extracted: ExtractedDeal; scored: ScoredDeal; dealId?: string | null
-  saving?: boolean; onBack?: () => void; onNew?: () => void
+  saving?: boolean; onBack?: () => void; onNew?: () => void; sampleMode?: boolean
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
   const [overrides, setOverrides]       = useState<Record<string, number>>({})
@@ -595,6 +591,20 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       fontFamily: 'IBM Plex Sans, sans-serif',
       minHeight: '100vh', fontSize: 14, lineHeight: 1.6
     }}>
+      {sampleMode && (
+        <div style={{
+          background: 'rgba(0,180,160,0.1)', borderBottom: '1px solid rgba(0,180,160,0.25)',
+          padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16,
+          fontFamily: 'DM Sans, sans-serif', fontSize: 13,
+        }}>
+          <span style={{ color: '#00b4a0', fontWeight: 600 }}>📋 Sample Report</span>
+          <span style={{ color: 'rgba(255,255,255,0.4)' }}>This is a demo deal. Sign up to analyse your own acquisitions.</span>
+          <button onClick={onNew} style={{
+            background: '#00b4a0', border: 'none', borderRadius: 6,
+            padding: '5px 14px', color: '#0d1b2a', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>Upload an IM →</button>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
