@@ -80,7 +80,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
           .hero-right-col { display: none !important; }
           .two-col-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
           .steps-grid { grid-template-columns: 1fr !important; }
-          .scoring-grid-2col { grid-template-columns: 1fr !important; }
+          .scoring-grid-3col { grid-template-columns: 1fr !important; }
           .cta-section-inner { padding: 80px 24px !important; }
         }
       `}</style>
@@ -144,7 +144,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
             fontSize: 17, lineHeight: 1.7, color: 'rgba(255,255,255,0.6)',
             maxWidth: 480, marginBottom: 40,
           }}>
-            Upload any Information Memorandum. Get a structured acquisition report with competitive mapping, demand analysis, scoring across 10 key dimensions, and red flags — in under 60 seconds.
+            Upload any Information Memorandum. Get a structured acquisition report with competitive mapping, demand analysis, scoring across 17 dimensions, and deal-breaker flags — in under 60 seconds.
           </p>
 
           <div className="land-fade d3" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 48 }}>
@@ -155,7 +155,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
           <div className="land-fade d4" style={{ display: 'flex', gap: 40 }}>
             {[
               { num: '10x', label: 'faster due diligence' },
-              { num: '10', label: 'scoring dimensions' },
+              { num: '17', label: 'scoring dimensions' },
               { num: '$0', label: 'to get started' },
             ].map((s) => (
               <div key={s.label}>
@@ -228,7 +228,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
                   <circle cx="128" cy="74" r="56" fill="rgba(34,197,94,0.15)" stroke="rgba(34,197,94,0.5)" strokeWidth="1.5" strokeDasharray="6,3"/>
                   <circle cx="200" cy="90" r="36" fill="rgba(245,158,11,0.13)" stroke="rgba(245,158,11,0.45)" strokeWidth="1.5" strokeDasharray="6,3"/>
                   <circle cx="128" cy="74" r="15" fill="#0d1b2a" stroke="white" strokeWidth="2"/>
-                  <text x="128" y="79" textAnchor="middle" fontSize="10" fill="white" fontWeight="700" fontFamily="DM Sans">6.9</text>
+                  <text x="128" y="79" textAnchor="middle" fontSize="10" fill="white" fontWeight="700" fontFamily="DM Sans">69</text>
                   <circle cx="72" cy="48" r="10" fill="#16a34a" stroke="white" strokeWidth="1.5"/>
                   <text x="72" y="52" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
                   <circle cx="178" cy="82" r="9" fill="#00b4a0" stroke="white" strokeWidth="1.5"/>
@@ -252,7 +252,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
                     <path d="M 10 45 A 30 30 0 0 1 70 45" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" strokeLinecap="round"/>
                     <path d="M 10 45 A 30 30 0 0 1 70 45" fill="none" stroke="#00b4a0" strokeWidth="7" strokeLinecap="round" strokeDasharray="94.2" strokeDashoffset="28"/>
                   </svg>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 900, color: '#fff', marginTop: -6 }}>6.9</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 900, color: '#fff', marginTop: -6 }}>69</div>
                   <div style={{ fontSize: 9, color: '#00b4a0', fontWeight: 700, letterSpacing: '0.05em' }}>Attractive</div>
                 </div>
                 {[
@@ -329,7 +329,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
             {[
               { icon: '🤖', title: 'Generic AI (ChatGPT / Gemini)', text: 'No local competitor data. No demand gap analysis. No policy context. No consistent scoring. Just a summary of whatever you uploaded.', accent: 'var(--red)' },
               { icon: '📊', title: 'Manual Spreadsheet Process', text: '40+ hours per deal. Call ACECQA. Cross-check ABS. Drive past competitors. Build formulas. Miss the approved sites in the pipeline.', accent: 'var(--red)' },
-              { icon: '✅', title: 'Acquira — Purpose-Built for Childcare', text: 'State-aware scoring. Competitive mapping. Demand vs supply gap. 10-dimension framework. Structured report in 60 seconds.', accent: 'var(--teal)' },
+              { icon: '✅', title: 'Acquira — Purpose-Built for Childcare', text: 'State-aware scoring. Competitive mapping. Demand vs supply gap. 17-dimension framework. Structured report in 60 seconds.', accent: 'var(--teal)' },
             ].map((c) => (
               <div key={c.title} className="land-fade problem-card" style={{
                 background: '#fff', border: '1px solid var(--cream-dark)',
@@ -356,7 +356,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
           <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0 }}>
             {[
               { num: '01', icon: '📄', title: 'Upload Your IM', text: 'Drop in a PDF or Word IM from any broker. Supports multi-file uploads for batch analysis.' },
-              { num: '02', icon: '🧠', title: 'AI Parses & Scores', text: 'Extracts financials, occupancy, lease terms, staff metrics — then scores across 10 dimensions with state-aware context.' },
+              { num: '02', icon: '🧠', title: 'AI Parses & Scores', text: 'Extracts financials, occupancy, lease terms, staff metrics — then scores across 17 dimensions with state-aware context.' },
               { num: '03', icon: '🗺️', title: 'Competitive Map', text: 'See all competing centres within 3–5km, demand-to-supply ratios, approved pipeline sites, and demographic catchment data.' },
               { num: '04', icon: '⚠️', title: 'Red Flags Surfaced', text: 'Automatically flags occupancy inflation, labour cost pressure, lease risk, regulatory issues, and pipeline threats.' },
               { num: '05', icon: '📑', title: 'Export Report', text: 'Download a board-ready PDF report with scoring summary, competitive analysis, and upside opportunity assessment.' },
@@ -390,23 +390,30 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div className="land-fade" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--teal)', marginBottom: 16 }}>Scoring Framework</div>
           <h2 className="land-fade d1" style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(32px, 3.5vw, 52px)', fontWeight: 900, letterSpacing: -1, lineHeight: 1.1, color: 'var(--navy)', marginBottom: 12 }}>
-            10 dimensions. <em style={{ color: 'var(--teal)', fontStyle: 'italic' }}>One</em><br />consistent decision.
+            17 dimensions. <em style={{ color: 'var(--teal)', fontStyle: 'italic' }}>One</em><br />consistent decision.
           </h2>
           <p className="land-fade d2" style={{ fontSize: 16, color: 'var(--text-muted)', maxWidth: 560, marginBottom: 48 }}>
             Every centre is evaluated across the same framework, enabling true like-for-like comparison across deals, states, and operators.
           </p>
-          <div className="scoring-grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div className="scoring-grid-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
             {[
-              { icon: '👶', bg: '#dcfce7', title: 'Occupancy & Demand Quality', text: 'Stabilised occupancy, 12-month trend, waitlist depth, churn rate. The most critical dimension.', badge: 'Critical' },
+              { icon: '👶', bg: '#dcfce7', title: 'Occupancy & Demand', text: 'Stabilised occupancy, 12-month trend, waitlist depth, churn rate. The most critical dimension.', badge: 'Critical' },
+              { icon: '📈', bg: '#dcfce7', title: 'Profitability & Cashflow', text: 'EBITDA margin, normalised EBITDA after add-backs, operating cashflow, capex requirements.', badge: 'Critical' },
               { icon: '💰', bg: '#fef3c7', title: 'Revenue & Pricing Power', text: 'ARPU vs local peers, fee growth history, CCS dependency, arrears rate.', badge: 'High' },
-              { icon: '👩‍🏫', bg: '#fee2e2', title: 'Staffing & Labour Resilience', text: 'Educator cost as % revenue, turnover rate, agency usage, tenure. 2025\'s biggest risk.', badge: 'Critical' },
-              { icon: '📈', bg: '#dcfce7', title: 'Profitability & Cashflow', text: 'EBITDA margin, normalised EBITDA after add-backs, operating cashflow, capex requirements.', badge: 'High' },
-              { icon: '🏢', bg: '#e0f2fe', title: 'Lease & Property Economics', text: 'Rent as % revenue, remaining lease tenure, review mechanism. Can make or break the deal.', badge: 'High' },
-              { icon: '📋', bg: '#faf5ff', title: 'Regulatory & Quality Profile', text: 'NQS rating (Meeting/Exceeding), compliance history, outstanding actions, incident frequency.', badge: 'High' },
-              { icon: '🗺️', bg: '#fff7ed', title: 'Market & Competitive Position', text: 'Supply growth vs demand, approved pipelines, birth rates, workforce participation in catchment.', badge: 'High' },
-              { icon: '⚙️', bg: '#f0fdf4', title: 'Management & Systems', text: 'Manager tenure, rostering/billing maturity, reporting quality, owner-dependency risk.', badge: 'Medium' },
+              { icon: '👩‍🏫', bg: '#fee2e2', title: 'Staffing & Labour Resilience', text: 'Educator cost as % revenue, turnover rate, agency usage, tenure. 2025\'s biggest risk.', badge: 'High' },
+              { icon: '🏢', bg: '#e0f2fe', title: 'Lease Economics', text: 'Rent as % revenue, review mechanism, make-good obligations. Fixed costs that can\'t be cut.', badge: 'High' },
               { icon: '🤝', bg: '#fef3c7', title: 'Valuation & Deal Structure', text: 'Price per place ($60k–$120k), EBITDA multiple (4.5x–6.5x), ROIC, downside protection.', badge: 'High' },
+              { icon: '🗺️', bg: '#fff7ed', title: 'Market & Competitive Position', text: 'Supply vs demand gap, approved pipeline sites, birth rates, catchment demographics.', badge: 'High' },
+              { icon: '⚙️', bg: '#f0fdf4', title: 'Management & Systems', text: 'Manager tenure, rostering/billing maturity, reporting quality, owner-dependency risk.', badge: 'Medium' },
+              { icon: '📋', bg: '#faf5ff', title: 'Regulatory & Quality', text: 'NQS rating, time since last assessment, exceeding areas, active notices or conditions.', badge: 'Medium' },
               { icon: '🚀', bg: '#dcfce7', title: 'Upside Levers', text: 'Fee uplift headroom, occupancy growth potential, cost efficiencies, B/ASC extension opportunity.', badge: 'Medium' },
+              { icon: '🏛️', bg: '#fef3c7', title: 'CCS / Subsidy Risk', text: 'Activity test exposure, CCS-dependent enrolment %, subsidy cliff scenarios under policy change.', badge: 'New' },
+              { icon: '📅', bg: '#e0f2fe', title: 'Lease Tail', text: 'Years remaining including options. Total potential tenure. Critical for financing and exit.', badge: 'New' },
+              { icon: '🔧', bg: '#fee2e2', title: 'CAPEX Liability', text: 'Fit-out age, renovation risk flagged in IM, estimated capital exposure before stabilisation.', badge: 'New' },
+              { icon: '🎓', bg: '#faf5ff', title: 'Staff Qualification Mix', text: 'Degree vs certificate ratio, diploma split, wage trajectory risk as qualifications requirements rise.', badge: 'New' },
+              { icon: '💵', bg: '#dcfce7', title: 'Fee Benchmarking', text: 'Centre daily fee vs suburb median. Pricing power headroom. Gap to maximum CCS-eligible rate.', badge: 'New' },
+              { icon: '🏅', bg: '#fff7ed', title: 'Operator Quality Signal', text: 'Assessment recency, exceeding area count, active notices. Operator track record beyond NQS rating.', badge: 'New' },
+              { icon: '📊', bg: '#f0fdf4', title: 'Enrolment Trend & Waitlist', text: 'Trend direction (growing/declining), waitlist depth as leading indicator. Snapshot vs trajectory.', badge: 'New' },
             ].map((c) => (
               <div key={c.title} className="land-fade score-card-item" style={{
                 background: '#fff', border: '1px solid var(--cream-dark)',
@@ -421,7 +428,7 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
                   <h4 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 6 }}>{c.title}</h4>
                   <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-muted)' }}>{c.text}</p>
                 </div>
-                <div style={{ marginLeft: 'auto', flexShrink: 0, background: 'var(--navy)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 100, height: 'fit-content', whiteSpace: 'nowrap' }}>
+                <div style={{ marginLeft: 'auto', flexShrink: 0, background: c.badge === 'New' ? 'rgba(0,180,160,0.12)' : c.badge === 'Critical' ? '#ef4444' : 'var(--navy)', color: c.badge === 'New' ? 'var(--teal)' : '#fff', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 100, height: 'fit-content', whiteSpace: 'nowrap', border: c.badge === 'New' ? '1px solid rgba(0,180,160,0.3)' : 'none' }}>
                   {c.badge}
                 </div>
               </div>
