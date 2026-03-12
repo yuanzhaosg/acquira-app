@@ -34,8 +34,6 @@ export default function AuthModal({ onClose, defaultMode = 'signin' }: AuthModal
       setLoading(false)
     }
   }
-  }
-  }
 
   return (
     <>
@@ -70,8 +68,7 @@ export default function AuthModal({ onClose, defaultMode = 'signin' }: AuthModal
           </p>
         </div>
 
-
-        {/* Email/password */}
+        {/* Email/password form */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="email" placeholder="Email address" value={email}
