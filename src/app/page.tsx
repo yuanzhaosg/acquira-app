@@ -7,7 +7,7 @@ import UploadWidget from '@/components/upload/UploadWidget'
 import ReportView from '@/components/report/ReportView'
 import DealList from '@/components/deals/DealList'
 import AuthModal from '@/components/auth/AuthModal'
-import { useAuth } from '@/lib/useAuth'
+import { useAuth, supabase } from '@/lib/useAuth'
 import { getDeal } from '@/lib/deals'
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
@@ -214,9 +214,13 @@ export default function Home() {
             setExtracted(extracted)
             setScored(scored)
             try {
+              const { data: { session } } = await supabase.auth.getSession()
               const res = await fetch('/api/save-deal', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+                },
                 body: JSON.stringify({ extracted, scored, overrides: {} }),
               })
               const data = await res.json()
