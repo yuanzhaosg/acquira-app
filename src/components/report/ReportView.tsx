@@ -860,7 +860,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             },
           ] as const).map(({ group, color, ids }) => {
             const groupDims = ids
-              .map(id => [id, currentScored.dimensions?.[id as string]] as [string, any])
+              .map(id => [id, currentScored.dimensions?.[id as DimensionId]] as [string, any])
               .filter(([, dim]) => dim != null)
             if (groupDims.length === 0) return null
 
