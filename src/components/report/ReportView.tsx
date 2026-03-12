@@ -864,12 +864,11 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               .filter(([, dim]) => dim != null)
             if (groupDims.length === 0) return null
 
-            // Group weighted score
-            const groupScore = groupDims.reduce((sum, [id, dim]) => {
-              return sum + (dim.weight ?? 0) * (typeof dim.score === 'number' ? dim.score : 0)
-            }, 0)
-            const groupWeight = groupDims.reduce((sum, [, dim]) => sum + (dim.weight ?? 0), 0)
-            const groupAvg = groupWeight > 0 ? (groupScore / groupWeight) : 0
+            // Group average — simple mean of dimension scores (0–10)
+            // Note: dim.weight is only present after a rescore; use mean to avoid 0/10 on fresh pipeline results
+            const groupAvg = groupDims.length > 0
+              ? groupDims.reduce((sum, [, dim]) => sum + (typeof dim.score === 'number' ? dim.score : 0), 0) / groupDims.length
+              : 0
 
             return (
               <div key={group} style={{ marginBottom: 28 }}>
@@ -889,9 +888,9 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                   </div>
                   <span style={{
                     fontFamily: 'Space Grotesk, sans-serif', fontSize: 13, fontWeight: 700,
-                    color: dimScoreColor(groupAvg),
+                    color: scoreColor(groupAvg * 10),
                   }}>
-                    {groupAvg.toFixed(1)}<span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginLeft: 2 }}>/10</span>
+                    {(groupAvg * 10).toFixed(0)}<span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginLeft: 2 }}>/100</span>
                   </span>
                 </div>
 
