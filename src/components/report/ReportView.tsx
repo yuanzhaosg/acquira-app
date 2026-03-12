@@ -834,16 +834,95 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           </>
         )}
 
-        {/* DIMENSION SCORES */}
+        {/* DIMENSION SCORES — grouped into 4 categories */}
         <SectionTitle>Score Breakdown</SectionTitle>
         <div style={{ marginBottom: 40 }}>
-          {dimEntries.map(([id, dim]) => (
-            <DimensionRow
-              key={id} id={id} dim={dim}
-              isActive={activeDim === id}
-              onClick={() => setActiveDim(activeDim === id ? null : id)}
-            />
-          ))}
+          {([
+            {
+              group: 'Operational Stability',
+              color: '#00b4a0',
+              ids: ['occupancy_demand', 'staffing_resilience', 'regulatory_quality', 'management_systems', 'operator_quality', 'enrolment_trend', 'staff_qualification_mix'],
+            },
+            {
+              group: 'Financial Performance',
+              color: '#22c55e',
+              ids: ['profitability_cashflow', 'revenue_pricing', 'fee_benchmarking', 'upside_levers'],
+            },
+            {
+              group: 'Lease & Property',
+              color: '#f59e0b',
+              ids: ['lease_economics', 'lease_tail', 'capex_liability'],
+            },
+            {
+              group: 'Strategic Risk',
+              color: '#ef4444',
+              ids: ['valuation_structure', 'market_position', 'ccs_risk'],
+            },
+          ] as const).map(({ group, color, ids }) => {
+            const groupDims = ids
+              .map(id => [id, currentScored.dimensions?.[id as string]] as [string, any])
+              .filter(([, dim]) => dim != null)
+            if (groupDims.length === 0) return null
+
+            // Group weighted score
+            const groupScore = groupDims.reduce((sum, [id, dim]) => {
+              return sum + (dim.weight ?? 0) * (typeof dim.score === 'number' ? dim.score : 0)
+            }, 0)
+            const groupWeight = groupDims.reduce((sum, [, dim]) => sum + (dim.weight ?? 0), 0)
+            const groupAvg = groupWeight > 0 ? (groupScore / groupWeight) : 0
+
+            return (
+              <div key={group} style={{ marginBottom: 28 }}>
+                {/* Group header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: 8, paddingBottom: 8,
+                  borderBottom: `1px solid ${color}22`,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: color, flexShrink: 0 }} />
+                    <span style={{
+                      fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5,
+                      textTransform: 'uppercase', letterSpacing: '0.1em',
+                      color: 'rgba(255,255,255,0.4)',
+                    }}>{group}</span>
+                  </div>
+                  <span style={{
+                    fontFamily: 'Space Grotesk, sans-serif', fontSize: 13, fontWeight: 700,
+                    color: dimScoreColor(groupAvg),
+                  }}>
+                    {groupAvg.toFixed(1)}<span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginLeft: 2 }}>/10</span>
+                  </span>
+                </div>
+
+                {/* Dimensions in this group */}
+                {groupDims.map(([id, dim]) => (
+                  <DimensionRow
+                    key={id} id={id} dim={dim}
+                    isActive={activeDim === id}
+                    onClick={() => setActiveDim(activeDim === id ? null : id)}
+                  />
+                ))}
+              </div>
+            )
+          })}
+
+          {/* Catch-all: any dimensions not in a group (future-proofing) */}
+          {(() => {
+            const allGrouped = ['occupancy_demand','staffing_resilience','regulatory_quality','management_systems','operator_quality','enrolment_trend','staff_qualification_mix','profitability_cashflow','revenue_pricing','fee_benchmarking','upside_levers','lease_economics','lease_tail','capex_liability','valuation_structure','market_position','ccs_risk']
+            const ungrouped = dimEntries.filter(([id]) => !allGrouped.includes(id))
+            if (ungrouped.length === 0) return null
+            return (
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)' }}>Other</span>
+                </div>
+                {ungrouped.map(([id, dim]) => (
+                  <DimensionRow key={id} id={id} dim={dim} isActive={activeDim === id} onClick={() => setActiveDim(activeDim === id ? null : id)} />
+                ))}
+              </div>
+            )
+          })()}
         </div>
 
         {/* AUDIT TRAIL */}
