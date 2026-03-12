@@ -6,25 +6,24 @@ import UnifiedNav from '@/components/nav/UnifiedNav'
 import UploadWidget from '@/components/upload/UploadWidget'
 import ReportView from '@/components/report/ReportView'
 import DealList from '@/components/deals/DealList'
-import { getDeal, saveDeal } from '@/lib/deals'
+import { getDeal } from '@/lib/deals'
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 
 type View = 'landing' | 'upload' | 'report' | 'list'
 
 export default function Home() {
-  const [view, setView] = useState<View>('landing')
+  const [view, setView]         = useState<View>('landing')
   const [extracted, setExtracted] = useState<ExtractedDeal | null>(null)
-  const [scored, setScored] = useState<ScoredDeal | null>(null)
-  const [dealId, setDealId] = useState<string | null>(null)
+  const [scored, setScored]     = useState<ScoredDeal | null>(null)
+  const [dealId, setDealId]     = useState<string | null>(null)
 
-  // ── Landing ────────────────────────────────────────────
+  // ── Landing ──────────────────────────────────────────────────────────────
   if (view === 'landing') {
     return <LandingPage onGoToApp={() => setView('upload')} />
   }
 
-  // ── Report ─────────────────────────────────────────────
-  // ReportView has its own sticky header with logo + ← Pipeline + New Deal.
+  // ── Report ───────────────────────────────────────────────────────────────
   if (view === 'report' && extracted && scored) {
     return (
       <ReportView
@@ -37,7 +36,7 @@ export default function Home() {
     )
   }
 
-  // ── Pipeline / Deal List ───────────────────────────────
+  // ── Deal list ────────────────────────────────────────────────────────────
   if (view === 'list') {
     return (
       <div style={{ minHeight: '100vh', background: '#0d1b2a' }}>
@@ -65,9 +64,12 @@ export default function Home() {
     )
   }
 
-  // ── Upload ─────────────────────────────────────────────
+  // ── Upload ───────────────────────────────────────────────────────────────
   return (
-    <main style={{ minHeight: '100vh', background: '#0d1b2a', color: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <main style={{
+      minHeight: '100vh', background: '#0d1b2a', color: '#fff',
+      display: 'flex', flexDirection: 'column'
+    }}>
       <UnifiedNav
         mode="app"
         activeAppTab="upload"
@@ -77,8 +79,11 @@ export default function Home() {
         onHome={() => setView('landing')}
       />
 
-      {/* Upload hero */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px' }}>
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '60px 24px'
+      }}>
         <div style={{ textAlign: 'center', marginBottom: 48, maxWidth: 560 }}>
           <h1 style={{
             fontSize: 'clamp(28px, 4vw, 44px)',
@@ -88,34 +93,40 @@ export default function Home() {
           }}>
             Analyse a deal
           </h1>
+          {/* Updated: 17 dimensions */}
           <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
-            Upload an IM or data room. Acquira extracts every metric and scores it across 10 dimensions in about 60 seconds.
+            Upload an IM or data room. Acquira extracts every metric and scores it
+            across 17 dimensions in about 60 seconds.
           </p>
         </div>
 
         <UploadWidget
-  onResult={async (ext, sc) => {
-    const extracted = ext as ExtractedDeal
-    const scored = sc as ScoredDeal
-    setExtracted(extracted)
-    setScored(scored)
-    try {
-      const res = await fetch('/api/save-deal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ extracted, scored }),
-      })
-      const data = await res.json()
-      setDealId(data.id ?? null)
-    } catch (e) {
-      console.error('save-deal failed:', e)
-    }
-    setView('report')
-  }}
-/>
+          onResult={async (ext, sc) => {
+            const extracted = ext as ExtractedDeal
+            const scored    = sc as ScoredDeal
+            setExtracted(extracted)
+            setScored(scored)
+            try {
+              const res = await fetch('/api/save-deal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                // Fixed: pass overrides (empty on first save) so save-deal route receives it
+                body: JSON.stringify({ extracted, scored, overrides: {} }),
+              })
+              const data = await res.json()
+              setDealId(data.id ?? null)
+            } catch (e) {
+              console.error('save-deal failed:', e)
+            }
+            setView('report')
+          }}
+        />
 
-        <div style={{ display: 'flex', gap: 20, marginTop: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {['PDF Information Memorandum', 'ZIP data room', 'Max 50MB', '~60 seconds'].map(t => (
+        <div style={{
+          display: 'flex', gap: 20, marginTop: 32,
+          flexWrap: 'wrap', justifyContent: 'center'
+        }}>
+          {['PDF Information Memorandum', 'ZIP data room', 'Max 500MB', '~60 seconds'].map(t => (
             <span key={t} style={{
               fontSize: 11, color: 'rgba(255,255,255,0.2)',
               fontFamily: "'DM Mono', monospace",

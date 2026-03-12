@@ -1,20 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 const RAILWAY_URL = process.env.RAILWAY_API_URL || 'https://web-production-c3589.up.railway.app'
 
+export const maxDuration = 300
+
 export async function POST(req: NextRequest) {
+  const body = await req.json()
+
+  let railwayRes: Response
   try {
-    const body = await req.json()
-    const res = await fetch(`${RAILWAY_URL}/pipeline`, {
+    railwayRes = await fetch(`${RAILWAY_URL}/pipeline`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    const data = await res.json()
-    return NextResponse.json(data, { status: res.status })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Pipeline failed' }, { status: 500 })
+    const errEvent = `event: error\ndata: ${JSON.stringify({ message: err.message || 'Pipeline connection failed' })}\n\n`
+    return new Response(errEvent, {
+      status: 500,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
   }
-}
 
-export const maxDuration = 300
+  if (!railwayRes.ok || !railwayRes.body) {
+    const errEvent = `event: error\ndata: ${JSON.stringify({ message: `Railway returned ${railwayRes.status}` })}\n\n`
+    return new Response(errEvent, {
+      status: railwayRes.status,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }
+
+  // Forward the SSE stream directly from Railway to the browser
+  return new Response(railwayRes.body, {
+    headers: {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection':    'keep-alive',
+    },
+  })
+}
