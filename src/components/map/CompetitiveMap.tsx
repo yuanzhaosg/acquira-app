@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 interface Competitor {
   id: string
@@ -21,6 +21,8 @@ interface MapData {
     total_licensed_places: number
     kids_per_place: number
     zone: 'undersupplied' | 'balanced' | 'saturated'
+    data_source?: string
+    census_year?: number
   }
   stats: {
     total_competitors: number
@@ -37,7 +39,7 @@ interface CompetitiveMapProps {
   postcode: string
   licensed_places: number
   centre_name: string
-  overall_score: number   // v2: 0–100
+  overall_score: number  // v2: 0–100
 }
 
 const ZONE_COLORS = {
@@ -53,53 +55,206 @@ function nqsColor(rating: string): string {
   return '#64748b'
 }
 
-// v2: score is 0–100
-function scoreColor(score: number): string {
-  if (score >= 70) return '#22c55e'
-  if (score >= 55) return '#00b4a0'
-  if (score >= 40) return '#f59e0b'
-  return '#ef4444'
+// Reverse-geocode lat/lng → postcode via Google Geocoding API
+async function reverseGeocodePostcode(lat: number, lng: number, apiKey: string): Promise<string | null> {
+  try {
+    const res  = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`)
+    const data = await res.json()
+    if (data.status !== 'OK') return null
+    for (const result of data.results) {
+      for (const comp of result.address_components) {
+        if (comp.types.includes('postal_code')) return comp.long_name
+      }
+    }
+  } catch { /* swallow */ }
+  return null
 }
 
 declare global {
-  interface Window {
-    google: any
-    initAcquiraMap: () => void
-  }
+  interface Window { google: any; initAcquiraMap: () => void }
 }
 
 export default function CompetitiveMap({
   address, suburb, state, postcode, licensed_places, centre_name, overall_score
 }: CompetitiveMapProps) {
-  const mapRef          = useRef<HTMLDivElement>(null)
-  const mapInstanceRef  = useRef<any>(null)
-  const [mapData, setMapData]                   = useState<MapData | null>(null)
-  const [loading, setLoading]                   = useState(true)
-  const [error, setError]                       = useState<string | null>(null)
-  const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null)
-  const [showList, setShowList]                 = useState(false)  // mobile: toggle competitor list
+  const mapRef           = useRef<HTMLDivElement>(null)
+  const mapInstanceRef   = useRef<any>(null)
+  const markersRef       = useRef<any[]>([])
+  const circleRef        = useRef<any>(null)
+  const dragDebounceRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const originRef        = useRef<{ lat: number; lng: number } | null>(null)
 
-  // ── Fetch map data ────────────────────────────────────────────────────────
-  useEffect(() => {
-    async function fetchMapData() {
-      try {
-        const res = await fetch('/api/map-data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address, suburb, state, postcode, licensed_places }),
-        })
-        if (!res.ok) throw new Error('Failed to fetch map data')
-        setMapData(await res.json())
-      } catch {
-        setError('Could not load competitive map data')
-      } finally {
-        setLoading(false)
+  const [mapData, setMapData]               = useState<MapData | null>(null)
+  const [loading, setLoading]               = useState(true)
+  const [refreshing, setRefreshing]         = useState(false)
+  const [error, setError]                   = useState<string | null>(null)
+  const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null)
+  const [showList, setShowList]             = useState(false)
+  const [showSearchHere, setShowSearchHere] = useState(false)
+  const [isExploring, setIsExploring]       = useState(false)
+
+  // ── Fetch map data ─────────────────────────────────────────────────────────
+  const fetchMapData = useCallback(async (
+    opts: { lat?: number; lng?: number; pcode?: string; isRefresh?: boolean }
+  ): Promise<MapData | null> => {
+    const { lat, lng, pcode, isRefresh = false } = opts
+    try {
+      if (isRefresh) setRefreshing(true)
+      else setLoading(true)
+
+      const body: Record<string, unknown> = {
+        address, suburb, state,
+        postcode:        pcode ?? postcode,
+        licensed_places,
       }
+      if (lat !== undefined && lng !== undefined) {
+        body.lat_override = lat
+        body.lng_override = lng
+      }
+
+      const res = await fetch('/api/map-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Failed to fetch map data')
+      const data: MapData = await res.json()
+      setMapData(data)
+      setError(null)
+      return data
+    } catch {
+      setError('Could not load map data for this area')
+      return null
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-    fetchMapData()
   }, [address, suburb, state, postcode, licensed_places])
 
-  // ── Init Google Maps ──────────────────────────────────────────────────────
+  // ── Initial load ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    fetchMapData({}).then(data => {
+      if (data) originRef.current = { lat: data.target.lat, lng: data.target.lng }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Clear map overlays ─────────────────────────────────────────────────────
+  function clearOverlays() {
+    markersRef.current.forEach(m => { try { m.setMap(null) } catch { /* ignore */ } })
+    markersRef.current = []
+    if (circleRef.current) { try { circleRef.current.setMap(null) } catch { /* ignore */ } circleRef.current = null }
+  }
+
+  // ── Draw overlays for a MapData result ────────────────────────────────────
+  function drawOverlays(map: any, data: MapData) {
+    clearOverlays()
+
+    const zoneStyle = ZONE_COLORS[data.demand.zone]
+
+    // Demand zone circle
+    circleRef.current = new window.google.maps.Circle({
+      strokeColor: zoneStyle.stroke, strokeOpacity: 1, strokeWeight: 2,
+      fillColor: zoneStyle.fill, fillOpacity: 1,
+      map,
+      center: { lat: data.target.lat, lng: data.target.lng },
+      radius: 3000,
+    })
+
+    // Target centre marker
+    const markerScore  = Math.round(overall_score).toString()
+    const targetMarker = new window.google.maps.Marker({
+      position: { lat: data.target.lat, lng: data.target.lng },
+      map,
+      title: centre_name,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        scale: 22,
+        fillColor: '#0d1b2a', fillOpacity: 1,
+        strokeColor: '#ffffff', strokeWeight: 3,
+      },
+      label: { text: markerScore, color: '#ffffff', fontSize: '11px', fontWeight: '700', fontFamily: 'DM Sans' },
+      zIndex: 100,
+    })
+    markersRef.current.push(targetMarker)
+
+    const targetInfo = new window.google.maps.InfoWindow({
+      content: `
+        <div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:180px">
+          <div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:4px">${centre_name}</div>
+          <div style="font-size:11px;color:#5a7a94">${address}, ${suburb}</div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <span style="background:#0d1b2a;color:#fff;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:700">${markerScore}/100</span>
+            <span style="background:rgba(0,180,160,0.1);color:#00b4a0;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600">${licensed_places} places</span>
+          </div>
+        </div>`,
+    })
+    targetMarker.addListener('click', () => targetInfo.open(map, targetMarker))
+
+    // Competitor markers
+    data.competitors.slice(0, 20).forEach((comp, i) => {
+      const color  = nqsColor(comp.nqs_rating)
+      const marker = new window.google.maps.Marker({
+        position: { lat: comp.lat, lng: comp.lng },
+        map,
+        title: comp.name,
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 16,
+          fillColor: color, fillOpacity: 0.9,
+          strokeColor: '#ffffff', strokeWeight: 2,
+        },
+        label: { text: 'C', color: '#ffffff', fontSize: '10px', fontWeight: '700' },
+        zIndex: 50 - i,
+      })
+      markersRef.current.push(marker)
+
+      const infoWindow = new window.google.maps.InfoWindow({
+        content: `
+          <div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:180px">
+            <div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:2px">${comp.name}</div>
+            <div style="font-size:11px;color:#5a7a94;margin-bottom:8px">${comp.suburb} · ${(comp.distance_m / 1000).toFixed(1)}km away</div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;justify-content:space-between;font-size:12px">
+                <span style="color:#5a7a94">Licensed places</span>
+                <span style="font-weight:600;color:#0d1b2a">${comp.licensed_places || '—'}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px">
+                <span style="color:#5a7a94">NQS Rating</span>
+                <span style="font-weight:600;color:${color}">${comp.nqs_rating || '—'}</span>
+              </div>
+            </div>
+          </div>`,
+      })
+      marker.addListener('click', () => { infoWindow.open(map, marker); setSelectedCompetitor(comp) })
+    })
+  }
+
+  // ── Refresh the data for current map centre ────────────────────────────────
+  async function refreshForCentre(map: any, isManual = false) {
+    const centre = map.getCenter()
+    if (!centre) return
+
+    const newLat = centre.lat()
+    const newLng = centre.lng()
+
+    // Skip tiny movements unless manual trigger
+    if (!isManual && originRef.current) {
+      const dx = newLat - originRef.current.lat
+      const dy = newLng - originRef.current.lng
+      if (Math.sqrt(dx * dx + dy * dy) < 0.0005) return
+    }
+
+    setShowSearchHere(false)
+    setIsExploring(true)
+
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!
+    const pcode  = await reverseGeocodePostcode(newLat, newLng, apiKey)
+    const newData = await fetchMapData({ lat: newLat, lng: newLng, pcode: pcode ?? postcode, isRefresh: true })
+    if (newData) drawOverlays(map, newData)
+  }
+
+  // ── Init Google Maps (runs once when mapData first loads) ──────────────────
   useEffect(() => {
     if (!mapData || !mapRef.current) return
 
@@ -109,115 +264,37 @@ export default function CompetitiveMap({
       if (!mapRef.current || !window.google || !mapData) return
 
       const map = new window.google.maps.Map(mapRef.current, {
-        center: { lat: mapData.target.lat, lng: mapData.target.lng },
-        zoom: 14,
-        mapTypeId: 'roadmap',
+        center:           { lat: mapData.target.lat, lng: mapData.target.lng },
+        zoom:             14,
+        mapTypeId:        'roadmap',
         styles: [
-          { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
+          { featureType: 'poi.business',   stylers: [{ visibility: 'off' }] },
           { featureType: 'poi.park', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-          { elementType: 'geometry', stylers: [{ color: '#f5f5f5' }] },
-          { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-          { featureType: 'road.arterial', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-          { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9d9e8' }] },
+          { elementType: 'geometry',       stylers: [{ color: '#f5f5f5' }] },
+          { elementType: 'labels.icon',    stylers: [{ visibility: 'off' }] },
+          { featureType: 'road',           elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+          { featureType: 'road.arterial',  elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+          { featureType: 'road.highway',   elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+          { featureType: 'water',          elementType: 'geometry', stylers: [{ color: '#c9d9e8' }] },
         ],
-        disableDefaultUI: false,
-        zoomControl: true,
-        mapTypeControl: false,
+        disableDefaultUI:  false,
+        zoomControl:       true,
+        mapTypeControl:    false,
         streetViewControl: false,
         fullscreenControl: true,
-        // Better touch on mobile
-        gestureHandling: 'cooperative',
+        gestureHandling:   'cooperative',
       })
 
       mapInstanceRef.current = map
+      drawOverlays(map, mapData)
 
-      // Demand zone circle
-      const zoneStyle = ZONE_COLORS[mapData.demand.zone]
-      new window.google.maps.Circle({
-        strokeColor: zoneStyle.stroke,
-        strokeOpacity: 1, strokeWeight: 2,
-        fillColor: zoneStyle.fill, fillOpacity: 1,
-        map,
-        center: { lat: mapData.target.lat, lng: mapData.target.lng },
-        radius: 3000,
-      })
+      // Show "Search this area" button immediately on drag start
+      map.addListener('dragstart', () => setShowSearchHere(true))
 
-      // Target centre marker — show compact score on marker (e.g. "75" not "75.0")
-      const markerScore = Math.round(overall_score).toString()
-      const targetMarker = new window.google.maps.Marker({
-        position: { lat: mapData.target.lat, lng: mapData.target.lng },
-        map,
-        title: centre_name,
-        icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
-          scale: 22,
-          fillColor: '#0d1b2a',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 3,
-        },
-        label: {
-          text: markerScore,
-          color: '#ffffff',
-          fontSize: '11px',
-          fontWeight: '700',
-          fontFamily: 'DM Sans',
-        },
-        zIndex: 100,
-      })
-
-      const targetInfo = new window.google.maps.InfoWindow({
-        content: `
-          <div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:180px">
-            <div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:4px">${centre_name}</div>
-            <div style="font-size:11px;color:#5a7a94">${address}, ${suburb}</div>
-            <div style="margin-top:8px;display:flex;gap:8px">
-              <span style="background:#0d1b2a;color:#fff;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:700">${markerScore}/100</span>
-              <span style="background:rgba(0,180,160,0.1);color:#00b4a0;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600">${licensed_places} places</span>
-            </div>
-          </div>
-        `,
-      })
-      targetMarker.addListener('click', () => targetInfo.open(map, targetMarker))
-
-      // Competitor markers
-      mapData.competitors.slice(0, 20).forEach((comp, i) => {
-        const color = nqsColor(comp.nqs_rating)
-        const marker = new window.google.maps.Marker({
-          position: { lat: comp.lat, lng: comp.lng },
-          map,
-          title: comp.name,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 16,
-            fillColor: color, fillOpacity: 0.9,
-            strokeColor: '#ffffff', strokeWeight: 2,
-          },
-          label: { text: 'C', color: '#ffffff', fontSize: '10px', fontWeight: '700' },
-          zIndex: 50 - i,
-        })
-
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:180px">
-              <div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:2px">${comp.name}</div>
-              <div style="font-size:11px;color:#5a7a94;margin-bottom:8px">${comp.suburb} · ${(comp.distance_m / 1000).toFixed(1)}km away</div>
-              <div style="display:flex;flex-direction:column;gap:4px">
-                <div style="display:flex;justify-content:space-between;font-size:12px">
-                  <span style="color:#5a7a94">Licensed places</span>
-                  <span style="font-weight:600;color:#0d1b2a">${comp.licensed_places || '—'}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;font-size:12px">
-                  <span style="color:#5a7a94">NQS Rating</span>
-                  <span style="font-weight:600;color:${color}">${comp.nqs_rating || '—'}</span>
-                </div>
-              </div>
-            </div>
-          `,
-        })
-        marker.addListener('click', () => { infoWindow.open(map, marker); setSelectedCompetitor(comp) })
+      // Auto-update 500ms after drag stops
+      map.addListener('idle', () => {
+        if (dragDebounceRef.current) clearTimeout(dragDebounceRef.current)
+        dragDebounceRef.current = setTimeout(() => refreshForCentre(map, false), 500)
       })
     }
 
@@ -225,12 +302,33 @@ export default function CompetitiveMap({
       initMap()
     } else {
       window.initAcquiraMap = initMap
-      const script = document.createElement('script')
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initAcquiraMap`
-      script.async = true; script.defer = true
+      const script    = document.createElement('script')
+      script.src      = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initAcquiraMap`
+      script.async    = true
+      script.defer    = true
       document.head.appendChild(script)
     }
-  }, [mapData])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapData === null ? null : 'loaded'])
+
+  // ── Manual "Search this area" ──────────────────────────────────────────────
+  async function handleSearchHere() {
+    if (dragDebounceRef.current) clearTimeout(dragDebounceRef.current)
+    if (mapInstanceRef.current) await refreshForCentre(mapInstanceRef.current, true)
+  }
+
+  // ── Reset to original centre ───────────────────────────────────────────────
+  async function handleResetLocation() {
+    if (dragDebounceRef.current) clearTimeout(dragDebounceRef.current)
+    setShowSearchHere(false)
+    setIsExploring(false)
+    const newData = await fetchMapData({ isRefresh: true })
+    if (newData && mapInstanceRef.current) {
+      mapInstanceRef.current.panTo({ lat: newData.target.lat, lng: newData.target.lng })
+      mapInstanceRef.current.setZoom(14)
+      drawOverlays(mapInstanceRef.current, newData)
+    }
+  }
 
   const zone      = mapData?.demand.zone
   const zoneStyle = zone ? ZONE_COLORS[zone] : null
@@ -238,19 +336,41 @@ export default function CompetitiveMap({
   return (
     <>
       <style>{`
-        .cmap-demand-grid { display: grid; grid-template-columns: repeat(4,1fr); }
+        .cmap-demand-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
         .cmap-comp-table  { display: table; }
-        .cmap-comp-col-suburb,
-        .cmap-comp-col-places { display: table-cell; }
+        .cmap-comp-col-suburb, .cmap-comp-col-places { display: table-cell; }
 
         @media (max-width: 640px) {
-          .cmap-header        { flex-direction: column; align-items: flex-start !important; gap: 8px !important; }
-          .cmap-map           { height: 260px !important; }
-          .cmap-demand-grid   { grid-template-columns: repeat(2,1fr) !important; }
-          .cmap-demand-cell   { border-bottom: 1px solid #e2e8f0; }
-          .cmap-comp-col-suburb,
-          .cmap-comp-col-places { display: none !important; }
-          .cmap-legend        { flex-wrap: wrap; }
+          .cmap-header      { flex-direction: column; align-items: flex-start !important; gap: 8px !important; }
+          .cmap-map         { height: 260px !important; }
+          .cmap-demand-grid { grid-template-columns: repeat(2,1fr) !important; }
+          .cmap-demand-cell { border-bottom: 1px solid #e2e8f0; }
+          .cmap-comp-col-suburb, .cmap-comp-col-places { display: none !important; }
+          .cmap-legend      { flex-wrap: wrap; }
+        }
+
+        .search-here-btn {
+          position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+          z-index: 10; background: #0d1b2a; color: #fff; border: none;
+          border-radius: 100px; padding: 8px 18px; font-size: 12px; font-weight: 700;
+          font-family: 'DM Sans', sans-serif; cursor: pointer;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+          display: flex; align-items: center; gap: 6px;
+          transition: background 0.15s; white-space: nowrap;
+        }
+        .search-here-btn:hover { background: #00b4a0; }
+
+        .refresh-overlay {
+          position: absolute; inset: 0; background: rgba(255,255,255,0.5);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 5; pointer-events: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+          width: 28px; height: 28px;
+          border: 3px solid rgba(0,180,160,0.2);
+          border-top-color: #00b4a0; border-radius: 50%;
+          animation: spin 0.7s linear infinite;
         }
       `}</style>
 
@@ -260,43 +380,76 @@ export default function CompetitiveMap({
         <div className="cmap-header" style={{ padding: '14px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0d1b2a' }}>Competitive Map</div>
-            <div style={{ fontSize: 11, color: '#5a7a94', marginTop: 2 }}>3km catchment · Long day care centres only</div>
-          </div>
-          {mapData && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: zoneStyle?.color }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: zoneStyle?.color, display: 'inline-block' }} />
-                {zoneStyle?.label}
-              </div>
-              <div style={{ width: 1, height: 16, background: '#e2e8f0' }} />
-              <div style={{ fontSize: 12, color: '#5a7a94' }}>
-                <strong style={{ color: '#0d1b2a' }}>{mapData.stats.total_competitors}</strong> competitors
-              </div>
+            <div style={{ fontSize: 11, color: '#5a7a94', marginTop: 2 }}>
+              3km catchment · Long day care centres only
+              {isExploring && <span style={{ color: '#f59e0b', marginLeft: 6, fontWeight: 600 }}>· Exploring new location</span>}
             </div>
-          )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {isExploring && (
+              <button
+                onClick={handleResetLocation}
+                style={{
+                  fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
+                  background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                  border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                ↩ Back to centre
+              </button>
+            )}
+            {mapData && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: zoneStyle?.color }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: zoneStyle?.color, display: 'inline-block' }} />
+                  {zoneStyle?.label}
+                </div>
+                <div style={{ width: 1, height: 16, background: '#e2e8f0' }} />
+                <div style={{ fontSize: 12, color: '#5a7a94' }}>
+                  <strong style={{ color: '#0d1b2a' }}>{mapData.stats.total_competitors}</strong> competitors
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* ── Map canvas ── */}
         <div style={{ position: 'relative' }}>
           {loading && (
-            <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+            <div style={{ height: 380, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
               <div style={{ textAlign: 'center', color: '#5a7a94' }}>
                 <div style={{ fontSize: 24, marginBottom: 8 }}>🗺️</div>
                 <div style={{ fontSize: 13 }}>Loading competitive map…</div>
               </div>
             </div>
           )}
-          {error && (
-            <div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+          {error && !loading && (
+            <div style={{ height: 380, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
               <div style={{ textAlign: 'center', color: '#ef4444' }}>
                 <div style={{ fontSize: 13 }}>{error}</div>
               </div>
             </div>
           )}
+
+          {/* "Search this area" pill — floats over map after drag */}
+          {!loading && !error && showSearchHere && (
+            <button className="search-here-btn" onClick={handleSearchHere}>
+              🔍 Search this area
+            </button>
+          )}
+
+          {/* Refresh spinner overlay */}
+          {refreshing && (
+            <div className="refresh-overlay">
+              <div className="spinner" />
+            </div>
+          )}
+
           <div
             className="cmap-map"
             ref={mapRef}
-            style={{ height: 380, display: loading || error ? 'none' : 'block' }}
+            style={{ height: 380, display: loading || (error && !mapData) ? 'none' : 'block' }}
           />
         </div>
 
@@ -304,18 +457,34 @@ export default function CompetitiveMap({
         {mapData && (
           <div className="cmap-demand-grid" style={{ borderTop: '1px solid #e2e8f0' }}>
             {[
-              { label: 'Kids 0–4 (est.)',       value: mapData.demand.estimated_kids_0to4.toLocaleString() },
-              { label: 'Total licensed places',  value: mapData.demand.total_licensed_places.toLocaleString() },
-              { label: 'Kids per place',         value: mapData.demand.kids_per_place.toFixed(1), color: zoneStyle?.color },
-              { label: 'Exceeding NQS nearby',   value: mapData.stats.exceeding_nqs.toString() },
+              {
+                label:    'Kids 0–4',
+                value:    mapData.demand.estimated_kids_0to4.toLocaleString(),
+                subtitle: mapData.demand.data_source
+                  ? `${mapData.demand.data_source}${mapData.demand.census_year ? ` · ${mapData.demand.census_year}` : ''}`
+                  : 'Postcode estimate',
+              },
+              {
+                label:    'Licensed places (3km)',
+                value:    mapData.demand.total_licensed_places.toLocaleString(),
+                subtitle: `${mapData.stats.total_competitors} centre${mapData.stats.total_competitors !== 1 ? 's' : ''} incl. target`,
+              },
+              {
+                label:    'Kids per place',
+                value:    mapData.demand.kids_per_place.toFixed(1),
+                subtitle: `${ZONE_COLORS[mapData.demand.zone].label} market`,
+                color:    zoneStyle?.color,
+              },
+              {
+                label:    'Exceeding NQS nearby',
+                value:    mapData.stats.exceeding_nqs.toString(),
+                subtitle: `of ${mapData.stats.total_competitors} competitors`,
+              },
             ].map((stat, i) => (
               <div
                 key={stat.label}
                 className="cmap-demand-cell"
-                style={{
-                  padding: '10px 14px',
-                  borderRight: i < 3 ? '1px solid #e2e8f0' : undefined,
-                }}
+                style={{ padding: '10px 14px', borderRight: i < 3 ? '1px solid #e2e8f0' : undefined }}
               >
                 <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#5a7a94', marginBottom: 4 }}>
                   {stat.label}
@@ -323,6 +492,11 @@ export default function CompetitiveMap({
                 <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 18, fontWeight: 500, color: stat.color || '#0d1b2a' }}>
                   {stat.value}
                 </div>
+                {stat.subtitle && (
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3, lineHeight: 1.4 }}>
+                    {stat.subtitle}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -331,7 +505,6 @@ export default function CompetitiveMap({
         {/* ── Competitor list ── */}
         {mapData && mapData.competitors.length > 0 && (
           <div style={{ borderTop: '1px solid #e2e8f0' }}>
-            {/* Toggle header — tappable on mobile */}
             <button
               onClick={() => setShowList(p => !p)}
               style={{
@@ -408,7 +581,7 @@ export default function CompetitiveMap({
   )
 }
 
-// ── Table styles ──────────────────────────────────────────────────────────────
+// ── Table styles ───────────────────────────────────────────────────────────────
 const thStyle: React.CSSProperties = {
   padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700,
   letterSpacing: '0.06em', textTransform: 'uppercase', color: '#5a7a94',
