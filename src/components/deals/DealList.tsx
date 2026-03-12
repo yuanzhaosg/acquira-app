@@ -3,17 +3,26 @@
 import { useEffect, useState } from 'react'
 import { listDeals, deleteDeal, type DealRecord } from '@/lib/deals'
 
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+// v2: scores are 0–100
+
+function resolveDisplayScore(deal: DealRecord): number | null {
+  if (deal.total_score != null) return deal.total_score
+  if (deal.overall_score != null) return deal.overall_score * 10  // v1 backfill
+  return null
+}
+
 function scoreColor(score: number): string {
-  if (score >= 7) return '#22c55e'
-  if (score >= 5.5) return '#00b4a0'
-  if (score >= 4) return '#f59e0b'
+  if (score >= 70) return '#22c55e'
+  if (score >= 55) return '#00b4a0'
+  if (score >= 40) return '#f59e0b'
   return '#ef4444'
 }
 
 function scoreBg(score: number): string {
-  if (score >= 7) return 'rgba(34,197,94,0.08)'
-  if (score >= 5.5) return 'rgba(0,180,160,0.08)'
-  if (score >= 4) return 'rgba(245,158,11,0.08)'
+  if (score >= 70) return 'rgba(34,197,94,0.08)'
+  if (score >= 55) return 'rgba(0,180,160,0.08)'
+  if (score >= 40) return 'rgba(245,158,11,0.08)'
   return 'rgba(239,68,68,0.08)'
 }
 
@@ -29,20 +38,13 @@ function fmt(n: number | null | undefined, suffix = ''): string {
   return `${n.toFixed(1)}${suffix}`
 }
 
-function StatPill({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 10, fontFamily: 'IBM Plex Mono, monospace', color: 'rgba(255,255,255,0.28)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 500, color: color ?? 'rgba(255,255,255,0.7)' }}>{value}</span>
-    </div>
-  )
-}
+// ── COMPONENTS ────────────────────────────────────────────────────────────────
 
 export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => void; onNew: () => void }) {
-  const [deals, setDeals] = useState<DealRecord[]>([])
+  const [deals, setDeals]     = useState<DealRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [hovered, setHovered] = useState<string | null>(null)
+  const [hovered, setHovered]   = useState<string | null>(null)
 
   useEffect(() => {
     listDeals().then(d => { setDeals(d); setLoading(false) })
@@ -78,8 +80,16 @@ export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => vo
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 640px) {
+          .deal-list-header { display: none !important; }
+          .deal-list-row    { grid-template-columns: 1fr auto 32px !important; gap: 10px !important; padding: 14px 16px !important; }
+          .deal-col-occ, .deal-col-ebitda, .deal-col-asking { display: none !important; }
+        }
+      `}</style>
+
       {/* Column headers */}
-      <div style={{
+      <div className="deal-list-header" style={{
         display: 'grid', gridTemplateColumns: '1fr 72px 80px 90px 80px 36px',
         gap: 16, padding: '12px 24px',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -91,16 +101,22 @@ export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => vo
         <span>Occupancy</span>
         <span>EBITDA</span>
         <span>Asking</span>
-        <span></span>
+        <span />
       </div>
 
       {deals.map((deal, idx) => {
-        const color = scoreColor(deal.overall_score ?? 0)
-        const bg = scoreBg(deal.overall_score ?? 0)
+        const displayScore = resolveDisplayScore(deal)
+        const color = scoreColor(displayScore ?? 0)
+        const bg    = scoreBg(displayScore ?? 0)
         const isHovered = hovered === deal.id
+        const hasCritical = deal.has_critical_flags
+          ?? (deal.scored?.deal_breaker_flags?.flags?.some(f => f.triggered && f.severity === 'critical'))
+          ?? false
+
         return (
           <div
             key={deal.id}
+            className="deal-list-row"
             onClick={() => onOpen(deal.id)}
             onMouseEnter={() => setHovered(deal.id)}
             onMouseLeave={() => setHovered(null)}
@@ -115,8 +131,21 @@ export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => vo
           >
             {/* Centre info */}
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4, color: '#e8edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {deal.centre_name ?? '—'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 15, color: '#e8edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {deal.centre_name ?? '—'}
+                </span>
+                {/* Critical flag indicator */}
+                {hasCritical && (
+                  <span style={{
+                    fontFamily: 'IBM Plex Mono, monospace', fontSize: 9, fontWeight: 700,
+                    color: '#ef4444', background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0
+                  }}>
+                    ⚑ CRITICAL
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {deal.state && (
@@ -130,7 +159,7 @@ export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => vo
               </div>
             </div>
 
-            {/* Score */}
+            {/* Score — now 0–100 */}
             <div style={{ textAlign: 'center' }}>
               <div style={{
                 display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
@@ -138,7 +167,7 @@ export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => vo
                 borderRadius: 8, padding: '6px 10px', minWidth: 52
               }}>
                 <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>
-                  {deal.overall_score?.toFixed(1) ?? '—'}
+                  {displayScore != null ? displayScore.toFixed(1) : '—'}
                 </span>
                 <span style={{ fontSize: 9, color, fontFamily: 'IBM Plex Mono, monospace', marginTop: 2, letterSpacing: '0.04em' }}>
                   {deal.verdict ?? ''}
@@ -147,17 +176,17 @@ export default function DealList({ onOpen, onNew }: { onOpen: (id: string) => vo
             </div>
 
             {/* Occupancy */}
-            <div style={{ fontSize: 14, fontWeight: 500, color: (deal.occupancy_pct ?? 0) >= 65 ? '#00b4a0' : (deal.occupancy_pct ?? 0) >= 50 ? '#f59e0b' : '#ef4444' }}>
+            <div className="deal-col-occ" style={{ fontSize: 14, fontWeight: 500, color: (deal.occupancy_pct ?? 0) >= 65 ? '#00b4a0' : (deal.occupancy_pct ?? 0) >= 50 ? '#f59e0b' : '#ef4444' }}>
               {fmt(deal.occupancy_pct, '%')}
             </div>
 
             {/* EBITDA */}
-            <div style={{ fontSize: 14, fontWeight: 500, color: (deal.ebitda ?? 0) > 0 ? 'rgba(255,255,255,0.8)' : '#ef4444' }}>
+            <div className="deal-col-ebitda" style={{ fontSize: 14, fontWeight: 500, color: (deal.ebitda ?? 0) > 0 ? 'rgba(255,255,255,0.8)' : '#ef4444' }}>
               {fmtM(deal.ebitda)}
             </div>
 
             {/* Asking */}
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
+            <div className="deal-col-asking" style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
               {fmtM(deal.asking_price)}
             </div>
 
