@@ -312,37 +312,114 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
 
       {/* ══════════════ PROBLEM ══════════════ */}
       <section style={{ background: 'var(--cream)', padding: '100px 48px' }} id="problem">
-        <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 80, alignItems: 'start', maxWidth: 1200, margin: '0 auto' }}>
-          <div>
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+
+          {/* Header */}
+          <div style={{ maxWidth: 760, marginBottom: 64 }}>
             <div className="land-fade" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--teal)', marginBottom: 16 }}>The Problem</div>
             <h2 className="land-fade d1" style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(32px, 3.5vw, 52px)', fontWeight: 900, letterSpacing: -1, lineHeight: 1.1, color: 'var(--navy)', marginBottom: 24 }}>
-              Two bad options.<br />We built a <em style={{ color: 'var(--teal)', fontStyle: 'italic' }}>third</em>.
+              Generic AI reads the IM.<br />We <em style={{ color: 'var(--teal)', fontStyle: 'italic' }}>underwrite</em> the deal.
             </h2>
-            <p className="land-fade d2" style={{ fontSize: 17, lineHeight: 1.75, color: 'var(--text-muted)', marginBottom: 20 }}>
-              When a broker sends you an Information Memorandum, your current options are: feed it to a generic AI that has no idea what "30-hour free kinder rollout" means — or spend 40 hours manually cross-checking ACECQA, ABS data, and driving past competitor car parks.
+            <p className="land-fade d2" style={{ fontSize: 17, lineHeight: 1.75, color: 'var(--text-muted)', marginBottom: 24 }}>
+              A broker sends an IM. You have days to decide. But the questions that actually determine whether it's a good deal aren't answered in the document:
             </p>
-            <p className="land-fade d3" style={{ fontSize: 17, lineHeight: 1.75, color: 'var(--text-muted)' }}>
-              Childcare acquisitions are local, policy-sensitive, and operationally complex. A general AI doesn't know that a VIC centre faces structurally different risk to an equivalent WA centre. It can't show you the 7 competing centres within 3km, or that there are 2,841 children aged 0–4 competing for 451 licensed places in the catchment.
+            <div className="land-fade d3" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+              {[
+                'How many children aged 0–4 live in the catchment vs licensed places available?',
+                'How many competing centres exist within 3km — and are any approved but not yet open?',
+                'Is the labour ratio structurally above benchmark, or a one-year anomaly?',
+                'Does the lease tail support financing — and what are the make-good obligations?',
+                'Is the asking price above market EBITDA multiples for this centre profile?',
+              ].map(q => (
+                <div key={q} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--teal)', fontWeight: 700, fontSize: 16, lineHeight: 1.6, flexShrink: 0 }}>→</span>
+                  <span style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.6 }}>{q}</span>
+                </div>
+              ))}
+            </div>
+            <p className="land-fade d4" style={{ fontSize: 17, lineHeight: 1.75, color: 'var(--text-muted)' }}>
+              Generic AI can summarise what's in the document. It can't answer what isn't. Acquira combines IM extraction with live regulatory data, demographic catchments, and 2,131 mapped VIC centres to turn every IM into a structured acquisition analysis — in 60 seconds.
             </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Persona pain cards */}
+          <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 48 }}>
             {[
-              { icon: '🤖', title: 'Generic AI (ChatGPT / Gemini)', text: 'No local competitor data. No demand gap analysis. No policy context. No consistent scoring. Just a summary of whatever you uploaded.', accent: 'var(--red)' },
-              { icon: '📊', title: 'Manual Spreadsheet Process', text: '40+ hours per deal. Call ACECQA. Cross-check ABS. Drive past competitors. Build formulas. Miss the approved sites in the pipeline.', accent: 'var(--red)' },
-              { icon: '✅', title: 'Acquira — Purpose-Built for Childcare', text: 'State-aware scoring. Competitive mapping. Demand vs supply gap. 17-dimension framework. Structured report in 60 seconds.', accent: 'var(--teal)' },
+              {
+                persona: 'Solo investor / SMSF buyer',
+                icon: '🏠',
+                pain: 'Every IM looks the same — revenue trending up, occupancy "stabilising", lease "secure". You can\'t distinguish a quality asset from a distressed one dressed up well. You won\'t find out until 12 months post-settlement.',
+                stakes: 'One bad deal can wipe a decade of contributions.',
+              },
+              {
+                persona: 'Operator seeking bolt-ons',
+                icon: '🏗️',
+                pain: 'You can read an IM. But you\'re evaluating 6 at once across multiple states while running existing centres. Manually cross-checking ACECQA, ABS data, and lease abstracts for each one doesn\'t scale.',
+                stakes: 'Your competition is moving faster than your spreadsheet.',
+              },
+              {
+                persona: 'Broker or acquisition advisor',
+                icon: '📋',
+                pain: 'Clients expect you to surface risks they can\'t see. But your process relies on the same manual templates it did in 2018. Inconsistent analysis across deals is a liability — and 40 hours per IM isn\'t sustainable.',
+                stakes: 'Your edge is speed and rigour. Protect both.',
+              },
+              {
+                persona: 'The common thread',
+                icon: '⚠️',
+                pain: 'None of them know a new 104-place centre was approved 800m away last month. None can tell if 50% occupancy is a seasonal dip or a structural problem. Generic AI can\'t tell them either.',
+                stakes: 'The risk isn\'t what\'s in the IM. It\'s what isn\'t.',
+                highlight: true,
+              },
             ].map((c) => (
-              <div key={c.title} className="land-fade problem-card" style={{
-                background: '#fff', border: '1px solid var(--cream-dark)',
-                borderRadius: 12, padding: 24, position: 'relative', overflow: 'hidden',
+              <div key={c.persona} className="land-fade problem-card" style={{
+                background: c.highlight ? 'var(--navy)' : '#fff',
+                border: c.highlight ? 'none' : '1px solid var(--cream-dark)',
+                borderRadius: 12, padding: 28, position: 'relative', overflow: 'hidden',
                 transition: 'transform 0.2s, box-shadow 0.2s',
               }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c.accent }} />
-                <div style={{ fontSize: 22, marginBottom: 10 }}>{c.icon}</div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--navy)', marginBottom: 6 }}>{c.title}</h3>
-                <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-muted)' }}>{c.text}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: c.highlight ? 'rgba(239,68,68,0.15)' : 'rgba(0,180,160,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                    {c.icon}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: c.highlight ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{c.persona}</div>
+                </div>
+                <p style={{ fontSize: 14, lineHeight: 1.7, color: c.highlight ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)', marginBottom: 16 }}>{c.pain}</p>
+                <div style={{ fontSize: 13, fontWeight: 700, color: c.highlight ? '#ef4444' : 'var(--navy)', padding: '10px 14px', background: c.highlight ? 'rgba(239,68,68,0.1)' : 'var(--cream)', borderRadius: 8, borderLeft: `3px solid ${c.highlight ? '#ef4444' : 'var(--teal)'}` }}>
+                  {c.stakes}
+                </div>
               </div>
             ))}
           </div>
+
+          {/* Acquira answer strip */}
+          <div className="land-fade" style={{
+            background: 'var(--navy)', borderRadius: 12, padding: '32px 40px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 40, flexWrap: 'wrap',
+          }}>
+            <div style={{ flex: 1, minWidth: 280 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--teal)', marginBottom: 10 }}>The Acquira Answer</div>
+              <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 900, color: '#fff', lineHeight: 1.2, marginBottom: 12 }}>
+                Purpose-built intelligence for childcare acquisitions.
+              </h3>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: 520 }}>
+                AI + local market intelligence. State-aware scoring across 17 dimensions, live competitor data from 2,131 mapped VIC centres, demographic catchments, and deal-breaker flags. Structured acquisition analysis in 60 seconds — not 40 hours.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 200 }}>
+              {[
+                { stat: '60s', label: 'from IM to full report' },
+                { stat: '17', label: 'scoring dimensions' },
+                { stat: '2,131', label: 'VIC centres mapped' },
+              ].map(s => (
+                <div key={s.label} style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 900, color: 'var(--teal)', lineHeight: 1, minWidth: 60 }}>{s.stat}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </section>
 
