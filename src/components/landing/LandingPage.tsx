@@ -256,11 +256,11 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
                   <div style={{ fontSize: 9, color: '#00b4a0', fontWeight: 700, letterSpacing: '0.05em' }}>Attractive</div>
                 </div>
                 {[
-                  { label: 'Demand', val: 7, color: '#00b4a0' },
-                  { label: 'Labour', val: 7, color: '#00b4a0' },
-                  { label: 'Revenue', val: 7, color: '#00b4a0' },
-                  { label: 'Lease', val: 8, color: '#22c55e' },
-                  { label: 'Valuation', val: 6, color: '#f59e0b' },
+                  { label: 'Demand', val: 70, color: '#00b4a0' },
+                  { label: 'Labour', val: 72, color: '#00b4a0' },
+                  { label: 'Revenue', val: 68, color: '#00b4a0' },
+                  { label: 'Lease', val: 78, color: '#22c55e' },
+                  { label: 'Valuation', val: 61, color: '#f59e0b' },
                 ].map(d => (
                   <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, padding: '2px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <span style={{ color: 'rgba(255,255,255,0.45)' }}>{d.label}</span>
@@ -282,11 +282,11 @@ export default function LandingPage({ onGoToApp }: LandingPageProps) {
             <div style={{ padding: '8px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 5 }}>Conditionals</div>
               {[
-                { id: 'D1', text: 'Occupancy uplift to 80%+ within 12 months', impact: '+0.8' },
-                { id: 'D8', text: 'Confirm asking price — POA limits valuation certainty', impact: '-1.0' },
+                { id: 'occupancy', text: 'Occupancy uplift to 80%+ within 12 months', impact: '+8' },
+                { id: 'valuation', text: 'Confirm asking price — POA limits valuation certainty', impact: '-6' },
               ].map(c => (
                 <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '1px 6px', borderRadius: 4, flexShrink: 0 }}>{c.id}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '1px 6px', borderRadius: 4, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{c.id}</span>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', flex: 1 }}>{c.text}</span>
                   <span style={{ fontSize: 10, fontFamily: "'DM Mono', monospace", color: c.impact.startsWith('+') ? '#22c55e' : '#ef4444', flexShrink: 0 }}>{c.impact}</span>
                 </div>
