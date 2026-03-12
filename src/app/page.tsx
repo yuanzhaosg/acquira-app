@@ -13,7 +13,7 @@ import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 
 // ── Sample deal for unauthenticated preview ────────────────────────────────────
-const SAMPLE_EXTRACTED: Partial<ExtractedDeal> = {
+const SAMPLE_EXTRACTED = {
   centre_name: 'Bayside Early Learning Centre',
   address: '12 Marine Parade',
   suburb: 'Brighton',
@@ -27,7 +27,7 @@ const SAMPLE_EXTRACTED: Partial<ExtractedDeal> = {
   nqs_rating: 'Meeting NQS',
 }
 
-const SAMPLE_SCORED: Partial<ScoredDeal> = {
+const SAMPLE_SCORED = {
   scoring_version: 'v2-sample',
   scoring_timestamp: new Date().toISOString(),
   centre_name: 'Bayside Early Learning Centre',
@@ -106,8 +106,8 @@ export default function Home() {
       <>
         {showAuth && <AuthModal onClose={handleAuthClose} />}
         <ReportView
-          extracted={SAMPLE_EXTRACTED as ExtractedDeal}
-          scored={SAMPLE_SCORED as ScoredDeal}
+          extracted={SAMPLE_EXTRACTED as unknown as ExtractedDeal}
+          scored={SAMPLE_SCORED as unknown as ScoredDeal}
           dealId={null}
           onBack={() => setView('landing')}
           onNew={handleUploadIntent}
