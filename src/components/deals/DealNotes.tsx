@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useAuth } from "@/lib/useAuth";
+import { supabase } from "@/lib/useAuth";
 
 interface DealNotesProps {
   dealId: string;
@@ -9,7 +9,7 @@ interface DealNotesProps {
 }
 
 export default function DealNotes({ dealId, initialNotes }: DealNotesProps) {
-  const { supabase } = useAuth();
+  
   const [notes, setNotes] = useState(initialNotes ?? "");
   const [saved, setSaved] = useState(true);
   const [saving, setSaving] = useState(false);
