@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@/lib/useAuth";
+import { useAuth, supabase } from "@/lib/useAuth";
 
 // Using the Deal type from Supabase — not ScoredDeal
 interface DealRow {
@@ -32,7 +32,7 @@ const STATUS_COLORS: Record<DealStatus, string> = {
 };
 
 export default function DealList({ onOpen, onNew }: DealListProps) {
-  const { supabase, session } = useAuth();
+  const { session } = useAuth()
   const [deals, setDeals]               = useState<DealRow[]>([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
     } finally {
       setLoading(false);
     }
-  }, [supabase, session]);
+  }, [session]);
 
   useEffect(() => { fetchDeals(); }, [fetchDeals]);
 
