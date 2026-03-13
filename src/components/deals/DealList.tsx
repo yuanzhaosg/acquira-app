@@ -1,546 +1,262 @@
-'use client'
+"use client";
 
-import { useCallback, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useEffect, useState, useCallback } from "react";
+import { useAuth } from "@/lib/useAuth";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-// Accepted extensions — .doc rejected explicitly with a helpful message
-const ACCEPTED_EXTENSIONS = /\.(pdf|zip|docx|xlsx|xls|csv)$/i
-
-// Size limits — enforced before any upload starts
-const MAX_SINGLE_FILE_BYTES = 50  * 1024 * 1024  // 50 MB per file
-const MAX_ZIP_BYTES         = 200 * 1024 * 1024  // 200 MB for a ZIP data room
-const MAX_FILE_COUNT        = 30                  // matches Railway budget
-
-interface UploadWidgetProps {
-  onResult: (extracted: unknown, scored: unknown) => void
+// Using the Deal type from Supabase — not ScoredDeal
+interface DealRow {
+  id: string;
+  created_at: string;
+  centre_name: string | null;
+  address: string | null;
+  total_score: number | null;
+  status: string | null;
+  extracted: unknown;
+  scored: unknown;
 }
 
-interface ProgressStep {
-  step: number
-  total: number
-  label: string
-  detail?: string
+interface DealListProps {
+  onOpen: (id: string) => void;   // matches page.tsx usage
+  onNew: () => void;
 }
 
-interface FileUploadState {
-  name: string
-  pct: number
-  done: boolean
-}
+const STATUS_OPTIONS = ["Active", "LOI", "Under DD", "Passed", "Closed"] as const;
+type DealStatus = (typeof STATUS_OPTIONS)[number];
 
-type Stage =
-  | { kind: 'idle' }
-  | { kind: 'uploading'; files: FileUploadState[] }
-  | { kind: 'processing'; filenames: string[]; elapsed: number; progress: ProgressStep | null }
-  | { kind: 'error'; message: string; filenames?: string[] }
+const STATUS_COLORS: Record<DealStatus, string> = {
+  Active:     "bg-blue-100 text-blue-700",
+  LOI:        "bg-yellow-100 text-yellow-700",
+  "Under DD": "bg-purple-100 text-purple-700",
+  Passed:     "bg-red-100 text-red-700",
+  Closed:     "bg-green-100 text-green-700",
+};
 
-const PIPELINE_STEPS = [
-  { step: 1, label: 'Extract documents' },
-  { step: 2, label: 'Extract metrics' },
-  { step: 3, label: 'Score 17 dimensions' },
-  { step: 4, label: 'Generate report' },
-  { step: 5, label: 'Complete' },
-]
+export default function DealList({ onOpen, onNew }: DealListProps) {
+  const { supabase, session } = useAuth();
+  const [deals, setDeals]               = useState<DealRow[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
 
-function safeName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_')
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-export default function UploadWidget({ onResult }: UploadWidgetProps) {
-  const [stage, setStage]       = useState<Stage>({ kind: 'idle' })
-  const [dragging, setDragging] = useState(false)
-
-  const run = useCallback(async (files: File[]) => {
-    const ts = Date.now()
-    const filenames = files.map(f => f.name)
-
-    setStage({
-      kind: 'uploading',
-      files: files.map(f => ({ name: f.name, pct: 0, done: false })),
-    })
-
-    const storagePaths: string[] = []
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      // Timestamp + index prevents collisions between same-named files
-      const storagePath = `pipeline/${ts}-${i}-${safeName(file.name)}`
-
-      // Fake progress — Supabase JS SDK doesn't expose upload progress
-      const progressInterval = setInterval(() => {
-        setStage(prev => {
-          if (prev.kind !== 'uploading') return prev
-          const updated = [...prev.files]
-          updated[i] = { ...updated[i], pct: Math.min(updated[i].pct + 8, 88) }
-          return { ...prev, files: updated }
-        })
-      }, 400)
-
-      const { error } = await supabase.storage
-        .from('uploads')
-        .upload(storagePath, file, {
-          cacheControl: '300',
-          upsert: false,
-          contentType: file.type || 'application/octet-stream',
-        })
-
-      clearInterval(progressInterval)
-
-      if (error) {
-        // Clean up successfully uploaded files before showing error
-        if (storagePaths.length) {
-          supabase.storage.from('uploads').remove(storagePaths).catch(() => {})
-        }
-        setStage({
-          kind: 'error',
-          message: `Failed to upload ${file.name}: ${error.message}`,
-          filenames,
-        })
-        return
-      }
-
-      storagePaths.push(storagePath)
-
-      setStage(prev => {
-        if (prev.kind !== 'uploading') return prev
-        const updated = [...prev.files]
-        updated[i] = { ...updated[i], pct: 100, done: true }
-        return { ...prev, files: updated }
-      })
+  const fetchDeals = useCallback(async () => {
+    if (!session) {
+      setDeals([]);
+      setLoading(false);
+      return;
     }
-
-    await new Promise(r => setTimeout(r, 400))
-
-    // ── Trigger Railway pipeline ───────────────────────────────────────────
-    const startTime = Date.now()
-    setStage({ kind: 'processing', filenames, elapsed: 0, progress: null })
-
-    const elapsedInterval = setInterval(() => {
-      setStage(prev =>
-        prev.kind === 'processing'
-          ? { ...prev, elapsed: Math.floor((Date.now() - startTime) / 1000) }
-          : prev
-      )
-    }, 1000)
-
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch('/api/pipeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          storagePaths,
-          filenames,
-          storagePath: storagePaths[0],   // legacy compat
-          filename: filenames.join(', '), // legacy compat
-        }),
-      })
+      // supabase client from useAuth has the session attached —
+      // RLS automatically filters to auth.uid() = user_id
+      const { data, error: fetchError } = await supabase
+        .from("deals")
+        .select("id, created_at, centre_name, address, total_score, status")
+        .order("created_at", { ascending: false });
 
-      if (!res.ok || !res.body) {
-        clearInterval(elapsedInterval)
-        setStage({ kind: 'error', message: `Pipeline error: HTTP ${res.status}`, filenames })
-        return
-      }
-
-      const reader  = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer    = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const events = buffer.split('\n\n')
-        buffer = events.pop() ?? ''
-
-        for (const block of events) {
-          if (!block.trim()) continue
-          const eventMatch = block.match(/^event:\s*(.+)$/m)
-          const dataMatch  = block.match(/^data:\s*(.+)$/m)
-          if (!eventMatch || !dataMatch) continue
-
-          const eventType = eventMatch[1].trim()
-          let data: any
-          try { data = JSON.parse(dataMatch[1]) } catch { continue }
-
-          if (eventType === 'progress') {
-            setStage(prev =>
-              prev.kind === 'processing'
-                ? { ...prev, progress: data as ProgressStep }
-                : prev
-            )
-          } else if (eventType === 'complete') {
-            clearInterval(elapsedInterval)
-            onResult(data.extracted, data.scored)
-            return
-          } else if (eventType === 'error') {
-            clearInterval(elapsedInterval)
-            setStage({ kind: 'error', message: data.message || 'Pipeline failed', filenames })
-            return
-          }
-        }
-      }
-
-      clearInterval(elapsedInterval)
-      setStage({ kind: 'error', message: 'Pipeline ended unexpectedly', filenames })
-
-    } catch (err: any) {
-      clearInterval(elapsedInterval)
-      setStage({ kind: 'error', message: err.message || 'Network error', filenames })
+      if (fetchError) throw fetchError;
+      setDeals((data as DealRow[]) ?? []);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load deals");
+    } finally {
+      setLoading(false);
     }
-  }, [onResult])
+  }, [supabase, session]);
 
-  const handleFiles = useCallback((fileList: FileList | null) => {
-    if (!fileList?.length) return
-    const files = Array.from(fileList)
+  useEffect(() => { fetchDeals(); }, [fetchDeals]);
 
-    // Reject .doc — legacy binary format, not extractable
-    const legacyDoc = files.filter(f => f.name.toLowerCase().endsWith('.doc'))
-    if (legacyDoc.length) {
-      setStage({
-        kind: 'error',
-        message: `.doc files are not supported.\nPlease save as .docx and re-upload.`,
-      })
-      return
+  const handleStatusChange = async (
+    e: React.ChangeEvent<HTMLSelectElement>,
+    dealId: string
+  ) => {
+    e.stopPropagation();
+    const newStatus = e.target.value as DealStatus;
+    setUpdatingStatus(dealId);
+
+    const { error: updateError } = await supabase
+      .from("deals")
+      .update({ status: newStatus })
+      .eq("id", dealId);
+
+    if (updateError) {
+      console.error("Status update failed:", updateError.message);
+    } else {
+      setDeals(prev => prev.map(d => d.id === dealId ? { ...d, status: newStatus } : d));
     }
+    setUpdatingStatus(null);
+  };
 
-    // Reject unsupported extensions
-    const unsupported = files.filter(f => !f.name.match(ACCEPTED_EXTENSIONS))
-    if (unsupported.length) {
-      setStage({
-        kind: 'error',
-        message: `Unsupported file type: ${unsupported.map(f => f.name).join(', ')}\nAccepted: PDF, ZIP, DOCX, XLSX, XLS, CSV`,
-      })
-      return
-    }
+  // ── States ──────────────────────────────────────────────────────────────────
 
-    // Size checks per file
-    for (const file of files) {
-      const limit = file.name.match(/\.zip$/i) ? MAX_ZIP_BYTES : MAX_SINGLE_FILE_BYTES
-      if (file.size > limit) {
-        setStage({
-          kind: 'error',
-          message: `${file.name} is too large (${formatBytes(file.size)}).\nMaximum: ${formatBytes(limit)}.`,
-        })
-        return
-      }
-    }
+  if (!session) {
+    return (
+      <div style={{ textAlign: "center", padding: "48px 24px", color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+        Sign in to see your deals.
+      </div>
+    );
+  }
 
-    // File count cap
-    if (files.length > MAX_FILE_COUNT) {
-      setStage({
-        kind: 'error',
-        message: `Too many files (${files.length} selected, max ${MAX_FILE_COUNT}).\nFor large data rooms, use a single ZIP file instead.`,
-      })
-      return
-    }
+  if (loading) {
+    return (
+      <div style={{ padding: "32px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {[...Array(3)].map((_, i) => (
+          <div key={i} style={{ height: 72, borderRadius: 12, background: "rgba(255,255,255,0.04)", animation: "pulse 1.5s infinite" }} />
+        ))}
+      </div>
+    );
+  }
 
-    run(files)
-  }, [run])
+  if (error) {
+    return (
+      <div style={{ textAlign: "center", padding: "48px 24px", color: "#ef4444", fontSize: 13 }}>
+        {error}{" "}
+        <button onClick={fetchDeals} style={{ color: "#00b4a0", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    handleFiles(e.dataTransfer.files)
-  }, [handleFiles])
-
-  const s = stage
-
-  // For many files, show a condensed summary rather than 30 individual bars
-  const SHOW_INDIVIDUAL_BARS = 8
+  if (deals.length === 0) {
+    return (
+      <div style={{ textAlign: "center", padding: "80px 24px" }}>
+        <div style={{ fontSize: 32, marginBottom: 16 }}>📭</div>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 24 }}>
+          No deals yet. Score your first centre.
+        </div>
+        <button
+          onClick={onNew}
+          style={{
+            background: "#00b4a0", border: "none", borderRadius: 8,
+            padding: "10px 24px", color: "#0d1b2a", fontWeight: 700,
+            fontSize: 13, cursor: "pointer",
+          }}
+        >
+          + Upload IM
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <style>{`
-        @keyframes abounce {
-          0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
-          40%          { transform: scale(1);   opacity: 1; }
-        }
-        @keyframes stepFadeIn {
-          from { opacity: 0; transform: translateX(-6px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        .upload-wrap { max-width: 520px; margin: 0 auto; padding: 40px 24px; }
-        @media (max-width: 480px) {
-          .upload-wrap  { padding: 24px 16px; }
-          .upload-drop  { padding: 40px 20px !important; }
-          .upload-title { font-size: 16px !important; }
-          .upload-cta   { width: 100%; display: block; text-align: center; }
-        }
-      `}</style>
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+        <h2 style={{ fontFamily: "Space Grotesk, sans-serif", fontSize: 20, fontWeight: 700, color: "#e8edf3" }}>
+          Pipeline ({deals.length})
+        </h2>
+        <button
+          onClick={onNew}
+          style={{
+            background: "rgba(0,180,160,0.1)", border: "1px solid rgba(0,180,160,0.25)",
+            borderRadius: 6, padding: "6px 14px", color: "#00b4a0",
+            fontSize: 12, cursor: "pointer", fontWeight: 600,
+          }}
+        >
+          + New Deal
+        </button>
+      </div>
 
-      <div className="upload-wrap">
-
-        {/* ── IDLE ── */}
-        {s.kind === 'idle' && (
-          <label
-            className="upload-drop"
-            onDragOver={e => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-            style={{
-              display: 'block', cursor: 'pointer',
-              border: `2px dashed ${dragging ? '#00b4a0' : 'rgba(255,255,255,0.15)'}`,
-              borderRadius: 12, padding: '60px 32px', textAlign: 'center',
-              background: dragging ? 'rgba(0,180,160,0.06)' : 'rgba(255,255,255,0.02)',
-              transition: 'all 0.2s',
-            }}
-          >
-            <input
-              type="file"
-              accept=".pdf,.zip,.docx,.xlsx,.xls,.csv"
-              multiple
-              style={{ display: 'none' }}
-              onChange={e => handleFiles(e.target.files)}
-            />
-            <div style={{ fontSize: 40, marginBottom: 16 }}>📂</div>
-            <div className="upload-title" style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 8 }}>
-              Drop your IM here
-            </div>
-            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
-              PDF · DOCX · XLSX · ZIP data room
-            </div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginBottom: 20 }}>
-              Up to 30 files · ZIP extracted automatically
-            </div>
-            <div className="upload-cta" style={{
-              display: 'inline-block', background: '#00b4a0', color: '#0d1b2a',
-              fontWeight: 700, fontSize: 14, padding: '10px 24px', borderRadius: 8,
-            }}>
-              Choose files
-            </div>
-          </label>
-        )}
-
-        {/* ── UPLOADING ── */}
-        {s.kind === 'uploading' && (() => {
-          const doneCount = s.files.filter(f => f.done).length
-          const totalCount = s.files.length
-          const showBars = totalCount <= SHOW_INDIVIDUAL_BARS
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {deals.map((deal) => {
+          const status = (deal.status as DealStatus) ?? "Active";
+          const score  = deal.total_score;
 
           return (
-            <div style={{ padding: '40px 0' }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 6, textAlign: 'center' }}>
-                Uploading {doneCount} of {totalCount}…
-              </div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginBottom: 24 }}>
-                {s.files.find(f => !f.done)?.name ?? ''}
-              </div>
-
-              {showBars ? (
-                // Individual bars for small file sets
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {s.files.map((f, i) => (
-                    <div key={i}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{
-                          fontSize: 12,
-                          color: f.done ? 'rgba(255,255,255,0.35)' : '#fff',
-                          fontFamily: 'IBM Plex Mono, monospace',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          maxWidth: '82%',
-                        }}>
-                          {f.name}
-                        </span>
-                        <span style={{ fontSize: 12, flexShrink: 0, color: f.done ? '#00b4a0' : 'rgba(255,255,255,0.3)' }}>
-                          {f.done ? '✓' : `${f.pct}%`}
-                        </span>
-                      </div>
-                      <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 100, height: 4, overflow: 'hidden' }}>
-                        <div style={{
-                          height: '100%', borderRadius: 100,
-                          background: f.done ? '#00b4a0' : 'rgba(0,180,160,0.55)',
-                          width: `${f.pct}%`,
-                          transition: 'width 0.35s ease',
-                        }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                // Summary view for large file sets
-                <>
-                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 100, height: 6, overflow: 'hidden', marginBottom: 16 }}>
-                    <div style={{
-                      height: '100%', borderRadius: 100, background: '#00b4a0',
-                      width: `${(doneCount / totalCount) * 100}%`,
-                      transition: 'width 0.4s ease',
-                    }} />
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
-                    {s.files.map((f, i) => (
-                      <div
-                        key={i}
-                        title={f.name}
-                        style={{
-                          width: 8, height: 8, borderRadius: '50%',
-                          background: f.done
-                            ? '#00b4a0'
-                            : !s.files[i - 1]?.done && i === doneCount
-                            ? 'rgba(0,180,160,0.4)'
-                            : 'rgba(255,255,255,0.1)',
-                          transition: 'background 0.3s',
-                        }}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* ── PROCESSING ── */}
-        {s.kind === 'processing' && (
-          <div style={{ padding: '32px 0' }}>
-            {/* File pills — show up to 6, then summarise */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 24 }}>
-              {s.filenames.slice(0, 6).map((name, i) => (
-                <span key={i} style={{
-                  fontSize: 11, color: 'rgba(255,255,255,0.4)',
-                  fontFamily: 'IBM Plex Mono, monospace',
-                  background: 'rgba(255,255,255,0.05)',
-                  borderRadius: 4, padding: '2px 8px',
-                  maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
-                  {name}
-                </span>
-              ))}
-              {s.filenames.length > 6 && (
-                <span style={{
-                  fontSize: 11, color: 'rgba(255,255,255,0.3)',
-                  fontFamily: 'IBM Plex Mono, monospace',
-                  background: 'rgba(255,255,255,0.04)',
-                  borderRadius: 4, padding: '2px 8px',
-                }}>
-                  +{s.filenames.length - 6} more
-                </span>
-              )}
-            </div>
-
-            {/* Step checklist */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
-              {PIPELINE_STEPS.map(({ step, label }) => {
-                const cur       = s.progress?.step ?? 0
-                const isDone    = step < cur
-                const isActive  = step === cur
-                const isPending = step > cur
-
-                return (
-                  <div key={step} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 12,
-                    opacity: isPending ? 0.3 : 1,
-                    animation: isActive ? 'stepFadeIn 0.3s ease' : undefined,
-                    transition: 'opacity 0.3s',
-                  }}>
-                    <div style={{
-                      width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isDone
-                        ? '#00b4a0'
-                        : isActive ? 'rgba(0,180,160,0.15)' : 'rgba(255,255,255,0.06)',
-                      border: isActive ? '2px solid #00b4a0' : '2px solid transparent',
-                      marginTop: 1,
-                    }}>
-                      {isDone ? (
-                        <span style={{ color: '#0d1b2a', fontWeight: 700, fontSize: 11 }}>✓</span>
-                      ) : isActive ? (
-                        <div style={{
-                          width: 6, height: 6, borderRadius: '50%', background: '#00b4a0',
-                          animation: 'abounce 1s infinite ease-in-out',
-                        }} />
-                      ) : (
-                        <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 9 }}>{step}</span>
-                      )}
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: 13,
-                        fontWeight: isActive ? 600 : 400,
-                        color: isDone
-                          ? 'rgba(255,255,255,0.4)'
-                          : isActive ? '#fff' : 'rgba(255,255,255,0.25)',
-                      }}>
-                        {label}
-                      </div>
-                      {isActive && s.progress?.detail && (
-                        <div style={{
-                          fontSize: 11, color: 'rgba(255,255,255,0.35)',
-                          fontFamily: 'IBM Plex Mono, monospace', marginTop: 3,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {s.progress.detail}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 100, height: 3, overflow: 'hidden', marginBottom: 12 }}>
-              <div style={{
-                height: '100%', borderRadius: 100, background: '#00b4a0',
-                width: `${((s.progress?.step ?? 0) / 5) * 100}%`,
-                transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)',
-              }} />
-            </div>
-
-            <div style={{
-              fontSize: 11, color: 'rgba(255,255,255,0.25)',
-              fontFamily: 'IBM Plex Mono, monospace', textAlign: 'center',
-            }}>
-              {s.elapsed}s · typically 45–120s for large data rooms
-            </div>
-          </div>
-        )}
-
-        {/* ── ERROR ── */}
-        {s.kind === 'error' && (
-          <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <div style={{ fontSize: 32, marginBottom: 16 }}>⚠️</div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: '#fff', marginBottom: 8 }}>Something went wrong</div>
-            {s.filenames?.length && (
-              <div style={{
-                fontSize: 12, color: 'rgba(255,255,255,0.35)',
-                fontFamily: 'IBM Plex Mono, monospace', marginBottom: 12,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {s.filenames.slice(0, 3).join(' · ')}
-                {s.filenames.length > 3 ? ` +${s.filenames.length - 3} more` : ''}
-              </div>
-            )}
-            <div style={{
-              fontSize: 13, color: '#ef4444', marginBottom: 28,
-              lineHeight: 1.6, whiteSpace: 'pre-line',
-            }}>
-              {s.message}
-            </div>
-            <button
-              onClick={() => setStage({ kind: 'idle' })}
+            <div
+              key={deal.id}
+              onClick={() => onOpen(deal.id)}
               style={{
-                background: 'none', border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 8, padding: '10px 24px', color: 'rgba(255,255,255,0.6)',
-                fontSize: 13, cursor: 'pointer', width: 'min(100%, 200px)',
+                cursor: "pointer",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.02)",
+                padding: "14px 16px",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(0,180,160,0.3)";
+                (e.currentTarget as HTMLDivElement).style.background  = "rgba(0,180,160,0.04)";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.08)";
+                (e.currentTarget as HTMLDivElement).style.background  = "rgba(255,255,255,0.02)";
               }}
             >
-              Try again
-            </button>
-          </div>
-        )}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                {/* Left */}
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: "#e8edf3", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {deal.centre_name ?? "Unnamed"}
+                  </p>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "3px 0 0", fontFamily: "IBM Plex Mono, monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {deal.address ?? "—"}
+                  </p>
+                </div>
 
+                {/* Score badge */}
+                {score != null && (
+                  <span style={{
+                    flexShrink: 0,
+                    borderRadius: 6, padding: "2px 8px",
+                    fontSize: 13, fontWeight: 700,
+                    fontFamily: "Space Grotesk, sans-serif",
+                    background: score >= 70 ? "rgba(34,197,94,0.12)"
+                      : score >= 50 ? "rgba(245,158,11,0.12)"
+                      : "rgba(239,68,68,0.12)",
+                    color: score >= 70 ? "#22c55e"
+                      : score >= 50 ? "#f59e0b"
+                      : "#ef4444",
+                  }}>
+                    {score.toFixed(0)}
+                  </span>
+                )}
+              </div>
+
+              {/* Status + date row */}
+              <div
+                style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}
+                onClick={e => e.stopPropagation()}
+              >
+                <select
+                  value={status}
+                  onChange={e => handleStatusChange(e, deal.id)}
+                  disabled={updatingStatus === deal.id}
+                  style={{
+                    fontSize: 11, fontWeight: 600, borderRadius: 20,
+                    padding: "2px 20px 2px 8px", border: "none", outline: "none",
+                    cursor: "pointer", appearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 5px center",
+                    opacity: updatingStatus === deal.id ? 0.5 : 1,
+                    // Inline colour since Tailwind classes aren't available here
+                    background: status === "Active"    ? "#dbeafe" :
+                                status === "LOI"       ? "#fef9c3" :
+                                status === "Under DD"  ? "#f3e8ff" :
+                                status === "Passed"    ? "#fee2e2" :
+                                                         "#dcfce7",
+                    color:      status === "Active"    ? "#1d4ed8" :
+                                status === "LOI"       ? "#854d0e" :
+                                status === "Under DD"  ? "#6b21a8" :
+                                status === "Passed"    ? "#b91c1c" :
+                                                         "#15803d",
+                  }}
+                >
+                  {STATUS_OPTIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", fontFamily: "IBM Plex Mono, monospace" }}>
+                  {deal.created_at
+                    ? new Date(deal.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "2-digit" })
+                    : ""}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </>
-  )
+    </div>
+  );
 }
