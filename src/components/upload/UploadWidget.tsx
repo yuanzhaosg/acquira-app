@@ -12,8 +12,8 @@ const supabase = createClient(
 const ACCEPTED_EXTENSIONS = /\.(pdf|zip|docx|xlsx|xls|csv)$/i
 
 // Size limits — enforced before any upload starts
-const MAX_SINGLE_FILE_BYTES = 50  * 1024 * 1024  // 50 MB per file
-const MAX_ZIP_BYTES         = 200 * 1024 * 1024  // 200 MB for a ZIP data room
+const MAX_SINGLE_FILE_BYTES = 500 * 1024 * 1024  // 500 MB per file
+const MAX_ZIP_BYTES         = 500 * 1024 * 1024  // 500 MB for a ZIP data room
 const MAX_FILE_COUNT        = 30                  // matches Railway budget
 
 interface UploadWidgetProps {
@@ -76,25 +76,55 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
       // Timestamp + index prevents collisions between same-named files
       const storagePath = `pipeline/${ts}-${i}-${safeName(file.name)}`
 
-      // Fake progress — Supabase JS SDK doesn't expose upload progress
-      const progressInterval = setInterval(() => {
-        setStage(prev => {
-          if (prev.kind !== 'uploading') return prev
-          const updated = [...prev.files]
-          updated[i] = { ...updated[i], pct: Math.min(updated[i].pct + 8, 88) }
-          return { ...prev, files: updated }
-        })
-      }, 400)
+      // Upload via XHR — gives real progress + no fetch() timeout on large files
+      const uploadError = await new Promise<string | null>((resolve) => {
+        supabase.auth.getSession().then(({ data }) => {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+          const anonKey    = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          const token      = data.session?.access_token ?? anonKey
+          const url        = `${supabaseUrl}/storage/v1/object/uploads/${storagePath}`
 
-      const { error } = await supabase.storage
-        .from('uploads')
-        .upload(storagePath, file, {
-          cacheControl: '300',
-          upsert: false,
-          contentType: file.type || 'application/octet-stream',
-        })
+          const xhr = new XMLHttpRequest()
+          xhr.open('POST', url, true)
+          xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+          xhr.setRequestHeader('x-upsert', 'false')
+          xhr.setRequestHeader('cache-control', '300')
+          xhr.timeout = 15 * 60 * 1000  // 15 min — enough for 500MB on slow connection
 
-      clearInterval(progressInterval)
+          xhr.upload.onprogress = (e) => {
+            if (!e.lengthComputable) return
+            const pct = Math.round((e.loaded / e.total) * 100)
+            setStage(prev => {
+              if (prev.kind !== 'uploading') return prev
+              const updated = [...prev.files]
+              updated[i] = { ...updated[i], pct: Math.min(pct, 98) }
+              return { ...prev, files: updated }
+            })
+          }
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(null)
+            } else {
+              try {
+                const body = JSON.parse(xhr.responseText)
+                resolve(body.message || body.error || `Upload failed (HTTP ${xhr.status})`)
+              } catch {
+                resolve(`Upload failed (HTTP ${xhr.status})`)
+              }
+            }
+          }
+
+          xhr.onerror   = () => resolve('Network error — check your connection and try again')
+          xhr.ontimeout = () => resolve('Upload timed out — file may be too large or connection too slow')
+
+          const formData = new FormData()
+          formData.append('', file, file.name)
+          xhr.send(formData)
+        })
+      })
+
+      const error = uploadError ? { message: uploadError } : null
 
       if (error) {
         // Clean up successfully uploaded files before showing error
