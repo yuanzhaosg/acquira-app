@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import LandingPage from '@/components/landing/LandingPage'
 import UnifiedNav from '@/components/nav/UnifiedNav'
 import UploadWidget from '@/components/upload/UploadWidget'
@@ -9,6 +9,7 @@ import DealList from '@/components/deals/DealList'
 import AuthModal from '@/components/auth/AuthModal'
 import { useAuth, supabase } from '@/lib/useAuth'
 import { getDeal } from '@/lib/deals'
+import { useKeyboard } from '@/lib/useKeyboard'
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 
@@ -64,6 +65,31 @@ const SAMPLE_SCORED = {
   },
 }
 
+// ── Keyboard hint bar ─────────────────────────────────────────────────────────
+
+function KeyboardHintBar() {
+  return (
+    <div style={{
+      padding: '10px 24px',
+      textAlign: 'center',
+      fontFamily: "'DM Mono', monospace",
+      fontSize: 11,
+      color: 'rgba(255,255,255,0.18)',
+      letterSpacing: '0.04em',
+      userSelect: 'none',
+    }}>
+      <span>U</span>
+      <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 5px' }}>upload</span>
+      <span style={{ margin: '0 8px', color: 'rgba(255,255,255,0.08)' }}>·</span>
+      <span>P</span>
+      <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 5px' }}>pipeline</span>
+      <span style={{ margin: '0 8px', color: 'rgba(255,255,255,0.08)' }}>·</span>
+      <span>Esc</span>
+      <span style={{ color: 'rgba(255,255,255,0.08)', margin: '0 5px' }}>back</span>
+    </div>
+  )
+}
+
 type View = 'landing' | 'upload' | 'report' | 'list' | 'sample'
 
 export default function Home() {
@@ -87,6 +113,25 @@ export default function Home() {
     setShowAuth(false)
     if (user) setView('upload')
   }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  const keyboardShortcuts = useMemo(() => ({
+    u: () => {
+      if (view !== 'landing' && view !== 'sample') handleUploadIntent()
+      else handleUploadIntent()
+    },
+    p: () => {
+      if (user) setView('list')
+    },
+    escape: () => {
+      if (view === 'report') setView('list')
+      else if (view === 'upload') setView('list')
+      else if (view === 'list') setView('landing')
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [view, user])
+
+  useKeyboard(keyboardShortcuts)
 
   if (loading) {
     return (
@@ -144,7 +189,7 @@ export default function Home() {
   // ── Deal list ─────────────────────────────────────────────────────────────
   if (view === 'list') {
     return (
-      <div style={{ minHeight: '100vh', background: '#0d1b2a' }}>
+      <div style={{ minHeight: '100vh', background: '#0d1b2a', display: 'flex', flexDirection: 'column' }}>
         <UnifiedNav
           mode="app" activeAppTab="list"
           onLogoClick={() => setView('landing')}
@@ -153,18 +198,21 @@ export default function Home() {
           onHome={() => setView('landing')}
           user={user}
         />
-        <DealList
-          onOpen={async (id: string) => {
-            const deal = await getDeal(id)
-            if (deal) {
-              setExtracted(deal.extracted as ExtractedDeal)
-              setScored(deal.scored as ScoredDeal)
-              setDealId(id)
-              setView('report')
-            }
-          }}
-          onNew={() => setView('upload')}
-        />
+        <div style={{ flex: 1 }}>
+          <DealList
+            onOpen={async (id: string) => {
+              const deal = await getDeal(id)
+              if (deal) {
+                setExtracted(deal.extracted as ExtractedDeal)
+                setScored(deal.scored as ScoredDeal)
+                setDealId(id)
+                setView('report')
+              }
+            }}
+            onNew={() => setView('upload')}
+          />
+        </div>
+        <KeyboardHintBar />
       </div>
     )
   }
@@ -237,6 +285,7 @@ export default function Home() {
           ))}
         </div>
       </div>
+      <KeyboardHintBar />
     </main>
   )
 }
