@@ -13,6 +13,14 @@ interface DealRow {
   status: string | null;
   extracted: unknown;
   scored: unknown;
+  // Enriched fields
+  occupancy_pct: number | null;
+  ebitda: number | null;
+  revenue: number | null;
+  asking_price: number | null;
+  has_critical_flags: boolean | null;
+  critical_flag_count: number | null;
+  verdict_category: string | null;
 }
 
 interface DealListProps {
@@ -29,6 +37,28 @@ const STATUS_COLORS: Record<DealStatus, string> = {
   "Under DD": "bg-purple-100 text-purple-700",
   Passed:     "bg-red-100 text-red-700",
   Closed:     "bg-green-100 text-green-700",
+};
+
+// ── Format helpers ────────────────────────────────────────────────────────────
+
+function fmtMoney(n: number | null | undefined): string {
+  if (n == null) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `$${Math.round(n / 1_000)}k`;
+  return `$${n.toLocaleString("en-AU")}`;
+}
+
+function fmtOccupancy(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return `${n.toFixed(0)}%`;
+}
+
+const VERDICT_LABELS: Record<string, { label: string; bg: string; text: string; border: string }> = {
+  passive_hold: { label: "Passive Hold", bg: "rgba(0,180,160,0.12)",   text: "#00b4a0", border: "rgba(0,180,160,0.25)" },
+  turnaround:   { label: "Turnaround",   bg: "rgba(245,158,11,0.12)",  text: "#f59e0b", border: "rgba(245,158,11,0.25)" },
+  distressed:   { label: "Distressed",   bg: "rgba(239,68,68,0.12)",   text: "#ef4444", border: "rgba(239,68,68,0.25)" },
+  pass:         { label: "Pass",         bg: "rgba(255,255,255,0.06)", text: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.12)" },
 };
 
 export default function DealList({ onOpen, onNew }: DealListProps) {
@@ -51,11 +81,14 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
       // RLS automatically filters to auth.uid() = user_id
       const { data, error: fetchError } = await supabase
         .from("deals")
-        .select("id, created_at, centre_name, address, total_score, status")
+        .select(
+          "id, created_at, centre_name, address, total_score, status, " +
+          "occupancy_pct, ebitda, revenue, asking_price, has_critical_flags, critical_flag_count, verdict_category"
+        )
         .order("created_at", { ascending: false });
 
       if (fetchError) throw fetchError;
-      setDeals((data as DealRow[]) ?? []);
+      setDeals((data as unknown as DealRow[]) ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load deals");
     } finally {
@@ -100,7 +133,7 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
     return (
       <div style={{ padding: "32px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
         {[...Array(3)].map((_, i) => (
-          <div key={i} style={{ height: 72, borderRadius: 12, background: "rgba(255,255,255,0.04)", animation: "pulse 1.5s infinite" }} />
+          <div key={i} style={{ height: 88, borderRadius: 12, background: "rgba(255,255,255,0.04)", animation: "pulse 1.5s infinite" }} />
         ))}
       </div>
     );
@@ -158,8 +191,9 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {deals.map((deal) => {
-          const status = (deal.status as DealStatus) ?? "Active";
-          const score  = deal.total_score;
+          const status  = (deal.status as DealStatus) ?? "Active";
+          const score   = deal.total_score;
+          const verdict = deal.verdict_category ? VERDICT_LABELS[deal.verdict_category] : null;
 
           return (
             <div
@@ -182,6 +216,7 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
                 (e.currentTarget as HTMLDivElement).style.background  = "rgba(255,255,255,0.02)";
               }}
             >
+              {/* ── Row 1: Name + score + flags ── */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
                 {/* Left */}
                 <div style={{ minWidth: 0 }}>
@@ -193,26 +228,75 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
                   </p>
                 </div>
 
-                {/* Score badge */}
-                {score != null && (
+                {/* Right: score badge + flags badge */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  {deal.has_critical_flags && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, fontFamily: "IBM Plex Mono, monospace",
+                      background: "rgba(239,68,68,0.12)", color: "#ef4444",
+                      border: "1px solid rgba(239,68,68,0.25)",
+                      borderRadius: 4, padding: "2px 6px",
+                    }}>
+                      ⚠ {deal.critical_flag_count != null && deal.critical_flag_count > 0
+                          ? `${deal.critical_flag_count} Flag${deal.critical_flag_count > 1 ? "s" : ""}`
+                          : "Flags"}
+                    </span>
+                  )}
+                  {score != null && (
+                    <span style={{
+                      borderRadius: 6, padding: "2px 8px",
+                      fontSize: 13, fontWeight: 700,
+                      fontFamily: "Space Grotesk, sans-serif",
+                      background: score >= 70 ? "rgba(34,197,94,0.12)"
+                        : score >= 50 ? "rgba(245,158,11,0.12)"
+                        : "rgba(239,68,68,0.12)",
+                      color: score >= 70 ? "#22c55e"
+                        : score >= 50 ? "#f59e0b"
+                        : "#ef4444",
+                    }}>
+                      {score.toFixed(0)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Row 2: Compact metrics ── */}
+              <div style={{
+                marginTop: 8,
+                display: "flex", alignItems: "center", gap: 0,
+                fontSize: 11, fontFamily: "IBM Plex Mono, monospace",
+                color: "rgba(255,255,255,0.45)",
+              }}>
+                {[
+                  { label: "Occ", value: fmtOccupancy(deal.occupancy_pct) },
+                  { label: "EBITDA", value: fmtMoney(deal.ebitda) },
+                  { label: "Ask", value: fmtMoney(deal.asking_price) },
+                ].map((item, idx) => (
+                  <span key={item.label} style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                    {idx > 0 && (
+                      <span style={{ margin: "0 6px", color: "rgba(255,255,255,0.12)" }}>·</span>
+                    )}
+                    <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10 }}>{item.label}</span>
+                    <span style={{ marginLeft: 3, color: "rgba(255,255,255,0.55)", fontWeight: 500 }}>{item.value}</span>
+                  </span>
+                ))}
+
+                {/* Verdict pill */}
+                {verdict && (
                   <span style={{
-                    flexShrink: 0,
-                    borderRadius: 6, padding: "2px 8px",
-                    fontSize: 13, fontWeight: 700,
-                    fontFamily: "Space Grotesk, sans-serif",
-                    background: score >= 70 ? "rgba(34,197,94,0.12)"
-                      : score >= 50 ? "rgba(245,158,11,0.12)"
-                      : "rgba(239,68,68,0.12)",
-                    color: score >= 70 ? "#22c55e"
-                      : score >= 50 ? "#f59e0b"
-                      : "#ef4444",
+                    marginLeft: "auto",
+                    fontSize: 10, fontWeight: 700, fontFamily: "IBM Plex Mono, monospace",
+                    background: verdict.bg, color: verdict.text,
+                    border: `1px solid ${verdict.border}`,
+                    borderRadius: 4, padding: "2px 7px",
+                    textTransform: "uppercase", letterSpacing: "0.04em",
                   }}>
-                    {score.toFixed(0)}
+                    {verdict.label}
                   </span>
                 )}
               </div>
 
-              {/* Status + date row */}
+              {/* ── Row 3: Status + date ── */}
               <div
                 style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}
                 onClick={e => e.stopPropagation()}
