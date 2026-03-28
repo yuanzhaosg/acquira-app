@@ -87,7 +87,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
                 fontWeight: 600, fontSize: 13, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
               }}>
-                {t === 'address' ? '🏙 By suburb' : '# By postcode'}
+                {t === 'address' ? '📍 By address' : '🏙 By suburb / postcode'}
               </button>
             ))}
           </div>
@@ -100,7 +100,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 onFocus={() => setFocused('input')} onBlur={() => setFocused(null)}
-                placeholder="e.g. Forest Hill VIC"
+                placeholder="e.g. 45 Church St, Brighton VIC 3186"
                 style={{ flex: 1, background: '#0d1b2a', border: `1.5px solid ${focused === 'input' ? '#00b4a0' : '#1e3a5f'}`, borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.15s' }}
               />
             ) : (
