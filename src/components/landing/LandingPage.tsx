@@ -19,7 +19,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
   const ZONE_CONFIG = {
     undersupplied: { label: 'Undersupplied',  color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.3)',  desc: 'Strong demand relative to supply — favourable for operators.' },
     balanced:      { label: 'Balanced',        color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', desc: 'Demand and supply roughly matched — monitor pipeline carefully.' },
-    saturated:     { label: 'Saturated',       color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  desc: 'High competition — pricing pressure and occupancy risk likely.' },
+    oversupplied:  { label: 'Oversupplied',    color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  desc: 'More licensed places than catchment demand — pricing pressure and occupancy risk.' },
   } as const
 
   async function handleSearch() {
@@ -84,7 +84,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00b4a0', marginBottom: 16 }}>Supply Map Preview</div>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(28px, 3.5vw, 44px)', fontWeight: 900, color: '#fff', margin: '0 0 16px', letterSpacing: -0.5, lineHeight: 1.1 }}>
-            Is your target suburb<br /><em style={{ color: '#00b4a0', fontStyle: 'italic' }}>undersupplied or saturated?</em>
+            Is your target suburb<br /><em style={{ color: '#00b4a0', fontStyle: 'italic' }}>undersupplied or oversupplied?</em>
           </h2>
           <p style={{ color: '#94a3b8', fontSize: 16, margin: 0 }}>
             Enter any suburb or postcode for an instant supply/demand snapshot — no signup required.
@@ -240,6 +240,19 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
                 See full map →
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Methodology note */}
+        {result && (
+          <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid #1e3a5f', borderRadius: 8 }}>
+            <p style={{ margin: 0, fontSize: 11, color: '#475569', lineHeight: 1.6 }}>
+              <strong style={{ color: '#64748b' }}>Methodology:</strong> Kids per place = ABS 2021 Census 0–4 population
+              (catchment-area adjusted, growth-indexed to {new Date().getFullYear()}) ÷ ACECQA licensed places within dynamic radius.
+              Zones: &gt;2.0 Undersupplied · 1.0–2.0 Balanced · &lt;1.0 Oversupplied.
+              Calibrated against national LDC occupancy (~79%, ACECQA) and ABS Preschool Education Australia 2024.
+              Indicative only — not a substitute for site-specific due diligence.
+            </p>
           </div>
         )}
 

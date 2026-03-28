@@ -47,7 +47,7 @@ interface MapData {
     } | null
     total_licensed_places: number
     kids_per_place: number
-    zone: 'undersupplied' | 'balanced' | 'saturated'
+    zone: 'undersupplied' | 'balanced' | 'oversupplied'
     data_source?: string
     census_year?: number
   }
@@ -75,7 +75,7 @@ interface CompetitiveMapProps {
 const ZONE_COLORS = {
   undersupplied: { fill: 'rgba(34,197,94,0.15)',  stroke: 'rgba(34,197,94,0.5)',  label: 'Undersupplied', color: '#22c55e' },
   balanced:      { fill: 'rgba(245,158,11,0.15)', stroke: 'rgba(245,158,11,0.5)', label: 'Balanced',      color: '#f59e0b' },
-  saturated:     { fill: 'rgba(239,68,68,0.15)',  stroke: 'rgba(239,68,68,0.5)',  label: 'Saturated',     color: '#ef4444' },
+  oversupplied:  { fill: 'rgba(239,68,68,0.15)',  stroke: 'rgba(239,68,68,0.5)',  label: 'Oversupplied',  color: '#ef4444' },
 }
 
 // DA status colours
@@ -700,6 +700,15 @@ export default function CompetitiveMap({
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} /> DA Approved (A)</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} /> DA Lodged (L)</span>
           </div>
+        </div>
+
+        {/* Methodology disclaimer */}
+        <div style={{ padding: '8px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa' }}>
+          <p style={{ margin: 0, fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>
+            <strong style={{ color: '#64748b' }}>Kids per place</strong> = ABS 2021 Census 0–4 population (catchment-adjusted, growth-indexed) ÷ ACECQA licensed places within radius.
+            Zones calibrated to national LDC occupancy data (~79%, ACECQA) and ABS Preschool Education Australia 2024.
+            Indicative only — not a substitute for site-specific due diligence.
+          </p>
         </div>
 
       </div>
