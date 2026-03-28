@@ -177,7 +177,7 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
       </div>
 
       {/* Filter tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 20, flexWrap: "wrap" }}>
+      <div className="deal-filter-tabs" style={{ display: "flex", gap: 4, marginBottom: 20, overflowX: "auto", flexWrap: "nowrap", WebkitOverflowScrolling: "touch" as any, paddingBottom: 4 }}>
         {FILTER_TABS.map(tab => {
           const isActive = filterTab === tab;
           const dbVal = FILTER_TO_DB[tab];
@@ -303,6 +303,7 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
               {/* Status dropdown + date row */}
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }} onClick={e => e.stopPropagation()}>
                 <select
+                  className="deal-status-select"
                   value={statusKey}
                   onChange={e => handleStatusChange(e, deal.id)}
                   disabled={updatingStatus === deal.id}
@@ -329,7 +330,15 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
         })}
       </div>
 
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+      <style>{`
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .deal-filter-tabs { scrollbar-width: none; -ms-overflow-style: none; }
+        .deal-filter-tabs::-webkit-scrollbar { display: none; }
+        .deal-filter-tabs button { flex-shrink: 0; }
+        @media (max-width: 480px) {
+          .deal-status-select { min-height: 36px !important; font-size: 13px !important; padding: 4px 24px 4px 10px !important; }
+        }
+      `}</style>
     </div>
   );
 }

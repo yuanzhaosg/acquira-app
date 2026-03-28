@@ -63,6 +63,22 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
 
   return (
     <section id="try-map" style={{ background: '#080f18', padding: '100px 48px', borderTop: '1px solid #1e3a5f' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          #try-map { padding: 60px 20px !important; }
+          .smp-zone-badge { flex-direction: column !important; align-items: flex-start !important; }
+          .smp-zone-badge .smp-kids-stat { margin-left: 0 !important; text-align: left !important; }
+          .smp-stats-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 380px) {
+          .smp-stats-grid { grid-template-columns: 1fr !important; }
+        }
+        .smp-comp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+        @media (max-width: 480px) {
+          .smp-comp-name { max-width: 130px; }
+          .smp-da-btn { width: 100% !important; text-align: center !important; }
+        }
+      `}</style>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -134,24 +150,24 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
         {result && zoneConfig && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Zone badge — big and prominent */}
-            <div style={{ background: zoneConfig.bg, border: `1.5px solid ${zoneConfig.border}`, borderRadius: 12, padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+            <div className="smp-zone-badge" style={{ background: zoneConfig.bg, border: `1.5px solid ${zoneConfig.border}`, borderRadius: 12, padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: zoneConfig.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Market Zone</div>
                 <div style={{ fontSize: 36, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{zoneConfig.label}</div>
                 <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, maxWidth: 320 }}>{zoneConfig.desc}</div>
               </div>
-              <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div className="smp-kids-stat" style={{ marginLeft: 'auto', textAlign: 'right' }}>
                 <div style={{ fontSize: 48, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{result.demand.kids_per_place.toFixed(1)}</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>kids per licensed place</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>3km catchment</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>dynamic catchment radius</div>
               </div>
             </div>
 
             {/* Stats grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div className="smp-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {[
                 { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km (${result.stats.radius_label ?? 'suburban'})`, color: '#00b4a0' },
-                { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: '3km catchment', color: '#fff' },
+                { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: `${result.stats.radius_km ?? 2}–${(result.stats.radius_km ?? 3) + 2}km catchment`, color: '#fff' },
                 {
                   label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,
                   value: result.demand.estimated_kids_0to4.toLocaleString(),
@@ -188,8 +204,8 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
                     userSelect: i >= 2 ? 'none' : 'auto',
                     opacity: i >= 2 ? 0.5 : 1,
                   }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: i < 2 ? '#e8edf3' : '#888', marginBottom: 2 }}>{i < 2 ? c.name : '████████████████'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="smp-comp-name" style={{ fontSize: 13, fontWeight: 600, color: i < 2 ? '#e8edf3' : '#888', marginBottom: 2 }}>{i < 2 ? c.name : '████████████████'}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>{i < 2 ? c.suburb : '█████████'} · {(c.distance_m / 1000).toFixed(1)}km</div>
                     </div>
                     <span style={{ fontSize: 11, color: '#94a3b8' }}>{c.licensed_places || '—'} places</span>
@@ -586,7 +602,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
             <div className="land-fade d3" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
               {[
                 'How many children aged 0–4 live in the catchment vs licensed places available?',
-                'How many competing centres exist within 3km — and are any approved but not yet open?',
+                'How many competing centres exist within the dynamic catchment radius (2–5km) — and are any approved but not yet open?',
                 'Is the labour ratio structurally above benchmark, or a one-year anomaly?',
                 'Does the lease tail support financing — and what are the make-good obligations?',
                 'Is the asking price above market EBITDA multiples for this centre profile?',

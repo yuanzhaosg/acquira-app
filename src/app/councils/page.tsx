@@ -86,6 +86,13 @@ export default function CouncilsPage() {
         * { box-sizing: border-box; }
         a { color: #00b4a0; text-decoration: none; }
         a:hover { text-decoration: underline; }
+        .councils-state-tabs { scrollbar-width: none; -ms-overflow-style: none; }
+        .councils-state-tabs::-webkit-scrollbar { display: none; }
+        .councils-state-tabs button { flex-shrink: 0; }
+        @media (max-width: 480px) {
+          .council-row { grid-template-columns: 1fr !important; }
+          .council-link { min-height: 44px !important; justify-content: center !important; }
+        }
       `}</style>
 
       {/* Header */}
@@ -152,7 +159,7 @@ export default function CouncilsPage() {
         </div>
 
         {/* State tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: 0 }}>
+        <div className="councils-state-tabs" style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any, scrollbarWidth: 'none' as any }}>
           {TABS.map(tab => (
             <button
               key={tab}
@@ -174,7 +181,7 @@ export default function CouncilsPage() {
         {/* Council list */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {(COUNCILS[activeTab] ?? []).map((council, i) => (
-            <div key={i} style={{
+            <div key={i} className="council-row" style={{
               background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
               padding: '14px 16px',
               display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center',
@@ -191,6 +198,7 @@ export default function CouncilsPage() {
                 href={council.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                className="council-link"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   background: 'rgba(0,180,160,0.08)', border: '1px solid rgba(0,180,160,0.2)',

@@ -791,8 +791,10 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           .detail-row        { grid-template-columns: 120px 1fr !important; }
         }
         @media (max-width: 480px) {
-          .report-metrics    { grid-template-columns: 1fr 1fr !important; }
+          .report-metrics    { grid-template-columns: repeat(2, 1fr) !important; }
           .report-hero h1    { font-size: 28px !important; }
+          .dim-grid          { grid-template-columns: 1fr !important; }
+          .checklist-btn     { min-height: 44px !important; padding: 8px 14px !important; font-size: 13px !important; }
         }
         @media print {
           body { background: #fff !important; color: #000 !important; }
@@ -1266,6 +1268,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                         {(['yes', 'no', 'unsure'] as const).map(opt => (
                           <button
                             key={opt}
+                            className="checklist-btn"
                             onClick={() => setChecklistAnswer(q.id, ans === opt ? null : opt)}
                             style={{
                               padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
@@ -1653,6 +1656,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                         {(['yes', 'no', 'unsure'] as const).map(opt => (
                           <button
                             key={opt}
+                            className="checklist-btn"
                             onClick={() => setChecklistAnswer(q.id, ans === opt ? null : opt)}
                             style={{
                               padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,

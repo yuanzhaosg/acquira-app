@@ -32,6 +32,7 @@ export default function UnifiedNav({
   onReport, onHome, centreLabel, user, onSignIn,
 }: UnifiedNavProps) {
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!user) { setBillingStatus(null); return }
@@ -44,6 +45,14 @@ export default function UnifiedNav({
         .catch(() => {})
     })
   }, [user])
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = () => setMenuOpen(false)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [menuOpen])
 
   const navStyle: React.CSSProperties = {
     position: 'sticky', top: 0, zIndex: 300,
@@ -152,90 +161,240 @@ export default function UnifiedNav({
     )
   }
 
+  // Hamburger icon (3 lines, pure CSS)
+  const HamburgerIcon = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, width: 20 }}>
+      <span style={{ display: 'block', height: 2, background: '#fff', borderRadius: 1 }} />
+      <span style={{ display: 'block', height: 2, background: '#fff', borderRadius: 1 }} />
+      <span style={{ display: 'block', height: 2, background: '#fff', borderRadius: 1 }} />
+    </div>
+  )
+
+  // Mobile menu link style
+  const mobileLink: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 10,
+    minHeight: 48, padding: '0 20px',
+    fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.8)',
+    cursor: 'pointer', border: 'none', background: 'none',
+    fontFamily: "'DM Sans', sans-serif", textDecoration: 'none',
+    borderBottom: '1px solid rgba(255,255,255,0.06)', width: '100%',
+    textAlign: 'left',
+  }
+
+  const mobileLinkActive: React.CSSProperties = {
+    ...mobileLink,
+    color: '#00b4a0',
+    background: 'rgba(0,180,160,0.06)',
+  }
+
   return (
-    <nav style={navStyle}>
-      <button style={logoStyle} onClick={onLogoClick}>
-        <div style={logoIcon}>🏫</div>
-        Acquira<span style={{ color: '#00b4a0' }}>.</span>
-      </button>
+    <>
+      <nav style={navStyle}>
+        <button style={logoStyle} onClick={onLogoClick}>
+          <div style={logoIcon}>🏫</div>
+          <span className="nav-logo-text">Acquira<span style={{ color: '#00b4a0' }}>.</span></span>
+        </button>
 
-      <div style={links}>
-        {/* ── LANDING MODE ── */}
-        {mode === 'landing' && (
-          <>
-            <a href="#how" style={linkBase}>How It Works</a>
-            <a href="#scoring" style={linkBase}>Framework</a>
-            <a href="#benchmarks" style={linkBase}>Benchmarks</a>
-            <a href="#try-map" style={linkBase}>Supply Map</a>
-            <a href="#pricing" style={linkBase}>Pricing</a>
-            <div style={sep} />
-            {user ? (
-              <>
-                <button style={linkActive} onClick={onUpload}>⬆ Upload IM</button>
-                <UserChip />
-              </>
-            ) : (
-              <>
-                <button style={btnGhost} onClick={onSignIn}>Sign In</button>
-                <button style={btnPrimary} onClick={onSignIn}>⬆ Upload Free IM</button>
-              </>
-            )}
-          </>
-        )}
+        {/* Desktop nav links */}
+        <div className="nav-desktop" style={links}>
+          {/* ── LANDING MODE ── */}
+          {mode === 'landing' && (
+            <>
+              <a href="#how" style={linkBase}>How It Works</a>
+              <a href="#scoring" style={linkBase}>Framework</a>
+              <a href="#benchmarks" style={linkBase}>Benchmarks</a>
+              <a href="#try-map" style={linkBase}>Supply Map</a>
+              <a href="#pricing" style={linkBase}>Pricing</a>
+              <div style={sep} />
+              {user ? (
+                <>
+                  <button style={linkActive} onClick={onUpload}>⬆ Upload IM</button>
+                  <UserChip />
+                </>
+              ) : (
+                <>
+                  <button style={btnGhost} onClick={onSignIn}>Sign In</button>
+                  <button style={btnPrimary} onClick={onSignIn}>⬆ Upload Free IM</button>
+                </>
+              )}
+            </>
+          )}
 
-        {/* ── APP MODE ── */}
-        {mode === 'app' && (
-          <>
-            <button style={activeAppTab === 'upload' ? linkActive : linkBase} onClick={onUpload}>
-              ⬆ New Report
-            </button>
-            <button style={activeAppTab === 'list' ? linkActive : linkBase} onClick={onPipeline}>
-              📋 Pipeline
-            </button>
-            {onReport && (
-              <button style={activeAppTab === 'report' ? linkActive : linkBase} onClick={onReport}>
-                📊 Report
+          {/* ── APP MODE ── */}
+          {mode === 'app' && (
+            <>
+              <button style={activeAppTab === 'upload' ? linkActive : linkBase} onClick={onUpload}>
+                ⬆ New Report
               </button>
-            )}
-            <a href="/councils" style={linkBase} target="_blank" rel="noopener noreferrer">
-              🏛 Planning Research
-            </a>
-            <div style={sep} />
-            <button style={btnGhost} onClick={onHome}>← Home</button>
-            <div style={sep} />
-            <UserChip />
-          </>
-        )}
+              <button style={activeAppTab === 'list' ? linkActive : linkBase} onClick={onPipeline}>
+                📋 Pipeline
+              </button>
+              {onReport && (
+                <button style={activeAppTab === 'report' ? linkActive : linkBase} onClick={onReport}>
+                  📊 Report
+                </button>
+              )}
+              <a href="/councils" style={linkBase} target="_blank" rel="noopener noreferrer">
+                🏛 Planning Research
+              </a>
+              <div style={sep} />
+              <button style={btnGhost} onClick={onHome}>← Home</button>
+              <div style={sep} />
+              <UserChip />
+            </>
+          )}
 
-        {/* ── REPORT MODE ── */}
-        {mode === 'report' && (
-          <>
-            <button style={activeAppTab === 'upload' ? linkActive : linkBase} onClick={onUpload}>
+          {/* ── REPORT MODE ── */}
+          {mode === 'report' && (
+            <>
+              <button style={activeAppTab === 'upload' ? linkActive : linkBase} onClick={onUpload}>
+                ⬆ New Report
+              </button>
+              <button style={activeAppTab === 'list' ? linkActive : linkBase} onClick={onPipeline}>
+                📋 Pipeline
+              </button>
+              <div style={sep} />
+              <div style={badge}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', background: '#00b4a0',
+                  animation: 'pulse 2s infinite', display: 'inline-block',
+                }} />
+                {centreLabel ?? 'Live Report'}
+              </div>
+              <div style={sep} />
+              <button style={btnGhost} onClick={onHome}>← Home</button>
+              <div style={sep} />
+              <UserChip />
+            </>
+          )}
+        </div>
+
+        {/* Mobile: condensed right side + hamburger */}
+        <div className="nav-mobile" style={{ display: 'none', alignItems: 'center', gap: 8 }}>
+          {/* In app/report mode show New Report button directly */}
+          {(mode === 'app' || mode === 'report') && (
+            <button
+              style={{ ...btnPrimary, padding: '6px 14px', fontSize: 12 }}
+              onClick={onUpload}
+            >
               ⬆ New Report
             </button>
-            <button style={activeAppTab === 'list' ? linkActive : linkBase} onClick={onPipeline}>
-              📋 Pipeline
-            </button>
-            <div style={sep} />
-            <div style={badge}>
-              <span style={{
-                width: 6, height: 6, borderRadius: '50%', background: '#00b4a0',
-                animation: 'pulse 2s infinite', display: 'inline-block',
-              }} />
-              {centreLabel ?? 'Live Report'}
-            </div>
-            <div style={sep} />
-            <button style={btnGhost} onClick={onHome}>← Home</button>
-            <div style={sep} />
-            <UserChip />
-          </>
+          )}
+          {/* Hamburger button — 44×44 tap target */}
+          <button
+            onClick={e => { e.stopPropagation(); setMenuOpen(o => !o) }}
+            style={{
+              width: 44, height: 44, background: 'none', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', borderRadius: 8,
+            }}
+            aria-label="Menu"
+          >
+            <HamburgerIcon />
+          </button>
+        </div>
+
+        {/* Mobile dropdown menu */}
+        {menuOpen && (
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'absolute', top: 54, left: 0, right: 0,
+              background: '#0d1b2a',
+              borderBottom: '1px solid rgba(0,180,160,0.2)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              zIndex: 400,
+            }}
+          >
+            {/* LANDING MODE mobile links */}
+            {mode === 'landing' && (
+              <>
+                <a href="#how" style={mobileLink} onClick={() => setMenuOpen(false)}>How It Works</a>
+                <a href="#scoring" style={mobileLink} onClick={() => setMenuOpen(false)}>Framework</a>
+                <a href="#benchmarks" style={mobileLink} onClick={() => setMenuOpen(false)}>Benchmarks</a>
+                <a href="#try-map" style={mobileLink} onClick={() => setMenuOpen(false)}>Supply Map</a>
+                <a href="#pricing" style={mobileLink} onClick={() => setMenuOpen(false)}>Pricing</a>
+                <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {user ? (
+                    <>
+                      <button style={{ ...btnPrimary, width: '100%', padding: '12px 0' }} onClick={() => { setMenuOpen(false); onUpload?.() }}>
+                        ⬆ Upload IM
+                      </button>
+                      <button style={{ ...btnGhost, width: '100%', padding: '12px 0' }} onClick={() => { signOut(); setMenuOpen(false) }}>
+                        Sign out
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button style={{ ...btnPrimary, width: '100%', padding: '12px 0' }} onClick={() => { setMenuOpen(false); onSignIn?.() }}>
+                        ⬆ Upload Free IM
+                      </button>
+                      <button style={{ ...btnGhost, width: '100%', padding: '12px 0' }} onClick={() => { setMenuOpen(false); onSignIn?.() }}>
+                        Sign In
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* APP MODE mobile links */}
+            {mode === 'app' && (
+              <>
+                <button style={activeAppTab === 'list' ? mobileLinkActive : mobileLink} onClick={() => { setMenuOpen(false); onPipeline?.() }}>
+                  📋 Pipeline
+                </button>
+                <a href="/councils" style={mobileLink} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)}>
+                  🏛 Planning Research
+                </a>
+                <button style={mobileLink} onClick={() => { setMenuOpen(false); onHome?.() }}>
+                  ← Home
+                </button>
+                {user && (
+                  <div style={{ padding: '12px 20px' }}>
+                    <button style={{ ...btnGhost, width: '100%', padding: '12px 0' }} onClick={() => { signOut(); setMenuOpen(false) }}>
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* REPORT MODE mobile links */}
+            {mode === 'report' && (
+              <>
+                <button style={mobileLink} onClick={() => { setMenuOpen(false); onPipeline?.() }}>
+                  📋 Pipeline
+                </button>
+                <button style={mobileLink} onClick={() => { setMenuOpen(false); onHome?.() }}>
+                  ← Home
+                </button>
+                {user && (
+                  <div style={{ padding: '12px 20px' }}>
+                    <button style={{ ...btnGhost, width: '100%', padding: '12px 0' }} onClick={() => { signOut(); setMenuOpen(false) }}>
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )}
-      </div>
+      </nav>
 
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
         nav button:hover { opacity: 0.85; }
+
+        @media (max-width: 767px) {
+          .nav-desktop { display: none !important; }
+          .nav-mobile  { display: flex !important; }
+        }
+        @media (min-width: 768px) {
+          .nav-desktop { display: flex !important; }
+          .nav-mobile  { display: none !important; }
+        }
       `}</style>
-    </nav>
+    </>
   )
 }
