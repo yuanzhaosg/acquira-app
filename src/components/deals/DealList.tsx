@@ -257,6 +257,11 @@ export default function DealList({ onOpen, onNew }: DealListProps) {
           );
         })}
       </div>
+      <style>{`
+        @media (max-width: 600px) {
+          .deal-list-wrap { padding: 16px 12px !important; }
+        }
+      `}</style>
     </div>
   );
 }

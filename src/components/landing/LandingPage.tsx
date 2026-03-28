@@ -518,6 +518,32 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
               </div>
             ))}
           </div>
+
+          {/* ── SCORE GATE: blur overlay + CTA ── */}
+          <div style={{ position: 'relative', marginTop: -180, height: 220 }}>
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to bottom, transparent 0%, rgba(248,246,242,0.92) 40%, rgba(248,246,242,1) 70%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end',
+              paddingBottom: 32,
+            }}>
+              <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--navy)', marginBottom: 12, textAlign: 'center' }}>
+                Sign up to see the full 17-dimension analysis →
+              </p>
+              <button
+                onClick={onSignIn}
+                style={{
+                  background: 'var(--teal, #00b4a0)', border: 'none', borderRadius: 10,
+                  padding: '12px 28px', color: '#fff', fontSize: 15, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  boxShadow: '0 4px 20px rgba(0,180,160,0.3)',
+                }}
+              >
+                Get started free →
+              </button>
+            </div>
+          </div>
+
         </div>
       </section>
 
