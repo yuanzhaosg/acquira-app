@@ -1372,191 +1372,164 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       </div>
 
 
-        {/* ── P4.1: NEARBY CENTRES ── */}
-        <SectionTitle>Nearby Centres</SectionTitle>
+        {/* ── COMPETITIVE ANALYSIS ── */}
+        <SectionTitle>Competitive Analysis</SectionTitle>
         <div style={{ marginBottom: 32 }}>
-          {nearbyCentres === null && (
-            <button
-              onClick={loadNearbyCentres}
-              disabled={nearbyLoading}
-              style={{
-                background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
-                borderRadius: 8, padding: '10px 20px', color: '#00b4a0',
-                fontSize: 13, cursor: nearbyLoading ? 'wait' : 'pointer', fontWeight: 600,
-              }}
-            >
-              {nearbyLoading ? 'Loading…' : 'Load Nearby ACECQA Centres'}
-            </button>
-          )}
-          {nearbyCentres !== null && nearbyCentres.length === 0 && (
-            <div style={{ color: '#94a3b8', fontSize: 13 }}>No nearby centres found.</div>
-          )}
-          {nearbyCentres !== null && nearbyCentres.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {nearbyCentres.map((c, i) => (
-                <div key={i} style={{
-                  background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
-                  padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'start',
+          {/* Load buttons row */}
+          {(nearbyCentres === null || daPipeline === null) && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+              {nearbyCentres === null && (
+                <button onClick={loadNearbyCentres} disabled={nearbyLoading} style={{
+                  background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+                  borderRadius: 8, padding: '9px 18px', color: '#00b4a0',
+                  fontSize: 13, cursor: nearbyLoading ? 'wait' : 'pointer', fontWeight: 600,
                 }}>
+                  {nearbyLoading ? 'Loading…' : '🏫 Load Existing Centres'}
+                </button>
+              )}
+              {daPipeline === null && (
+                <button onClick={loadDAPipeline} disabled={daLoading} style={{
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                  borderRadius: 8, padding: '9px 18px', color: '#ef4444',
+                  fontSize: 13, cursor: daLoading ? 'wait' : 'pointer', fontWeight: 600,
+                }}>
+                  {daLoading ? 'Loading…' : '🏗 Load DA Pipeline'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Mock data notice */}
+          {daPipeline?.source === 'mock' && (
+            <div style={{
+              background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
+              borderRadius: 6, padding: '7px 12px', marginBottom: 12, fontSize: 11, color: '#f59e0b',
+            }}>
+              ℹ DA data is sample only — set PLANNING_ALERTS_API_KEY for live council data
+            </div>
+          )}
+
+          {/* Pipeline risk summary banner */}
+          {daPipeline !== null && daPipeline.summary.total > 0 && (
+            <div style={{
+              background: daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)',
+              border: `1px solid ${daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.2)'}`,
+              borderRadius: 8, padding: '12px 16px', marginBottom: 16,
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            }}>
+              <span style={{
+                padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em',
+                background: daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.12)',
+                color: daPipeline.summary.risk_flag ? '#ef4444' : '#22c55e',
+                border: `1px solid ${daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.25)'}`,
+              }}>
+                {daPipeline.summary.risk_flag ? 'HIGH PIPELINE RISK' : 'LOW PIPELINE RISK'}
+              </span>
+              <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{daPipeline.summary.risk_note}</span>
+              <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: "'DM Mono', monospace" }}>
+                <span style={{ color: '#ef4444' }}>{daPipeline.summary.approved} approved</span>
+                <span style={{ color: '#f59e0b' }}>{daPipeline.summary.lodged} lodged</span>
+                <span style={{ color: '#94a3b8' }}>{daPipeline.summary.total_approved_places} pipeline places</span>
+              </div>
+            </div>
+          )}
+
+          {/* Combined centre list */}
+          {(nearbyCentres !== null || daPipeline !== null) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Legend */}
+              <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 11, flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b4a0', display: 'inline-block' }} />
+                  Existing centre
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                  DA approved
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+                  DA lodged
+                </span>
+              </div>
+
+              {/* Existing ACECQA centres */}
+              {nearbyCentres !== null && nearbyCentres.map((c, i) => (
+                <div key={`existing-${i}`} style={{
+                  background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
+                  padding: '11px 14px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'start',
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b4a0', marginTop: 4, flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600, color: '#e8edf3', marginBottom: 2 }}>{c.name}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>{c.address} · {c.distance_km} km</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>
+                      {c.address} · {c.distance_km}km · {c.licensed_places} places
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                    background: c.nqs_rating === 'Exceeding NQS' ? 'rgba(34,197,94,0.12)' : c.nqs_rating === 'Meeting NQS' ? 'rgba(0,180,160,0.12)' : 'rgba(245,158,11,0.12)',
+                    color: c.nqs_rating === 'Exceeding NQS' ? '#22c55e' : c.nqs_rating === 'Meeting NQS' ? '#00b4a0' : '#f59e0b',
+                  }}>{c.nqs_rating}</span>
+                </div>
+              ))}
+
+              {/* DA pipeline entries */}
+              {daPipeline !== null && daPipeline.applications.map((app, i) => (
+                <div key={`da-${i}`} style={{
+                  background: app.status === 'approved' ? 'rgba(239,68,68,0.04)' : 'rgba(245,158,11,0.03)',
+                  border: `1px solid ${app.status === 'approved' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.15)'}`,
+                  borderRadius: 8, padding: '11px 14px',
+                  display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'start',
+                }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0,
+                    background: app.status === 'approved' ? '#ef4444' : app.status === 'lodged' ? '#f59e0b' : '#94a3b8',
+                  }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8edf3', marginBottom: 2 }}>
+                      {app.address || 'Address unknown'}
+                      {app.places ? <span style={{ color: '#94a3b8', fontWeight: 400 }}> · {app.places} places</span> : null}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                      {app.description.length > 80 ? app.description.slice(0, 80) + '…' : app.description}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 3, fontFamily: "'DM Mono', monospace" }}>
+                      {app.date || 'No date'}{app.distance_km != null ? ` · ${app.distance_km}km` : ''}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                     <span style={{
-                      padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600,
-                      background: c.nqs_rating === 'Exceeding NQS' ? 'rgba(34,197,94,0.12)' : c.nqs_rating === 'Meeting NQS' ? 'rgba(0,180,160,0.12)' : 'rgba(245,158,11,0.12)',
-                      color: c.nqs_rating === 'Exceeding NQS' ? '#22c55e' : c.nqs_rating === 'Meeting NQS' ? '#00b4a0' : '#f59e0b',
-                    }}>{c.nqs_rating}</span>
-                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{c.licensed_places} places · {c.provider}</span>
+                      padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
+                      fontFamily: "'DM Mono', monospace",
+                      background: app.status === 'approved' ? 'rgba(239,68,68,0.12)' : app.status === 'lodged' ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.06)',
+                      color: app.status === 'approved' ? '#ef4444' : app.status === 'lodged' ? '#f59e0b' : '#94a3b8',
+                    }}>{app.status.toUpperCase()}</span>
+                    {app.info_url && (
+                      <a href={app.info_url} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 10, color: '#00b4a0', textDecoration: 'none' }}>View →</a>
+                    )}
                   </div>
                 </div>
               ))}
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', fontFamily: "'DM Mono', monospace", marginTop: 4 }}>
-                Source: Mock data — ACECQA public API not available. TODO: Automate when API released.
-              </div>
+
+              {nearbyCentres !== null && nearbyCentres.length === 0 && daPipeline !== null && daPipeline.applications.length === 0 && (
+                <div style={{ fontSize: 13, color: '#94a3b8' }}>No nearby centres or DAs found in this area.</div>
+              )}
             </div>
           )}
+
+          {/* Research links */}
+          <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 12, flexWrap: 'wrap' }}>
+            <a href="https://www.planningalerts.org.au" target="_blank" rel="noopener noreferrer"
+              style={{ color: '#00b4a0', textDecoration: 'none' }}>Search PlanningAlerts →</a>
+            <a href="https://www.planningalerts.org.au/where_to_find_planning_alerts" target="_blank" rel="noopener noreferrer"
+              style={{ color: '#00b4a0', textDecoration: 'none' }}>Council registers →</a>
+          </div>
         </div>
 
-        {/* ── P6: DA PIPELINE ── */}
-        <SectionTitle>DA Pipeline</SectionTitle>
-        <div style={{ marginBottom: 32 }}>
-          {daPipeline === null && (
-            <button
-              onClick={loadDAPipeline}
-              disabled={daLoading}
-              style={{
-                background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
-                borderRadius: 8, padding: '10px 20px', color: '#00b4a0',
-                fontSize: 13, cursor: daLoading ? 'wait' : 'pointer', fontWeight: 600,
-              }}
-            >
-              {daLoading ? 'Loading…' : 'Load DA Pipeline'}
-            </button>
-          )}
-          {daPipeline !== null && (
-            <div>
-              {/* Mock data banner */}
-              {daPipeline.source === 'mock' && (
-                <div style={{
-                  background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
-                  borderRadius: 6, padding: '8px 12px', marginBottom: 12,
-                  fontSize: 12, color: '#f59e0b',
-                }}>
-                  ℹ Sample data — set PLANNING_ALERTS_API_KEY for live DA data
-                </div>
-              )}
-
-              {/* Summary stats */}
-              <div style={{
-                background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
-                padding: '14px 16px', marginBottom: 12,
-              }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: daPipeline.summary.risk_flag ? 12 : 0 }}>
-                  {[
-                    { label: 'Total DAs', value: daPipeline.summary.total, color: '#e8edf3' },
-                    { label: 'Approved', value: daPipeline.summary.approved, color: '#ef4444' },
-                    { label: 'Lodged', value: daPipeline.summary.lodged, color: '#f59e0b' },
-                    { label: 'Approved places', value: daPipeline.summary.total_approved_places, color: daPipeline.summary.total_approved_places > 0 ? '#ef4444' : '#94a3b8' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label}>
-                      <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, fontFamily: "'DM Mono', monospace" }}>{label}</div>
-                      <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "'Space Grotesk', sans-serif" }}>{value}</div>
-                    </div>
-                  ))}
-                </div>
-                {daPipeline.summary.risk_flag && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                      background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)',
-                      fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em',
-                    }}>HIGH RISK</span>
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>{daPipeline.summary.risk_note}</span>
-                  </div>
-                )}
-                {!daPipeline.summary.risk_flag && daPipeline.summary.total > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                      background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)',
-                      fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em',
-                    }}>LOW RISK</span>
-                    <span style={{ fontSize: 12, color: '#94a3b8' }}>{daPipeline.summary.risk_note}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Application rows */}
-              {daPipeline.applications.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                  {daPipeline.applications.map((app, i) => (
-                    <div key={i} style={{
-                      background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
-                      padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'start',
-                    }}>
-                      <div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#e8edf3', marginBottom: 3 }}>
-                          {app.address || 'Unknown address'}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
-                          {app.description.length > 60 ? app.description.slice(0, 60) + '…' : app.description}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
-                          {app.date || 'No date'}
-                          {app.distance_km != null ? ` · ${app.distance_km}km` : ''}
-                          {app.places != null ? ` · ${app.places} places` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                        <span style={{
-                          padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
-                          fontFamily: "'DM Mono', monospace",
-                          background: app.status === 'approved' ? 'rgba(239,68,68,0.12)' : app.status === 'lodged' ? 'rgba(245,158,11,0.12)' : app.status === 'refused' ? 'rgba(100,150,200,0.12)' : 'rgba(255,255,255,0.06)',
-                          color: app.status === 'approved' ? '#ef4444' : app.status === 'lodged' ? '#f59e0b' : app.status === 'refused' ? '#64a0c8' : '#94a3b8',
-                          border: `1px solid ${app.status === 'approved' ? 'rgba(239,68,68,0.25)' : app.status === 'lodged' ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.1)'}`,
-                        }}>
-                          {app.status.toUpperCase()}
-                        </span>
-                        {app.info_url && (
-                          <a href={app.info_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: '#00b4a0', textDecoration: 'none' }}>
-                            View →
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {daPipeline.applications.length === 0 && (
-                <div style={{ fontSize: 13, color: '#94a3b8' }}>No childcare DAs found in this area.</div>
-              )}
-
-              {/* Links */}
-              <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
-                <a
-                  href="https://www.planningalerts.org.au"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: '#00b4a0', textDecoration: 'none' }}
-                >
-                  Search PlanningAlerts →
-                </a>
-                <a
-                  href="https://www.planningalerts.org.au/where_to_find_planning_alerts"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: '#00b4a0', textDecoration: 'none' }}
-                >
-                  Council planning register →
-                </a>
-              </div>
-            </div>
-          )}
-        </div>
-
+        {/* ── P4.2: CATCHMENT DEMOGRAPHICS ── */}
         {/* ── P4.2: CATCHMENT DEMOGRAPHICS ── */}
         <SectionTitle>Catchment Demographics</SectionTitle>
         <div style={{ marginBottom: 32 }}>
@@ -1606,23 +1579,6 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             </div>
           )}
         </div>
-
-        {/* ── P4.3: CHILDCARE COPILOT PLACEHOLDER ── */}
-        <SectionTitle>Enhanced Analysis</SectionTitle>
-        <div style={{
-          background: '#112236', border: '1px dashed #1e3a5f', borderRadius: 12,
-          padding: '28px 24px', marginBottom: 40, textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 12 }}>🐂 🐻 ⚖️</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: '#e8edf3', marginBottom: 8 }}>Bull / Bear / Judge Agent Analysis</div>
-          <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, maxWidth: 480, margin: '0 auto 16px' }}>
-            Multi-agent AI analysis: one agent argues the bull case, one the bear case, and a judge agent adjudicates.
-          </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>
-            TODO: Integrate ~/childcare-copilot
-          </div>
-        </div>
-
       {/* ── FOOTER ── */}
       <footer style={{
         borderTop: '1px solid rgba(255,255,255,0.07)',
