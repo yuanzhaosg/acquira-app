@@ -141,12 +141,13 @@ export default function PricingPage() {
         </div>
       )}
 
-      <div style={gridStyle}>
+      <div className="pricing-grid" style={gridStyle}>
         {PLANS.map(plan => {
           const isPopular = !!plan.badge
           return (
             <div
               key={plan.key}
+              className="pricing-card"
               style={{
                 flex: '1 1 300px',
                 maxWidth: 320,
@@ -233,8 +234,16 @@ export default function PricingPage() {
       </div>
 
       <div style={{ textAlign: 'center', marginTop: 48, color: '#94a3b8', fontSize: 12 }}>
-        Prices in AUD · Secure payments via Stripe · Cancel any time
+        All prices in AUD · Prices include dynamic catchment radius analysis · Secure payments via Stripe · Cancel any time
       </div>
+
+      <style>{`
+        @media (max-width: 640px) {
+          .pricing-grid { flex-direction: column !important; align-items: center !important; }
+          .pricing-card { max-width: 100% !important; width: 100% !important; }
+          .pricing-card button { width: 100% !important; }
+        }
+      `}</style>
     </div>
   )
 }

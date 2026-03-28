@@ -472,6 +472,12 @@ export default function CompetitiveMap({
               {mapData?.stats.radius_km ?? 3}km catchment ({mapData?.stats.radius_label ?? 'suburban'}) · Long day care centres + DA pipeline
               {isExploring && <span style={{ color: '#f59e0b', marginLeft: 6, fontWeight: 600 }}>· Exploring new location</span>}
             </div>
+            {mapData && (
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 3 }} title="Radius is set based on postcode population density">
+                Radius set to {mapData.stats.radius_km ?? 3}km based on postcode density
+                {' '}({mapData.stats.radius_label === 'dense urban' ? 'dense urban' : mapData.stats.radius_label === 'outer' ? 'outer/regional' : 'suburban'})
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {isExploring && (
@@ -587,7 +593,7 @@ export default function CompetitiveMap({
           <div style={{ borderTop: '1px solid #e2e8f0' }}>
             <button onClick={() => setShowList(p => !p)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: showList ? '1px solid #e2e8f0' : 'none' }}>
               <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#5a7a94' }}>
-                Existing Centres ({mapData.competitors.length})
+                Nearby Centres within {mapData.stats.radius_km ?? 3}km ({mapData.competitors.length})
               </span>
               <span style={{ fontSize: 12, color: '#5a7a94' }}>{showList ? '▲' : '▼'}</span>
             </button>

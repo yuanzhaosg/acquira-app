@@ -45,7 +45,7 @@ const SAMPLE_SCORED = {
     staffing_resilience:    { score: 6.5, label: 'Staffing & Labour',          summary: 'Educator costs at 54% of revenue. Minimal agency usage noted.', data_used: ['labour_ratio', 'agency_usage'] },
     lease_economics:        { score: 7.4, label: 'Lease Economics',            summary: 'Rent at 10.5% of revenue — within acceptable range. Make-good capped.', data_used: ['rent_pa', 'lease_terms'] },
     regulatory_quality:     { score: 7.0, label: 'Regulatory & Quality',       summary: 'Meeting NQS across all 7 quality areas. Last assessed 14 months ago.', data_used: ['nqs_rating', 'assessment_date'] },
-    market_position:        { score: 6.9, label: 'Market Position',            summary: '2.8 kids per licensed place within 3km — balanced supply zone.', data_used: ['competitor_count', 'licensed_places'] },
+    market_position:        { score: 6.9, label: 'Market Position',            summary: '2.8 kids per licensed place within dynamic catchment radius — balanced supply zone.', data_used: ['competitor_count', 'licensed_places'] },
     management_systems:     { score: 6.2, label: 'Management & Systems',       summary: 'Owner-operator runs centre daily. Transition risk flagged.', data_used: ['management_structure'] },
     valuation_structure:    { score: 6.7, label: 'Valuation & Deal Structure', summary: '6.7x EBITDA multiple. Within fair range for metro VIC at this occupancy.', data_used: ['asking_price', 'ebitda'] },
     upside_levers:          { score: 5.8, label: 'Upside Levers',              summary: 'Fee uplift headroom of ~$8/day. Occupancy near ceiling limits volume upside.', data_used: ['fee_gap', 'occupancy_rate'] },

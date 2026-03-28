@@ -336,6 +336,11 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
           .upload-drop  { padding: 40px 20px !important; }
           .upload-title { font-size: 16px !important; }
           .upload-cta   { width: 100%; display: block; text-align: center; }
+          .pipeline-grid { grid-template-columns: 1fr !important; }
+          .da-input     { min-height: 44px !important; font-size: 16px !important; }
+          .upload-row   { flex-direction: column !important; }
+          .upload-row input, .upload-row select { width: 100% !important; }
+          .upload-row button { width: 100% !important; }
         }
       `}</style>
 
@@ -500,15 +505,16 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
                   background: '#112236', border: '1px solid #1e3a5f', borderTop: 'none',
                   borderRadius: '0 0 8px 8px', padding: 16,
                 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div className="pipeline-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
                     {([
-                      { label: 'Approved DAs within 3km', key: 'approved_das', max: 20 },
-                      { label: 'Lodged applications within 3km', key: 'lodged_applications', max: 20 },
+                      { label: 'Approved DAs (2–5km catchment)', key: 'approved_das', max: 20 },
+                      { label: 'Lodged applications (2–5km catchment)', key: 'lodged_applications', max: 20 },
                       { label: 'Permit sites for sale nearby', key: 'permit_sites', max: 10 },
                     ] as const).map(({ label, key, max }) => (
                       <div key={key}>
                         <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: "'DM Mono', monospace" }}>{label}</div>
                         <input
+                          className="da-input"
                           type="number"
                           min={0}
                           max={max}
@@ -518,7 +524,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
                             width: '100%', background: 'rgba(255,255,255,0.06)',
                             border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6,
                             color: '#fff', fontSize: 16, fontWeight: 600, padding: '8px 10px',
-                            fontFamily: "'Space Grotesk', sans-serif",
+                            fontFamily: "'Space Grotesk', sans-serif", minHeight: 44,
                           }}
                         />
                       </div>
