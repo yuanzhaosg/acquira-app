@@ -591,6 +591,95 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
         </div>
       </section>
 
+      {/* ══════════════ PRICING ══════════════ */}
+      <section id="pricing" style={{ background: '#080f18', padding: '100px 48px' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--teal)', marginBottom: 16 }}>Pricing</div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(28px, 3.5vw, 44px)', fontWeight: 900, color: '#fff', margin: '0 0 12px', letterSpacing: -0.5 }}>
+              Simple, transparent pricing
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 16, margin: 0 }}>
+              Monthly subscription. Cancel anytime. Prices in AUD.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+            {[
+              {
+                name: 'Solo',
+                price: 79,
+                deals: '5 deals/mo',
+                desc: 'For individual investors evaluating deals',
+                features: ['5 scored deals per month', '17-dimension analysis', 'Deal pipeline & status', 'PDF export', 'Email support'],
+                popular: false,
+              },
+              {
+                name: 'Advisor',
+                price: 199,
+                deals: '25 deals/mo',
+                desc: 'For active acquirers and advisors',
+                features: ['25 scored deals per month', 'Everything in Solo', 'Deal comparison tool', 'Notes & tags', 'Priority support'],
+                popular: true,
+              },
+              {
+                name: 'Fund',
+                price: 499,
+                deals: 'Unlimited',
+                desc: 'For PE, family offices, aggregators',
+                features: ['Unlimited scored deals', 'Everything in Advisor', 'Dedicated support', 'Team access (coming soon)', 'API access (coming soon)'],
+                popular: false,
+              },
+            ].map(plan => (
+              <div key={plan.name} style={{
+                background: plan.popular ? 'linear-gradient(135deg, #112236 0%, rgba(0,180,160,0.08) 100%)' : '#0d1b2a',
+                border: `1.5px solid ${plan.popular ? 'var(--teal)' : 'rgba(255,255,255,0.08)'}`,
+                borderRadius: 12,
+                padding: '32px 28px',
+                position: 'relative',
+              }}>
+                {plan.popular && (
+                  <div style={{
+                    position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)',
+                    background: 'var(--teal)', color: '#0d1b2a', fontSize: 11, fontWeight: 700,
+                    padding: '4px 14px', borderRadius: 20, whiteSpace: 'nowrap', letterSpacing: '0.05em',
+                  }}>MOST POPULAR</div>
+                )}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 4 }}>{plan.name}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{plan.desc}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+                  <span style={{ fontSize: 42, fontWeight: 800, color: plan.popular ? 'var(--teal)' : '#fff', letterSpacing: -1 }}>${plan.price}</span>
+                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)' }}>/mo</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--teal)', fontWeight: 600, marginBottom: 24 }}>{plan.deals}</div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {plan.features.map(f => (
+                    <li key={f} style={{ display: 'flex', gap: 8, fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>
+                      <span style={{ color: 'var(--teal)', flexShrink: 0 }}>✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={onGoToApp}
+                  style={{
+                    width: '100%',
+                    background: plan.popular ? 'var(--teal)' : 'transparent',
+                    color: plan.popular ? '#0d1b2a' : 'var(--teal)',
+                    border: `1.5px solid var(--teal)`,
+                    borderRadius: 8, padding: '12px', fontWeight: 700, fontSize: 15,
+                    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  Get started →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ══════════════ CTA ══════════════ */}
       <section style={{ background: 'var(--navy)', padding: '120px 48px', textAlign: 'center', position: 'relative', overflow: 'hidden' }} className="cta-section-inner">
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 50% 50%, rgba(0,180,160,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
@@ -618,8 +707,8 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
           Purpose-built for childcare acquisition due diligence. Not general AI.
         </p>
         <div style={{ display: 'flex', gap: 24 }}>
-          {['Privacy', 'Terms', 'Contact'].map(l => (
-            <a key={l} href="#" style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, textDecoration: 'none' }}>{l}</a>
+          {[['Pricing', '#pricing'], ['Privacy', '#'], ['Terms', '#'], ['Contact', '#']].map(([l, href]) => (
+            <a key={l} href={href} style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13, textDecoration: 'none' }}>{l}</a>
           ))}
           <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.08)', cursor: 'default' }}>Not financial advice.</span>
         </div>
