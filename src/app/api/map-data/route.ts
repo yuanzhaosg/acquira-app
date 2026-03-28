@@ -55,9 +55,23 @@ function demandZone(kidsPerPlace: number): 'undersupplied' | 'balanced' | 'satur
 // Primary: exact postcode match
 // Fallback 1: adjacent postcode average (±1, ±2) for postcodes missing from ABS
 // Fallback 2: VIC metro/regional estimate based on postcode range
-function lookupKids0to4(postcode: string): { kids: number; source: string } {
-  // Growth factor: 2021 Census data is 4 years old
-  // Applied by postcode range to account for different growth rates
+interface DemandLookup {
+  kids: number
+  source: string
+  detail: {
+    abs2021Raw: number        // raw ABS 2021 postcode figure
+    growthFactor: number      // e.g. 1.18
+    growthPct: number         // e.g. 18
+    postcodeAreaKm2: number   // full postcode area
+    catchmentAreaKm2: number  // 3km radius area
+    areaRatioPct: number      // catchment / postcode * 100
+    yearEstimate: number      // e.g. 2026
+  } | null
+}
+
+function lookupKids0to4(postcode: string): DemandLookup {
+  const YEAR_ESTIMATE = new Date().getFullYear()
+
   function growthFactor(p: number): number {
     if (p >= 3500) return 1.18  // outer growth corridors (Wyndham, Melton, Hume, Casey)
     if (p >= 3300) return 1.10  // middle ring suburban
@@ -65,22 +79,33 @@ function lookupKids0to4(postcode: string): { kids: number; source: string } {
     return 1.04                 // inner metro
   }
 
-  // Proportional area scaling: estimate kids within 3km catchment
-  // rather than using the whole postcode population
-  function scaleToRadius(postcodeKids: number, pcode: string): number {
+  function scaleToRadius(postcodeKids: number, pcode: string): { scaled: number; postcodeArea: number; ratio: number } {
     const postcodeAreaKm2 = POSTCODE_AREA_KM2[pcode]
-    if (!postcodeAreaKm2 || postcodeAreaKm2 <= 0) return postcodeKids
+    if (!postcodeAreaKm2 || postcodeAreaKm2 <= 0) return { scaled: postcodeKids, postcodeArea: 0, ratio: 1 }
     const ratio = Math.min(CATCHMENT_AREA_KM2 / postcodeAreaKm2, 1.0)
-    return Math.round(postcodeKids * ratio)
+    return { scaled: Math.round(postcodeKids * ratio), postcodeArea: postcodeAreaKm2, ratio }
   }
 
   const exact = ABS_KIDS_0_4[postcode]
   const p = parseInt(postcode)
-  const gf = isNaN(p) ? 1.0 : growthFactor(p)
+  const gf = isNaN(p) ? 1.04 : growthFactor(p)
 
   if (exact !== undefined && exact > 0) {
-    const scaled = scaleToRadius(Math.round(exact * gf), postcode)
-    return { kids: scaled, source: 'ABS 2021 Census (3km catchment est.)' }
+    const withGrowth = Math.round(exact * gf)
+    const { scaled, postcodeArea, ratio } = scaleToRadius(withGrowth, postcode)
+    return {
+      kids: scaled,
+      source: 'ABS 2021 Census (3km catchment est.)',
+      detail: {
+        abs2021Raw:       exact,
+        growthFactor:     gf,
+        growthPct:        Math.round((gf - 1) * 100),
+        postcodeAreaKm2:  postcodeArea,
+        catchmentAreaKm2: parseFloat(CATCHMENT_AREA_KM2.toFixed(1)),
+        areaRatioPct:     Math.round(ratio * 100),
+        yearEstimate:     YEAR_ESTIMATE,
+      },
+    }
   }
 
   // Adjacent postcode fallback
@@ -90,19 +115,30 @@ function lookupKids0to4(postcode: string): { kids: number; source: string } {
       .filter(v => v !== undefined && v > 0) as number[]
     if (neighbours.length > 0) {
       const avg = Math.round(neighbours.reduce((a, b) => a + b, 0) / neighbours.length)
-      const scaled = scaleToRadius(Math.round(avg * gf), postcode)
-      return { kids: scaled, source: 'ABS 2021 Census (adjacent postcode est.)' }
+      const withGrowth = Math.round(avg * gf)
+      const { scaled, postcodeArea, ratio } = scaleToRadius(withGrowth, postcode)
+      return {
+        kids: scaled,
+        source: 'ABS 2021 Census (adjacent postcode est.)',
+        detail: {
+          abs2021Raw:       avg,
+          growthFactor:     gf,
+          growthPct:        Math.round((gf - 1) * 100),
+          postcodeAreaKm2:  postcodeArea,
+          catchmentAreaKm2: parseFloat(CATCHMENT_AREA_KM2.toFixed(1)),
+          areaRatioPct:     Math.round(ratio * 100),
+          yearEstimate:     YEAR_ESTIMATE,
+        },
+      }
     }
-
-    // Range-based fallback — these are already rough catchment-level estimates
-    if (p >= 3500) return { kids: Math.round(950  * 1.18), source: 'ABS estimate (outer growth corridor)' }
-    if (p >= 3300) return { kids: Math.round(800  * 1.10), source: 'ABS estimate (middle suburban VIC)' }
-    if (p >= 3208) return { kids: Math.round(700  * 1.06), source: 'ABS estimate (suburban VIC)' }
-    if (p >= 3000) return { kids: Math.round(1100 * 1.04), source: 'ABS estimate (inner metro VIC)' }
-    if (p >= 8000) return { kids: 400, source: 'ABS estimate (VIC PO Box)' }
+    if (p >= 3500) return { kids: Math.round(950  * 1.18), source: 'ABS estimate (outer growth corridor)', detail: null }
+    if (p >= 3300) return { kids: Math.round(800  * 1.10), source: 'ABS estimate (middle suburban VIC)',   detail: null }
+    if (p >= 3208) return { kids: Math.round(700  * 1.06), source: 'ABS estimate (suburban VIC)',          detail: null }
+    if (p >= 3000) return { kids: Math.round(1100 * 1.04), source: 'ABS estimate (inner metro VIC)',       detail: null }
+    if (p >= 8000) return { kids: 400,                     source: 'ABS estimate (VIC PO Box)',            detail: null }
   }
 
-  return { kids: 600, source: 'ABS estimate (VIC default)' }
+  return { kids: 600, source: 'ABS estimate (VIC default)', detail: null }
 }
 
 export async function POST(req: NextRequest) {
@@ -172,7 +208,7 @@ export async function POST(req: NextRequest) {
       } catch { /* non-fatal — fall through to estimate */ }
     }
 
-    const { kids: estimatedKids0to4, source: demandSource } = lookupKids0to4(resolvedPostcode)
+    const { kids: estimatedKids0to4, source: demandSource, detail: demandDetail } = lookupKids0to4(resolvedPostcode)
 
     const kidsPerPlace = supply.totalPlaces > 0
       ? parseFloat((estimatedKids0to4 / supply.totalPlaces).toFixed(2))
@@ -203,8 +239,9 @@ export async function POST(req: NextRequest) {
         total_licensed_places: supply.totalPlaces,
         kids_per_place:        kidsPerPlace,
         zone,
-        data_source:           demandSource,   // new — shown in map tooltip
+        data_source:           demandSource,
         census_year:           2021,
+        demand_detail:         demandDetail,
       },
       stats: {
         total_competitors:    filtered.length,

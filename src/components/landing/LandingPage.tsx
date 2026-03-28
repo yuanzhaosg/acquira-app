@@ -152,7 +152,14 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
               {[
                 { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: 'within 3km', color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: '3km catchment', color: '#fff' },
-                { label: 'Kids 0–4', value: result.demand.estimated_kids_0to4.toLocaleString(), sub: result.demand.data_source || 'ABS estimate', color: '#fff' },
+                {
+                  label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,
+                  value: result.demand.estimated_kids_0to4.toLocaleString(),
+                  sub: result.demand.demand_detail
+                    ? `ABS 2021: ${result.demand.demand_detail.abs2021Raw.toLocaleString()} · +${result.demand.demand_detail.growthPct}% growth · ${result.demand.demand_detail.areaRatioPct}% of postcode area`
+                    : result.demand.data_source || 'ABS estimate',
+                  color: '#fff'
+                },
               ].map(s => (
                 <div key={s.label} style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, padding: '16px 18px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>

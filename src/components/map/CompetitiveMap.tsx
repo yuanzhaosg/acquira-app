@@ -36,6 +36,15 @@ interface MapData {
   competitors: Competitor[]
   demand: {
     estimated_kids_0to4: number
+    demand_detail?: {
+      abs2021Raw: number
+      growthFactor: number
+      growthPct: number
+      postcodeAreaKm2: number
+      catchmentAreaKm2: number
+      areaRatioPct: number
+      yearEstimate: number
+    } | null
     total_licensed_places: number
     kids_per_place: number
     zone: 'undersupplied' | 'balanced' | 'saturated'
@@ -551,7 +560,13 @@ export default function CompetitiveMap({
         {mapData && (
           <div className="cmap-demand-grid" style={{ borderTop: '1px solid #e2e8f0' }}>
             {[
-              { label: 'Kids 0–4', value: mapData.demand.estimated_kids_0to4.toLocaleString(), subtitle: mapData.demand.data_source ? `${mapData.demand.data_source}${mapData.demand.census_year ? ` · ${mapData.demand.census_year}` : ''}` : 'Postcode estimate' },
+              {
+                label: `Kids 0–4 (${mapData.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,
+                value: mapData.demand.estimated_kids_0to4.toLocaleString(),
+                subtitle: mapData.demand.demand_detail
+                  ? `ABS 2021: ${mapData.demand.demand_detail.abs2021Raw.toLocaleString()} · +${mapData.demand.demand_detail.growthPct}% growth · ${mapData.demand.demand_detail.areaRatioPct}% of postcode`
+                  : mapData.demand.data_source ?? 'Postcode estimate',
+              },
               { label: 'Licensed places (3km)', value: mapData.demand.total_licensed_places.toLocaleString(), subtitle: `${mapData.stats.total_competitors} existing centre${mapData.stats.total_competitors !== 1 ? 's' : ''}` },
               { label: 'Kids per place', value: mapData.demand.kids_per_place.toFixed(1), subtitle: `${ZONE_COLORS[mapData.demand.zone].label} market`, color: zoneStyle?.color },
               { label: 'Pipeline places', value: approvedPlaces > 0 ? `+${approvedPlaces}` : '—', subtitle: approvedPlaces > 0 ? `${approvedCount} approved DA${approvedCount !== 1 ? 's' : ''}` : 'No DAs entered', color: approvedPlaces > 0 ? '#ef4444' : undefined },
