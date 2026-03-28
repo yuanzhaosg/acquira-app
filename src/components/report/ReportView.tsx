@@ -103,11 +103,12 @@ function ScoreRing({ score }: { score: number }) {
 
 // ── DIMENSION ROW ─────────────────────────────────────────────────────────────
 
-function DimensionRow({ id, dim, isActive, onClick }: {
+function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
   id: string
   dim: any
   isActive: boolean
   onClick: () => void
+  pipelineIntelUsed?: boolean
 }) {
   const score = dimScore(dim)
   const color = dimScoreColor(score)
@@ -198,6 +199,18 @@ function DimensionRow({ id, dim, isActive, onClick }: {
           {/* v2 Sprint 3 detail blocks */}
           {hasDetail && (
             <DetailBlock id={id} detail={dim.detail} />
+          )}
+
+          {/* Pipeline intel note for market_position */}
+          {id === 'market_position' && pipelineIntelUsed && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10,
+              padding: '3px 10px', borderRadius: 4,
+              background: 'rgba(0,180,160,0.08)', border: '1px solid rgba(0,180,160,0.2)',
+              fontSize: 11, color: '#00b4a0', fontFamily: 'IBM Plex Mono, monospace',
+            }}>
+              ✓ Pipeline intel included in scoring
+            </div>
           )}
         </div>
       )}
@@ -520,6 +533,37 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const [demographics, setDemographics]       = useState<DemographicData | null>(null)
   const [demoLoading, setDemoLoading]         = useState(false)
 
+  // P6 — DA Pipeline
+  type DAApplication = {
+    address: string | null
+    description: string
+    status: 'approved' | 'lodged' | 'refused' | 'unknown'
+    date: string | null
+    places: number | null
+    distance_km: number | null
+    info_url: string | null
+  }
+  type DAPipelineData = {
+    source: string
+    note?: string
+    postcode: string
+    suburb?: string
+    state: string
+    applications: DAApplication[]
+    summary: {
+      total: number
+      approved: number
+      lodged: number
+      refused: number
+      total_approved_places: number
+      total_pipeline_places: number
+      risk_flag: boolean
+      risk_note: string
+    }
+  }
+  const [daPipeline, setDaPipeline]   = useState<DAPipelineData | null>(null)
+  const [daLoading, setDaLoading]     = useState(false)
+
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'https://acquira-api-production.up.railway.app'
 
   async function loadNearbyCentres() {
@@ -553,6 +597,24 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
     setDemoLoading(false)
   }
 
+  async function loadDAPipeline() {
+    setDaLoading(true)
+    try {
+      const c = (extracted as any).centre
+      const postcode = c?.postcode ?? '3000'
+      const suburb   = c?.suburb ?? ''
+      const state    = c?.state ?? 'VIC'
+      const qs = new URLSearchParams()
+      qs.set('postcode', postcode)
+      if (suburb) qs.set('suburb', suburb)
+      if (state)  qs.set('state', state)
+      qs.set('radius_km', '2')
+      const res = await fetch(`${apiBase}/planning/nearby?${qs}`)
+      const json = await res.json()
+      setDaPipeline(json)
+    } catch { setDaPipeline(null) }
+    setDaLoading(false)
+  }
 
   useEffect(() => { setCurrentScored(scored) }, [scored])
 
@@ -1031,6 +1093,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                     key={id} id={id} dim={dim}
                     isActive={activeDim === id}
                     onClick={() => setActiveDim(activeDim === id ? null : id)}
+                    pipelineIntelUsed={id === 'market_position' && !!(currentScored as any).pipeline_intel_used}
                   />
                 ))}
               </div>
@@ -1048,7 +1111,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                   <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)' }}>Other</span>
                 </div>
                 {ungrouped.map(([id, dim]) => (
-                  <DimensionRow key={id} id={id} dim={dim} isActive={activeDim === id} onClick={() => setActiveDim(activeDim === id ? null : id)} />
+                  <DimensionRow key={id} id={id} dim={dim} isActive={activeDim === id} onClick={() => setActiveDim(activeDim === id ? null : id)} pipelineIntelUsed={false} />
                 ))}
               </div>
             )
@@ -1351,6 +1414,144 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               ))}
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', fontFamily: "'DM Mono', monospace", marginTop: 4 }}>
                 Source: Mock data — ACECQA public API not available. TODO: Automate when API released.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── P6: DA PIPELINE ── */}
+        <SectionTitle>DA Pipeline</SectionTitle>
+        <div style={{ marginBottom: 32 }}>
+          {daPipeline === null && (
+            <button
+              onClick={loadDAPipeline}
+              disabled={daLoading}
+              style={{
+                background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+                borderRadius: 8, padding: '10px 20px', color: '#00b4a0',
+                fontSize: 13, cursor: daLoading ? 'wait' : 'pointer', fontWeight: 600,
+              }}
+            >
+              {daLoading ? 'Loading…' : 'Load DA Pipeline'}
+            </button>
+          )}
+          {daPipeline !== null && (
+            <div>
+              {/* Mock data banner */}
+              {daPipeline.source === 'mock' && (
+                <div style={{
+                  background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                  borderRadius: 6, padding: '8px 12px', marginBottom: 12,
+                  fontSize: 12, color: '#f59e0b',
+                }}>
+                  ℹ Sample data — set PLANNING_ALERTS_API_KEY for live DA data
+                </div>
+              )}
+
+              {/* Summary stats */}
+              <div style={{
+                background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
+                padding: '14px 16px', marginBottom: 12,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: daPipeline.summary.risk_flag ? 12 : 0 }}>
+                  {[
+                    { label: 'Total DAs', value: daPipeline.summary.total, color: '#e8edf3' },
+                    { label: 'Approved', value: daPipeline.summary.approved, color: '#ef4444' },
+                    { label: 'Lodged', value: daPipeline.summary.lodged, color: '#f59e0b' },
+                    { label: 'Approved places', value: daPipeline.summary.total_approved_places, color: daPipeline.summary.total_approved_places > 0 ? '#ef4444' : '#94a3b8' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, fontFamily: "'DM Mono', monospace" }}>{label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: "'Space Grotesk', sans-serif" }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {daPipeline.summary.risk_flag && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)',
+                      fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em',
+                    }}>HIGH RISK</span>
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>{daPipeline.summary.risk_note}</span>
+                  </div>
+                )}
+                {!daPipeline.summary.risk_flag && daPipeline.summary.total > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                      background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)',
+                      fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em',
+                    }}>LOW RISK</span>
+                    <span style={{ fontSize: 12, color: '#94a3b8' }}>{daPipeline.summary.risk_note}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Application rows */}
+              {daPipeline.applications.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {daPipeline.applications.map((app, i) => (
+                    <div key={i} style={{
+                      background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
+                      padding: '10px 14px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'start',
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#e8edf3', marginBottom: 3 }}>
+                          {app.address || 'Unknown address'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
+                          {app.description.length > 60 ? app.description.slice(0, 60) + '…' : app.description}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4, fontFamily: "'DM Mono', monospace" }}>
+                          {app.date || 'No date'}
+                          {app.distance_km != null ? ` · ${app.distance_km}km` : ''}
+                          {app.places != null ? ` · ${app.places} places` : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                          fontFamily: "'DM Mono', monospace",
+                          background: app.status === 'approved' ? 'rgba(239,68,68,0.12)' : app.status === 'lodged' ? 'rgba(245,158,11,0.12)' : app.status === 'refused' ? 'rgba(100,150,200,0.12)' : 'rgba(255,255,255,0.06)',
+                          color: app.status === 'approved' ? '#ef4444' : app.status === 'lodged' ? '#f59e0b' : app.status === 'refused' ? '#64a0c8' : '#94a3b8',
+                          border: `1px solid ${app.status === 'approved' ? 'rgba(239,68,68,0.25)' : app.status === 'lodged' ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                        }}>
+                          {app.status.toUpperCase()}
+                        </span>
+                        {app.info_url && (
+                          <a href={app.info_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: '#00b4a0', textDecoration: 'none' }}>
+                            View →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {daPipeline.applications.length === 0 && (
+                <div style={{ fontSize: 13, color: '#94a3b8' }}>No childcare DAs found in this area.</div>
+              )}
+
+              {/* Links */}
+              <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                <a
+                  href="https://www.planningalerts.org.au"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#00b4a0', textDecoration: 'none' }}
+                >
+                  Search PlanningAlerts →
+                </a>
+                <a
+                  href="https://www.planningalerts.org.au/where_to_find_planning_alerts"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: '#00b4a0', textDecoration: 'none' }}
+                >
+                  Council planning register →
+                </a>
               </div>
             </div>
           )}
