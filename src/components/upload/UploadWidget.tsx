@@ -16,6 +16,13 @@ const MAX_SINGLE_FILE_BYTES = 500 * 1024 * 1024  // 500 MB per file
 const MAX_ZIP_BYTES         = 500 * 1024 * 1024  // 500 MB for a ZIP data room
 const MAX_FILE_COUNT        = 30                  // matches Railway budget
 
+interface PipelineIntel {
+  approved_das: number
+  lodged_applications: number
+  permit_sites: number
+  notes: string
+}
+
 interface UploadWidgetProps {
   onResult: (extracted: unknown, scored: unknown) => void
 }
@@ -36,6 +43,7 @@ interface FileUploadState {
 type Stage =
   | { kind: 'idle' }
   | { kind: 'uploading'; files: FileUploadState[] }
+  | { kind: 'ready'; filenames: string[]; storagePaths: string[] }
   | { kind: 'processing'; filenames: string[]; elapsed: number; progress: ProgressStep | null }
   | { kind: 'error'; message: string; filenames?: string[] }
 
@@ -59,6 +67,14 @@ function formatBytes(bytes: number): string {
 export default function UploadWidget({ onResult }: UploadWidgetProps) {
   const [stage, setStage]       = useState<Stage>({ kind: 'idle' })
   const [dragging, setDragging] = useState(false)
+  const [pipelineOpen, setPipelineOpen] = useState(false)
+  const [pipelineIntel, setPipelineIntel] = useState<PipelineIntel>({
+    approved_das: 0,
+    lodged_applications: 0,
+    permit_sites: 0,
+    notes: '',
+  })
+
 
   const run = useCallback(async (files: File[]) => {
     const ts = Date.now()
@@ -151,7 +167,11 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
 
     await new Promise(r => setTimeout(r, 400))
 
-    // ── Trigger Railway pipeline ───────────────────────────────────────────
+    // ── Files uploaded — show pipeline intel section before generating ──────
+    setStage({ kind: 'ready', filenames, storagePaths })
+  }, [])
+
+  const generate = useCallback(async (storagePaths: string[], filenames: string[], intel: PipelineIntel) => {
     const startTime = Date.now()
     setStage({ kind: 'processing', filenames, elapsed: 0, progress: null })
 
@@ -163,6 +183,15 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
       )
     }, 1000)
 
+    // Build pipeline intel payload (only include if any data was entered)
+    const hasPipelineIntel = intel.approved_das > 0 || intel.lodged_applications > 0 || intel.permit_sites > 0 || intel.notes.trim().length > 0
+    const pipelineIntelPayload = hasPipelineIntel ? {
+      approved_das: intel.approved_das,
+      lodged_applications: intel.lodged_applications,
+      permit_sites: intel.permit_sites,
+      notes: intel.notes || undefined,
+    } : undefined
+
     try {
       const res = await fetch('/api/pipeline', {
         method: 'POST',
@@ -172,6 +201,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
           filenames,
           storagePath: storagePaths[0],   // legacy compat
           filename: filenames.join(', '), // legacy compat
+          pipelineIntel: pipelineIntelPayload,
         }),
       })
 
@@ -429,6 +459,132 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
             </div>
           )
         })()}
+
+        {/* ── READY: show pipeline intel section before generating ── */}
+        {s.kind === 'ready' && (
+          <div style={{ padding: '32px 0' }}>
+            {/* File pills */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 20 }}>
+              {s.filenames.map((name, i) => (
+                <span key={i} style={{
+                  fontSize: 11, color: '#00b4a0',
+                  fontFamily: 'IBM Plex Mono, monospace',
+                  background: 'rgba(0,180,160,0.08)',
+                  border: '1px solid rgba(0,180,160,0.2)',
+                  borderRadius: 4, padding: '2px 8px',
+                }}>
+                  ✓ {name}
+                </span>
+              ))}
+            </div>
+
+            {/* Pipeline Intel collapsible */}
+            <div style={{ marginBottom: 20 }}>
+              <button
+                onClick={() => setPipelineOpen(o => !o)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8, padding: '10px 14px', cursor: 'pointer', color: '#e8edf3',
+                  fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                <span style={{ color: '#00b4a0' }}>{pipelineOpen ? '▾' : '▸'}</span>
+                Pipeline Intel <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>— Optional</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>
+                  Improves market_position scoring
+                </span>
+              </button>
+              {pipelineOpen && (
+                <div style={{
+                  background: '#112236', border: '1px solid #1e3a5f', borderTop: 'none',
+                  borderRadius: '0 0 8px 8px', padding: 16,
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    {([
+                      { label: 'Approved DAs within 3km', key: 'approved_das', max: 20 },
+                      { label: 'Lodged applications within 3km', key: 'lodged_applications', max: 20 },
+                      { label: 'Permit sites for sale nearby', key: 'permit_sites', max: 10 },
+                    ] as const).map(({ label, key, max }) => (
+                      <div key={key}>
+                        <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: "'DM Mono', monospace" }}>{label}</div>
+                        <input
+                          type="number"
+                          min={0}
+                          max={max}
+                          value={pipelineIntel[key]}
+                          onChange={e => setPipelineIntel(prev => ({ ...prev, [key]: Math.max(0, Math.min(max, Number(e.target.value))) }))}
+                          style={{
+                            width: '100%', background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6,
+                            color: '#fff', fontSize: 16, fontWeight: 600, padding: '8px 10px',
+                            fontFamily: "'Space Grotesk', sans-serif",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: "'DM Mono', monospace" }}>Additional pipeline notes</div>
+                    <textarea
+                      placeholder='e.g. "12 Sample St approved for 80 places, opens 2026"'
+                      value={pipelineIntel.notes}
+                      onChange={e => setPipelineIntel(prev => ({ ...prev, notes: e.target.value }))}
+                      style={{
+                        width: '100%', minHeight: 72, background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
+                        color: '#e8edf3', fontSize: 12, padding: '8px 10px', resize: 'vertical',
+                        fontFamily: "'DM Sans', sans-serif", lineHeight: 1.5,
+                        boxSizing: 'border-box' as const,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
+                    <a
+                      href="https://www.planningalerts.org.au"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#00b4a0', textDecoration: 'none' }}
+                    >
+                      Find DAs on PlanningAlerts →
+                    </a>
+                    <a
+                      href="https://www.planningalerts.org.au/where_to_find_planning_alerts"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#00b4a0', textDecoration: 'none' }}
+                    >
+                      Check council planning register →
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Generate button */}
+            <button
+              onClick={() => generate(s.storagePaths, s.filenames, pipelineIntel)}
+              style={{
+                width: '100%', background: '#00b4a0', border: 'none',
+                borderRadius: 8, padding: '14px 24px', color: '#0d1b2a',
+                fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                fontFamily: "'Space Grotesk', sans-serif",
+              }}
+            >
+              Generate Report →
+            </button>
+            <button
+              onClick={() => setStage({ kind: 'idle' })}
+              style={{
+                width: '100%', background: 'none', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 8, padding: '10px 24px', color: 'rgba(255,255,255,0.35)',
+                fontSize: 12, cursor: 'pointer', marginTop: 8,
+              }}
+            >
+              Upload different files
+            </button>
+          </div>
+        )}
 
         {/* ── PROCESSING ── */}
         {s.kind === 'processing' && (

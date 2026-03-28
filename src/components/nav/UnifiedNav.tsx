@@ -196,6 +196,9 @@ export default function UnifiedNav({
                 📊 Report
               </button>
             )}
+            <a href="/councils" style={linkBase} target="_blank" rel="noopener noreferrer">
+              🏛 Planning Research
+            </a>
             <div style={sep} />
             <button style={btnGhost} onClick={onHome}>← Home</button>
             <div style={sep} />
