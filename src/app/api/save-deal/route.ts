@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { ScoredDeal } from '@/types/scored'
+import { canCreateDeal, incrementDealsUsed } from '@/lib/billing/limits'
 
 // Service key client — bypasses RLS for writes, but we stamp user_id manually
 const supabase = createClient(
@@ -54,6 +55,17 @@ export async function POST(req: NextRequest) {
       user_id = data.user?.id ?? null
     }
 
+    // ── Paywall check ─────────────────────────────────────────────────────────
+    if (user_id) {
+      const limitResult = await canCreateDeal(user_id)
+      if (!limitResult.allowed) {
+        return NextResponse.json(
+          { error: limitResult.reason ?? 'Deal limit reached', code: 'DEAL_LIMIT_REACHED', dealsUsed: limitResult.dealsUsed, dealsMax: limitResult.dealsMax },
+          { status: 402 }
+        )
+      }
+    }
+
     const centre    = extracted.centre
     const fy25      = extracted.financials?.fy25
     const ratios    = extracted.key_ratios
@@ -93,6 +105,12 @@ export async function POST(req: NextRequest) {
     }).select('id').single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Increment deals_used after successful insert
+    if (user_id) {
+      await incrementDealsUsed(user_id).catch(e => console.error('incrementDealsUsed error:', e.message))
+    }
+
     return NextResponse.json({ id: data.id })
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 })

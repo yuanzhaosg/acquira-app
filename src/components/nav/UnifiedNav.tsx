@@ -1,7 +1,8 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { signOut } from '@/lib/useAuth'
+import { signOut, supabase } from '@/lib/useAuth'
 
 type NavMode = 'landing' | 'app' | 'report'
 
@@ -18,10 +19,31 @@ interface UnifiedNavProps {
   onSignIn?: () => void
 }
 
+interface BillingStatus {
+  plan: string | null
+  status: string | null
+  dealsUsed: number
+  dealsMax: number | null
+  dealsRemaining: number | null
+}
+
 export default function UnifiedNav({
   mode, activeAppTab, onLogoClick, onUpload, onPipeline,
   onReport, onHome, centreLabel, user, onSignIn,
 }: UnifiedNavProps) {
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
+
+  useEffect(() => {
+    if (!user) { setBillingStatus(null); return }
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token
+      if (!token) return
+      fetch('/api/billing/status', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setBillingStatus(d) })
+        .catch(() => {})
+    })
+  }, [user])
 
   const navStyle: React.CSSProperties = {
     position: 'sticky', top: 0, zIndex: 300,
@@ -86,12 +108,37 @@ export default function UnifiedNav({
     letterSpacing: '0.08em', textTransform: 'uppercase' as const,
   }
 
+  // Billing badge
+  const BillingBadge = () => {
+    if (!billingStatus || !billingStatus.status) return null
+    const { plan, dealsUsed, dealsMax } = billingStatus
+    if (!plan) return null
+    const label = dealsMax === null
+      ? 'Unlimited'
+      : `${dealsUsed}/${dealsMax} deals`
+    const pct = dealsMax ? dealsUsed / dealsMax : 0
+    const color = pct >= 0.9 ? '#ef4444' : pct >= 0.7 ? '#f59e0b' : '#00b4a0'
+    return (
+      <div style={{
+        padding: '4px 10px', borderRadius: 100, fontSize: 11, fontWeight: 600,
+        background: `rgba(${color === '#00b4a0' ? '0,180,160' : color === '#f59e0b' ? '245,158,11' : '239,68,68'},0.12)`,
+        border: `1px solid ${color}33`,
+        color,
+        fontFamily: "'DM Mono', monospace",
+        letterSpacing: '0.02em',
+      }}>
+        {label}
+      </div>
+    )
+  }
+
   // User avatar + sign out pill
   const UserChip = () => {
     if (!user) return null
     const initials = user.email ? user.email[0].toUpperCase() : '?'
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <BillingBadge />
         <div style={{
           width: 28, height: 28, borderRadius: '50%',
           background: 'rgba(0,180,160,0.2)', border: '1px solid rgba(0,180,160,0.4)',
