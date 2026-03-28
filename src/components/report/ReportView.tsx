@@ -128,7 +128,7 @@ function DimensionRow({ id, dim, isActive, onClick }: {
         transition: 'all 0.15s', marginBottom: 4,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 52px', gap: 14, alignItems: 'center' }}>
+      <div className="dim-row-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 52px', gap: 14, alignItems: 'center' }}>
         <div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: 500, marginBottom: 2 }}>
             {label}
