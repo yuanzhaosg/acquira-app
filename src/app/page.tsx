@@ -6,6 +6,7 @@ import UnifiedNav from '@/components/nav/UnifiedNav'
 import UploadWidget from '@/components/upload/UploadWidget'
 import ReportView from '@/components/report/ReportView'
 import DealList from '@/components/deals/DealList'
+import CompareView from '@/components/compare/CompareView'
 import AuthModal from '@/components/auth/AuthModal'
 import { useAuth, supabase } from '@/lib/useAuth'
 import { getDeal } from '@/lib/deals'
@@ -64,7 +65,7 @@ const SAMPLE_SCORED = {
   },
 }
 
-type View = 'landing' | 'upload' | 'report' | 'list' | 'sample'
+type View = 'landing' | 'upload' | 'report' | 'list' | 'sample' | 'compare'
 
 export default function Home() {
   const { user, loading } = useAuth()
@@ -74,6 +75,7 @@ export default function Home() {
   const [extracted, setExtracted] = useState<ExtractedDeal | null>(null)
   const [scored, setScored]       = useState<ScoredDeal | null>(null)
   const [dealId, setDealId]       = useState<string | null>(null)
+  const [compareDeals, setCompareDeals] = useState<{ id: string; centre_name: string | null; total_score: number | null; scored: unknown }[]>([])
 
   function handleUploadIntent() {
     if (user) {
@@ -164,8 +166,22 @@ export default function Home() {
             }
           }}
           onNew={() => setView('upload')}
+          onCompare={(_ids, deals) => {
+            setCompareDeals(deals as { id: string; centre_name: string | null; total_score: number | null; scored: unknown }[])
+            setView('compare')
+          }}
         />
       </div>
+    )
+  }
+
+  // ── Compare ───────────────────────────────────────────────────────────────
+  if (view === 'compare' && compareDeals.length >= 2) {
+    return (
+      <CompareView
+        deals={compareDeals}
+        onBack={() => setView('list')}
+      />
     )
   }
 

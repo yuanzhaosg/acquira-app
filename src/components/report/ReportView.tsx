@@ -450,6 +450,68 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const [rescoreError, setRescoreError] = useState<string | null>(null)
   const [resaved, setResaved]           = useState(false)
 
+  // Decision Checklist state
+  type ChecklistAnswer = 'yes' | 'no' | 'unsure' | null
+  const CHECKLIST_QUESTIONS = [
+    { id: 'management_transition', label: 'Is there a credible management transition plan?' },
+    { id: 'lease_confirmed',       label: 'Has the landlord confirmed lease assignment?' },
+    { id: 'dd_financials',         label: 'Have financials been independently verified?' },
+    { id: 'regulatory_clear',      label: 'Are there no open regulatory or compliance issues?' },
+  ]
+  const [checklistOpen, setChecklistOpen] = useState(false)
+  const [checklistAnswers, setChecklistAnswers] = useState<Record<string, ChecklistAnswer>>(() => {
+    if (typeof window === 'undefined' || !dealId) return {}
+    try { return JSON.parse(localStorage.getItem(`checklist-${dealId}`) ?? '{}') } catch { return {} }
+  })
+  const setChecklistAnswer = (id: string, val: ChecklistAnswer) => {
+    const next = { ...checklistAnswers, [id]: val }
+    setChecklistAnswers(next)
+    if (dealId && typeof window !== 'undefined') {
+      localStorage.setItem(`checklist-${dealId}`, JSON.stringify(next))
+    }
+  }
+
+  // Notes & Tags state
+  const [notesOpen, setNotesOpen]   = useState(false)
+  const [notes, setNotes]           = useState('')
+  const [tagsInput, setTagsInput]   = useState('')
+  const [tags, setTags]             = useState<string[]>([])
+  const [notesSaving, setNotesSaving] = useState(false)
+
+  const saveNotesAndTags = async (newNotes?: string, newTags?: string[]) => {
+    if (!dealId) return
+    setNotesSaving(true)
+    try {
+      const { data: { session } } = await (await import('@/lib/useAuth')).supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) return
+      await fetch(`/api/deals/${dealId}/notes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          notes: newNotes ?? notes,
+          tags: (newTags ?? tags).join(','),
+        }),
+      })
+    } catch {}
+    setNotesSaving(false)
+  }
+
+  const addTag = (tag: string) => {
+    const t = tag.trim()
+    if (!t || tags.includes(t)) return
+    const next = [...tags, t]
+    setTags(next)
+    setTagsInput('')
+    saveNotesAndTags(notes, next)
+  }
+
+  const removeTag = (tag: string) => {
+    const next = tags.filter(t => t !== tag)
+    setTags(next)
+    saveNotesAndTags(notes, next)
+  }
+
   useEffect(() => { setCurrentScored(scored) }, [scored])
 
   const handleOverride = (field: string, rawVal: string) => {
@@ -628,6 +690,13 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           .report-metrics    { grid-template-columns: 1fr 1fr !important; }
           .report-hero h1    { font-size: 28px !important; }
         }
+        @media print {
+          body { background: #fff !important; color: #000 !important; }
+          .report-header, .report-header-right button, nav { display: none !important; }
+          .dim-grid { grid-template-columns: 1fr 1fr !important; }
+          * { background: transparent !important; color: #000 !important; border-color: #ccc !important; box-shadow: none !important; }
+          a { color: #000 !important; }
+        }
       `}</style>
 
       {/* ── STICKY HEADER ── */}
@@ -664,6 +733,16 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             borderRadius: 6, padding: '6px 14px', color: '#00b4a0',
             fontSize: 12, cursor: 'pointer', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 600
           }}>+ New Deal</button>
+          <button
+            onClick={() => window.print()}
+            style={{
+              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 6, padding: '6px 14px', color: 'rgba(255,255,255,0.7)',
+              fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+            }}
+          >
+            ⬇ PDF
+          </button>
         </div>
       </header>
 
@@ -1041,6 +1120,149 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             {currentScored.verdict.recommended_buyer_profile}
           </div>
         )}
+
+        {/* ── DECISION CHECKLIST ── */}
+        <div style={{ marginBottom: 32 }}>
+          <button
+            onClick={() => setChecklistOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '12px 16px', cursor: 'pointer', color: '#e8edf3',
+              fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600,
+            }}
+          >
+            <span style={{ color: '#00b4a0' }}>{checklistOpen ? '▾' : '▸'}</span>
+            Decision Checklist
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>
+              {Object.values(checklistAnswers).filter(Boolean).length}/{CHECKLIST_QUESTIONS.length} answered
+            </span>
+          </button>
+          {checklistOpen && (
+            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 20 }}>
+              {/* Flag badges */}
+              {Object.entries(checklistAnswers).filter(([, v]) => v === 'no').length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {CHECKLIST_QUESTIONS.filter(q => checklistAnswers[q.id] === 'no').map(q => (
+                    <span key={q.id} style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      ⚠ {q.id.replace(/_/g, ' ')}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {CHECKLIST_QUESTIONS.map(q => {
+                  const ans = checklistAnswers[q.id] ?? null
+                  return (
+                    <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', flex: 1 }}>{q.label}</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {(['yes', 'no', 'unsure'] as const).map(opt => (
+                          <button
+                            key={opt}
+                            onClick={() => setChecklistAnswer(q.id, ans === opt ? null : opt)}
+                            style={{
+                              padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer', border: '1px solid',
+                              fontFamily: "'DM Sans', sans-serif",
+                              background: ans === opt
+                                ? opt === 'yes' ? 'rgba(34,197,94,0.2)' : opt === 'no' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'
+                                : 'transparent',
+                              borderColor: ans === opt
+                                ? opt === 'yes' ? '#22c55e' : opt === 'no' ? '#ef4444' : '#f59e0b'
+                                : 'rgba(255,255,255,0.15)',
+                              color: ans === opt
+                                ? opt === 'yes' ? '#22c55e' : opt === 'no' ? '#ef4444' : '#f59e0b'
+                                : 'rgba(255,255,255,0.4)',
+                            }}
+                          >
+                            {opt === 'yes' ? '✓ Yes' : opt === 'no' ? '✗ No' : '? Unsure'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── NOTES & TAGS ── */}
+        <div style={{ marginBottom: 40 }}>
+          <button
+            onClick={() => setNotesOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '12px 16px', cursor: 'pointer', color: '#e8edf3',
+              fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600,
+            }}
+          >
+            <span style={{ color: '#00b4a0' }}>{notesOpen ? '▾' : '▸'}</span>
+            Notes & Tags
+            {notesSaving && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>saving…</span>}
+          </button>
+          {notesOpen && (
+            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 20 }}>
+              <textarea
+                placeholder="Add notes about this deal…"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                onBlur={() => saveNotesAndTags(notes, tags)}
+                style={{
+                  width: '100%', minHeight: 100, background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+                  color: '#e8edf3', fontSize: 13, padding: 12, resize: 'vertical',
+                  fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, fontFamily: "'DM Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tags</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {tags.map(tag => (
+                    <span key={tag} style={{
+                      padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+                      background: 'rgba(0,180,160,0.1)', color: '#00b4a0',
+                      border: '1px solid rgba(0,180,160,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {tag}
+                      <button
+                        onClick={() => removeTag(tag)}
+                        style={{ background: 'none', border: 'none', color: '#00b4a0', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    placeholder="Add tag…"
+                    value={tagsInput}
+                    onChange={e => setTagsInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(tagsInput) } }}
+                    style={{
+                      flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 6, color: '#e8edf3', fontSize: 13, padding: '6px 10px',
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  />
+                  <button
+                    onClick={() => addTag(tagsInput)}
+                    style={{
+                      background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+                      borderRadius: 6, padding: '6px 14px', color: '#00b4a0',
+                      fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
       </div>
 
