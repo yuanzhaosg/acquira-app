@@ -56,6 +56,8 @@ interface MapData {
     exceeding_nqs: number
     working_towards_nqs: number
     radius_m: number
+    radius_km?: number
+    radius_label?: string
   }
 }
 
@@ -205,7 +207,7 @@ export default function CompetitiveMap({
       fillColor: zoneStyle.fill, fillOpacity: 1,
       map,
       center: { lat: data.target.lat, lng: data.target.lng },
-      radius: 3000,
+      radius: (data.stats.radius_km ?? 3) * 1000,
     })
 
     // Target centre marker
@@ -467,7 +469,7 @@ export default function CompetitiveMap({
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#0d1b2a' }}>Competitive Map</div>
             <div style={{ fontSize: 11, color: '#5a7a94', marginTop: 2 }}>
-              3km catchment · Long day care centres + DA pipeline
+              {mapData?.stats.radius_km ?? 3}km catchment ({mapData?.stats.radius_label ?? 'suburban'}) · Long day care centres + DA pipeline
               {isExploring && <span style={{ color: '#f59e0b', marginLeft: 6, fontWeight: 600 }}>· Exploring new location</span>}
             </div>
           </div>
@@ -567,7 +569,7 @@ export default function CompetitiveMap({
                   ? `ABS 2021: ${mapData.demand.demand_detail.abs2021Raw.toLocaleString()} · +${mapData.demand.demand_detail.growthPct}% growth · ${mapData.demand.demand_detail.areaRatioPct}% of postcode`
                   : mapData.demand.data_source ?? 'Postcode estimate',
               },
-              { label: 'Licensed places (3km)', value: mapData.demand.total_licensed_places.toLocaleString(), subtitle: `${mapData.stats.total_competitors} existing centre${mapData.stats.total_competitors !== 1 ? 's' : ''}` },
+              { label: `Licensed places (${mapData.stats.radius_km ?? 3}km)`, value: mapData.demand.total_licensed_places.toLocaleString(), subtitle: `${mapData.stats.total_competitors} existing centre${mapData.stats.total_competitors !== 1 ? 's' : ''}` },
               { label: 'Kids per place', value: mapData.demand.kids_per_place.toFixed(1), subtitle: `${ZONE_COLORS[mapData.demand.zone].label} market`, color: zoneStyle?.color },
               { label: 'Pipeline places', value: approvedPlaces > 0 ? `+${approvedPlaces}` : '—', subtitle: approvedPlaces > 0 ? `${approvedCount} approved DA${approvedCount !== 1 ? 's' : ''}` : 'No DAs entered', color: approvedPlaces > 0 ? '#ef4444' : undefined },
             ].map((stat, i) => (

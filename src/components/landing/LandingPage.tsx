@@ -150,7 +150,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
             {/* Stats grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {[
-                { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: 'within 3km', color: '#00b4a0' },
+                { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km (${result.stats.radius_label ?? 'suburban'})`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: '3km catchment', color: '#fff' },
                 {
                   label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,

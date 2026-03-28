@@ -7,7 +7,20 @@ const supabase = createClient(
 )
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY!
-const RADIUS_M = 3000
+// Dynamic radius based on postcode density
+// Dense urban (<20 km²) → 2km, suburban (20-80 km²) → 3km, outer/regional (>80 km²) → 5km
+function getRadiusKm(postcodeAreaKm2: number | undefined): number {
+  if (!postcodeAreaKm2 || postcodeAreaKm2 <= 0) return 3
+  if (postcodeAreaKm2 < 20)  return 2   // dense urban
+  if (postcodeAreaKm2 < 80)  return 3   // suburban
+  return 5                               // outer / regional
+}
+function getRadiusLabel(radiusKm: number): string {
+  if (radiusKm === 2) return 'dense urban'
+  if (radiusKm === 3) return 'suburban'
+  return 'outer/regional'
+}
+const DEFAULT_RADIUS_M = 3000
 
 // ── ABS 2021 Census: Kids aged 0–4 by postcode (VIC) ──────────────────────────
 // Source: ABS Census 2021 G04A, POA geography, Age_yr_0_4_P
@@ -16,8 +29,7 @@ const ABS_KIDS_0_4: Record<string, number> = {"3000":697,"3002":110,"3003":250,"
 
 const POSTCODE_AREA_KM2: Record<string, number> = {"3000": 2.48, "3002": 1.86, "3003": 6.58, "3004": 4.04, "3006": 1.85, "3008": 3.15, "3011": 5.97, "3012": 15.26, "3013": 5.66, "3015": 8.81, "3016": 7.37, "3018": 17.68, "3019": 4.32, "3020": 25.11, "3021": 19.5, "3022": 2.13, "3023": 39.52, "3024": 143.88, "3025": 14.04, "3026": 28.02, "3027": 3.83, "3028": 15.92, "3029": 117.8, "3030": 240.14, "3031": 5.02, "3032": 9.75, "3033": 9.07, "3034": 5.41, "3036": 18.15, "3037": 22.55, "3038": 13.35, "3039": 4.36, "3040": 8.74, "3041": 8.23, "3042": 8.89, "3043": 12.4, "3044": 8.02, "3045": 27.04, "3046": 14.3, "3047": 11.49, "3048": 7.76, "3049": 10.07, "3051": 2.35, "3052": 4.06, "3053": 1.75, "3054": 2.3, "3055": 3.23, "3056": 4.98, "3057": 2.26, "3058": 11.7, "3059": 30.56, "3060": 5.23, "3061": 12.25, "3062": 5.41, "3063": 45.04, "3064": 132.22, "3065": 1.42, "3066": 1.33, "3067": 1.83, "3068": 4.05, "3070": 6.01, "3071": 5.13, "3072": 11.41, "3073": 19.03, "3074": 14.74, "3075": 7.72, "3076": 35.27, "3078": 6.36, "3079": 7.59, "3081": 6.23, "3082": 13.07, "3083": 18.51, "3084": 13.11, "3085": 7.5, "3087": 3.75, "3088": 13.23, "3089": 17.84, "3090": 10.98, "3091": 15.35, "3093": 6.82, "3094": 3.83, "3095": 30.21, "3096": 8.99, "3097": 39.78, "3099": 100.0, "3101": 10.48, "3102": 4.06, "3103": 5.27, "3104": 9.09, "3105": 6.51, "3106": 16.12, "3107": 5.92, "3108": 8.8, "3109": 11.11, "3111": 11.69, "3113": 26.11, "3114": 9.48, "3115": 23.22, "3116": 22.2, "3121": 6.21, "3122": 5.88, "3123": 3.48, "3124": 7.59, "3125": 6.08, "3126": 3.13, "3127": 6.13, "3128": 7.01, "3129": 6.13, "3130": 12.2, "3131": 9.15, "3132": 6.63, "3133": 10.79, "3134": 22.88, "3135": 9.18, "3136": 23.01, "3137": 12.68, "3138": 12.5, "3139": 238.19, "3140": 29.17, "3141": 3.55, "3142": 4.27, "3143": 2.16, "3144": 3.42, "3145": 8.98, "3146": 8.24, "3147": 5.46, "3148": 3.0, "3149": 15.18, "3150": 27.28, "3151": 4.26, "3152": 22.26, "3153": 14.48, "3154": 6.37, "3155": 11.34, "3156": 53.51, "3158": 6.22, "3159": 14.03, "3160": 20.95, "3161": 4.2, "3162": 4.74, "3163": 7.21, "3165": 9.01, "3166": 8.47, "3167": 6.65, "3168": 9.41, "3169": 11.45, "3170": 10.72, "3171": 11.09, "3172": 12.75, "3173": 21.71, "3174": 12.3, "3175": 73.83, "3177": 5.19, "3178": 21.77, "3179": 8.69, "3180": 5.67, "3181": 2.91, "3182": 3.71, "3183": 3.03, "3184": 2.6, "3185": 3.15, "3186": 8.37, "3187": 5.62, "3188": 5.75, "3189": 4.58, "3190": 3.66, "3191": 3.71, "3192": 10.59, "3193": 8.33, "3194": 7.53, "3195": 24.48, "3196": 10.68, "3197": 5.82, "3198": 12.4, "3199": 34.34, "3200": 5.12, "3201": 20.31, "3202": 7.12, "3204": 8.36, "3205": 2.19, "3206": 3.69, "3207": 9.67, "3211": 181.2, "3212": 189.57, "3213": 250.77, "3214": 27.22, "3215": 17.08, "3216": 49.71, "3217": 134.84, "3218": 90.89, "3219": 15.79, "3220": 11.54, "3221": 111.23, "3222": 145.12, "3223": 71.86, "3224": 62.52, "3225": 31.72, "3226": 18.51, "3227": 74.27, "3228": 102.75, "3230": 96.76, "3231": 58.67, "3232": 102.65, "3233": 186.98, "3234": 150.57, "3235": 190.38, "3236": 47.69, "3237": 378.14, "3238": 234.61, "3239": 383.68, "3240": 218.09, "3241": 620.13, "3242": 132.35, "3243": 257.63, "3249": 1244.18, "3250": 82.98, "3251": 292.1, "3254": 17.64, "3260": 1107.73, "3264": 119.38, "3265": 895.86, "3266": 568.11, "3267": 93.5, "3268": 585.15, "3269": 201.14, "3270": 40.13, "3271": 436.65, "3272": 673.72, "3273": 223.54, "3274": 276.61, "3275": 16.13, "3276": 334.94, "3277": 211.92, "3278": 61.08, "3279": 125.98, "3280": 77.51, "3281": 160.21, "3282": 62.71, "3283": 382.98, "3284": 221.48, "3285": 411.2, "3286": 389.2, "3287": 330.53, "3289": 567.18, "3292": 225.21, "3293": 482.5, "3294": 931.45, "3300": 322.63, "3301": 979.3, "3302": 424.72, "3303": 483.44, "3304": 1981.4, "3305": 801.81, "3309": 113.67, "3310": 123.2, "3311": 371.1, "3312": 2976.58, "3314": 1399.14, "3315": 1324.82, "3317": 383.59, "3318": 1302.06, "3319": 578.94, "3321": 327.72, "3322": 114.68, "3323": 226.0, "3324": 390.4, "3325": 494.54, "3328": 60.76, "3329": 296.22, "3330": 186.74, "3331": 264.06, "3332": 88.32, "3333": 241.75, "3334": 257.58, "3335": 55.09, "3336": 38.18, "3337": 154.91, "3338": 113.06, "3340": 600.32, "3341": 156.43, "3342": 446.81, "3345": 46.11, "3350": 86.73, "3351": 1517.86, "3352": 1919.93, "3355": 30.36, "3356": 13.84, "3357": 25.44, "3358": 4.92, "3360": 287.31, "3361": 463.53, "3363": 161.8, "3364": 584.97, "3370": 272.53, "3371": 311.63, "3373": 888.4, "3374": 154.92, "3375": 367.28, "3377": 1324.64, "3378": 308.34, "3379": 1386.94, "3380": 93.14, "3381": 783.81, "3384": 625.39, "3385": 836.43, "3387": 882.93, "3388": 494.64, "3390": 440.04, "3391": 343.87, "3392": 609.76, "3393": 1395.05, "3395": 833.65, "3396": 914.87, "3400": 23.83, "3401": 4611.45, "3407": 581.29, "3409": 1588.78, "3412": 323.25, "3413": 977.4, "3414": 693.96, "3415": 47.47, "3418": 2954.29, "3419": 1027.27, "3420": 1674.2, "3423": 716.22, "3424": 1363.52, "3427": 67.75, "3428": 33.68, "3429": 173.63, "3430": 86.88, "3431": 72.59, "3432": 27.65, "3433": 25.75, "3434": 167.11, "3435": 263.35, "3437": 184.83, "3438": 26.22, "3440": 38.97, "3441": 34.02, "3442": 275.74, "3444": 935.74, "3446": 88.2, "3447": 47.96, "3448": 220.36, "3450": 22.88, "3451": 311.84, "3453": 171.7, "3458": 351.95, "3460": 45.05, "3461": 551.85, "3462": 139.62, "3463": 530.65, "3464": 116.27, "3465": 880.52, "3467": 102.81, "3468": 222.45, "3469": 228.74, "3472": 461.45, "3475": 508.92, "3477": 2037.78, "3478": 488.86, "3480": 1438.57, "3482": 517.72, "3483": 1177.48, "3485": 627.44, "3487": 317.6, "3488": 307.59, "3489": 453.17, "3490": 15437.95, "3491": 1143.69, "3494": 930.72, "3496": 3380.78, "3498": 64.52, "3500": 78.04, "3501": 1022.88, "3505": 537.61, "3506": 433.41, "3507": 462.73, "3509": 619.98, "3512": 1290.43, "3515": 226.46, "3516": 340.64, "3517": 999.13, "3518": 1130.45, "3520": 100.05, "3521": 115.81, "3522": 193.62, "3523": 680.53, "3525": 1065.83, "3527": 1187.31, "3529": 291.69, "3530": 485.38, "3531": 331.77, "3533": 1361.4, "3537": 781.55, "3540": 521.5, "3542": 394.01, "3544": 1004.34, "3546": 1235.97, "3549": 980.37, "3550": 52.73, "3551": 1767.49, "3555": 40.91, "3556": 253.37, "3557": 268.64, "3558": 345.84, "3559": 567.15, "3561": 645.19, "3562": 141.04, "3563": 119.7, "3564": 640.57, "3565": 57.39, "3566": 131.53, "3567": 159.52, "3568": 514.44, "3570": 570.28, "3571": 348.62, "3572": 274.07, "3573": 630.23, "3575": 782.52, "3576": 146.09, "3579": 1943.56, "3580": 59.08, "3581": 144.6, "3583": 28.76, "3584": 100.79, "3585": 1073.56, "3586": 210.93, "3588": 32.85, "3589": 30.19, "3590": 32.63, "3591": 18.91, "3594": 29.03, "3595": 36.58, "3596": 141.15, "3597": 1149.01, "3599": 163.98, "3607": 80.68, "3608": 532.87, "3610": 264.41, "3612": 469.47, "3614": 84.81, "3616": 280.65, "3617": 33.34, "3618": 55.84, "3620": 360.15, "3621": 186.79, "3622": 163.45, "3623": 130.43, "3624": 84.09, "3629": 306.93, "3630": 141.93, "3631": 642.07, "3633": 54.13, "3634": 309.08, "3635": 181.44, "3636": 393.68, "3637": 231.22, "3638": 445.64, "3639": 500.37, "3640": 163.88, "3641": 252.74, "3644": 474.92, "3646": 340.98, "3647": 16.5, "3649": 162.09, "3658": 565.57, "3659": 177.94, "3660": 629.29, "3662": 412.66, "3663": 68.69, "3664": 228.94, "3665": 185.24, "3666": 1367.63, "3669": 835.62, "3670": 253.17, "3672": 315.3, "3673": 897.19, "3675": 478.21, "3677": 48.8, "3678": 2455.19, "3682": 340.66, "3683": 267.41, "3685": 351.33, "3687": 36.56, "3688": 191.81, "3690": 81.56, "3691": 1836.02, "3695": 181.88, "3697": 140.62, "3698": 48.83, "3699": 502.97, "3700": 279.74, "3701": 3023.12, "3704": 168.36, "3705": 238.42, "3707": 2318.08, "3708": 75.44, "3709": 542.55, "3711": 61.37, "3712": 328.13, "3713": 675.93, "3714": 618.0, "3715": 235.27, "3717": 1053.32, "3718": 88.37, "3719": 236.46, "3720": 192.63, "3722": 404.04, "3723": 3119.72, "3725": 309.47, "3726": 245.46, "3727": 246.65, "3728": 376.27, "3730": 485.67, "3732": 254.31, "3733": 57.67, "3735": 208.16, "3737": 1740.74, "3738": 27.75, "3739": 53.47, "3740": 679.68, "3741": 752.34, "3744": 43.99, "3746": 56.32, "3747": 423.81, "3749": 186.76, "3750": 53.89, "3751": 27.24, "3752": 21.45, "3753": 111.72, "3754": 56.06, "3755": 28.39, "3756": 200.88, "3757": 285.5, "3758": 44.71, "3759": 21.09, "3760": 14.75, "3761": 39.79, "3762": 40.59, "3763": 115.14, "3764": 439.09, "3765": 11.03, "3766": 8.47, "3767": 7.94, "3770": 135.01, "3775": 173.76, "3777": 373.38, "3778": 220.43, "3779": 580.42, "3781": 42.37, "3782": 88.7, "3783": 202.34, "3785": 5.51, "3786": 4.51, "3787": 3.42, "3788": 17.75, "3789": 6.66, "3791": 12.05, "3792": 3.98, "3793": 19.88, "3795": 30.17, "3796": 16.99, "3797": 142.62, "3799": 706.22, "3802": 15.13, "3803": 8.41, "3804": 31.65, "3805": 27.58, "3806": 45.77, "3807": 14.7, "3808": 35.28, "3809": 48.06, "3810": 142.72, "3812": 97.38, "3813": 69.69, "3814": 77.73, "3815": 103.92, "3816": 151.42, "3818": 279.63, "3820": 74.29, "3821": 298.53, "3822": 62.76, "3823": 122.46, "3824": 213.49, "3825": 1871.94, "3831": 176.2, "3832": 52.41, "3833": 931.56, "3835": 65.7, "3840": 341.19, "3842": 21.45, "3844": 577.04, "3847": 485.76, "3850": 48.61, "3851": 1883.44, "3852": 8.65, "3854": 172.36, "3856": 148.76, "3857": 67.57, "3858": 2574.77, "3859": 193.18, "3860": 1396.84, "3862": 3055.35, "3864": 187.18, "3865": 12.91, "3869": 97.23, "3870": 273.53, "3871": 291.25, "3873": 92.76, "3874": 269.26, "3875": 2405.05, "3878": 18.08, "3880": 167.7, "3882": 68.26, "3885": 3509.4, "3886": 55.28, "3887": 318.83, "3888": 3372.97, "3889": 1714.11, "3890": 1717.2, "3891": 1330.87, "3892": 243.84, "3893": 528.09, "3895": 286.76, "3896": 1097.71, "3898": 1392.35, "3900": 1211.47, "3902": 26.49, "3903": 41.63, "3904": 27.61, "3909": 327.21, "3910": 28.84, "3911": 18.69, "3912": 72.33, "3913": 23.62, "3915": 64.83, "3916": 35.18, "3918": 17.22, "3919": 6.56, "3920": 15.4, "3921": 170.23, "3922": 67.95, "3923": 17.43, "3925": 30.78, "3926": 54.12, "3927": 14.91, "3928": 28.74, "3929": 55.13, "3930": 23.21, "3931": 21.09, "3933": 42.88, "3934": 30.21, "3936": 45.06, "3937": 38.69, "3938": 4.29, "3939": 98.51, "3940": 4.64, "3941": 24.39, "3942": 6.29, "3943": 7.01, "3944": 11.33, "3945": 153.62, "3946": 46.16, "3950": 120.98, "3951": 167.1, "3953": 504.83, "3954": 36.81, "3956": 498.46, "3957": 65.31, "3958": 108.98, "3959": 211.62, "3960": 831.52, "3962": 150.24, "3964": 2.89, "3965": 8.87, "3966": 124.13, "3967": 87.96, "3971": 835.93, "3975": 13.38, "3976": 13.34, "3977": 142.18, "3978": 96.51, "3979": 69.86, "3980": 37.03, "3981": 203.78, "3984": 235.05, "3987": 79.55, "3988": 126.68, "3990": 25.77, "3991": 49.19, "3992": 99.05, "3995": 198.9, "3996": 151.81};
 
-const CATCHMENT_RADIUS_KM = 3;
-const CATCHMENT_AREA_KM2 = Math.PI * CATCHMENT_RADIUS_KM * CATCHMENT_RADIUS_KM; // 28.27 km²
+// Catchment radius is now computed dynamically per postcode in lookupKids0to4
 
 
 // ── Geocode address ────────────────────────────────────────────────────────────
@@ -58,14 +70,17 @@ function demandZone(kidsPerPlace: number): 'undersupplied' | 'balanced' | 'satur
 interface DemandLookup {
   kids: number
   source: string
+  radiusKm: number
   detail: {
-    abs2021Raw: number        // raw ABS 2021 postcode figure
-    growthFactor: number      // e.g. 1.18
-    growthPct: number         // e.g. 18
-    postcodeAreaKm2: number   // full postcode area
-    catchmentAreaKm2: number  // 3km radius area
-    areaRatioPct: number      // catchment / postcode * 100
-    yearEstimate: number      // e.g. 2026
+    abs2021Raw: number
+    growthFactor: number
+    growthPct: number
+    postcodeAreaKm2: number
+    catchmentAreaKm2: number
+    areaRatioPct: number
+    yearEstimate: number
+    radiusKm: number
+    radiusLabel: string
   } | null
 }
 
@@ -73,17 +88,29 @@ function lookupKids0to4(postcode: string): DemandLookup {
   const YEAR_ESTIMATE = new Date().getFullYear()
 
   function growthFactor(p: number): number {
-    if (p >= 3500) return 1.18  // outer growth corridors (Wyndham, Melton, Hume, Casey)
-    if (p >= 3300) return 1.10  // middle ring suburban
-    if (p >= 3208) return 1.06  // established suburban
-    return 1.04                 // inner metro
+    if (p >= 3500) return 1.18
+    if (p >= 3300) return 1.10
+    if (p >= 3208) return 1.06
+    return 1.04
   }
 
-  function scaleToRadius(postcodeKids: number, pcode: string): { scaled: number; postcodeArea: number; ratio: number } {
+  function scaleToRadius(postcodeKids: number, pcode: string): {
+    scaled: number; postcodeArea: number; ratio: number; radiusKm: number; catchmentArea: number
+  } {
     const postcodeAreaKm2 = POSTCODE_AREA_KM2[pcode]
-    if (!postcodeAreaKm2 || postcodeAreaKm2 <= 0) return { scaled: postcodeKids, postcodeArea: 0, ratio: 1 }
-    const ratio = Math.min(CATCHMENT_AREA_KM2 / postcodeAreaKm2, 1.0)
-    return { scaled: Math.round(postcodeKids * ratio), postcodeArea: postcodeAreaKm2, ratio }
+    if (!postcodeAreaKm2 || postcodeAreaKm2 <= 0) {
+      return { scaled: postcodeKids, postcodeArea: 0, ratio: 1, radiusKm: 3, catchmentArea: Math.PI * 9 }
+    }
+    const rKm = getRadiusKm(postcodeAreaKm2)
+    const catchmentAreaKm2 = Math.PI * rKm * rKm
+    const ratio = Math.min(catchmentAreaKm2 / postcodeAreaKm2, 1.0)
+    return {
+      scaled: Math.round(postcodeKids * ratio),
+      postcodeArea: postcodeAreaKm2,
+      ratio,
+      radiusKm: rKm,
+      catchmentArea: parseFloat(catchmentAreaKm2.toFixed(1)),
+    }
   }
 
   const exact = ABS_KIDS_0_4[postcode]
@@ -92,18 +119,21 @@ function lookupKids0to4(postcode: string): DemandLookup {
 
   if (exact !== undefined && exact > 0) {
     const withGrowth = Math.round(exact * gf)
-    const { scaled, postcodeArea, ratio } = scaleToRadius(withGrowth, postcode)
+    const { scaled, postcodeArea, ratio, radiusKm, catchmentArea } = scaleToRadius(withGrowth, postcode)
     return {
       kids: scaled,
-      source: 'ABS 2021 Census (3km catchment est.)',
+      source: `ABS 2021 Census (${radiusKm}km catchment est.)`,
+      radiusKm,
       detail: {
         abs2021Raw:       exact,
         growthFactor:     gf,
         growthPct:        Math.round((gf - 1) * 100),
         postcodeAreaKm2:  postcodeArea,
-        catchmentAreaKm2: parseFloat(CATCHMENT_AREA_KM2.toFixed(1)),
+        catchmentAreaKm2: catchmentArea,
         areaRatioPct:     Math.round(ratio * 100),
         yearEstimate:     YEAR_ESTIMATE,
+        radiusKm,
+        radiusLabel:      getRadiusLabel(radiusKm),
       },
     }
   }
@@ -116,29 +146,32 @@ function lookupKids0to4(postcode: string): DemandLookup {
     if (neighbours.length > 0) {
       const avg = Math.round(neighbours.reduce((a, b) => a + b, 0) / neighbours.length)
       const withGrowth = Math.round(avg * gf)
-      const { scaled, postcodeArea, ratio } = scaleToRadius(withGrowth, postcode)
+      const { scaled, postcodeArea, ratio, radiusKm, catchmentArea } = scaleToRadius(withGrowth, postcode)
       return {
         kids: scaled,
-        source: 'ABS 2021 Census (adjacent postcode est.)',
+        source: `ABS 2021 Census (${radiusKm}km catchment est.)`,
+        radiusKm,
         detail: {
           abs2021Raw:       avg,
           growthFactor:     gf,
           growthPct:        Math.round((gf - 1) * 100),
           postcodeAreaKm2:  postcodeArea,
-          catchmentAreaKm2: parseFloat(CATCHMENT_AREA_KM2.toFixed(1)),
+          catchmentAreaKm2: catchmentArea,
           areaRatioPct:     Math.round(ratio * 100),
           yearEstimate:     YEAR_ESTIMATE,
+          radiusKm,
+          radiusLabel:      getRadiusLabel(radiusKm),
         },
       }
     }
-    if (p >= 3500) return { kids: Math.round(950  * 1.18), source: 'ABS estimate (outer growth corridor)', detail: null }
-    if (p >= 3300) return { kids: Math.round(800  * 1.10), source: 'ABS estimate (middle suburban VIC)',   detail: null }
-    if (p >= 3208) return { kids: Math.round(700  * 1.06), source: 'ABS estimate (suburban VIC)',          detail: null }
-    if (p >= 3000) return { kids: Math.round(1100 * 1.04), source: 'ABS estimate (inner metro VIC)',       detail: null }
-    if (p >= 8000) return { kids: 400,                     source: 'ABS estimate (VIC PO Box)',            detail: null }
+    if (p >= 3500) return { kids: Math.round(950  * 1.18), source: 'ABS estimate (outer growth corridor)', radiusKm: 5, detail: null }
+    if (p >= 3300) return { kids: Math.round(800  * 1.10), source: 'ABS estimate (middle suburban VIC)',   radiusKm: 3, detail: null }
+    if (p >= 3208) return { kids: Math.round(700  * 1.06), source: 'ABS estimate (suburban VIC)',          radiusKm: 3, detail: null }
+    if (p >= 3000) return { kids: Math.round(1100 * 1.04), source: 'ABS estimate (inner metro VIC)',       radiusKm: 2, detail: null }
+    if (p >= 8000) return { kids: 400,                     source: 'ABS estimate (VIC PO Box)',            radiusKm: 3, detail: null }
   }
 
-  return { kids: 600, source: 'ABS estimate (VIC default)', detail: null }
+  return { kids: 600, source: 'ABS estimate (VIC default)', radiusKm: 3, detail: null }
 }
 
 export async function POST(req: NextRequest) {
@@ -163,11 +196,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Could not geocode address' }, { status: 400 })
     }
 
-    // ── 2. Query nearby centres ────────────────────────────────────────────────
+    // ── 2. Determine dynamic radius from postcode area ────────────────────────
+    const postcodeAreaForRadius = POSTCODE_AREA_KM2[postcode || '']
+    const dynamicRadiusKm = getRadiusKm(postcodeAreaForRadius)
+    const dynamicRadiusM  = dynamicRadiusKm * 1000
+
+    // ── 3. Query nearby centres ────────────────────────────────────────────────
     const { data: competitors, error } = await supabase.rpc('get_nearby_centres', {
       target_lat: coords.lat,
       target_lng: coords.lng,
-      radius_m:   RADIUS_M,
+      radius_m:   dynamicRadiusM,
     })
 
     if (error) {
@@ -182,10 +220,10 @@ export async function POST(req: NextRequest) {
       )
     )
 
-    // ── 3. Supply analysis ─────────────────────────────────────────────────────
+    // ── 4. Supply analysis ─────────────────────────────────────────────────────
     const supply = analyseSupply(filtered, licensed_places || 0)
 
-    // ── 4. ABS demand lookup ───────────────────────────────────────────────────
+    // ── 5. ABS demand lookup ───────────────────────────────────────────────────
     // If postcode not supplied (e.g. Supply Map preview by suburb name),
     // reverse-geocode from the coordinates to get the actual postcode
     let resolvedPostcode = postcode || ''
@@ -208,7 +246,9 @@ export async function POST(req: NextRequest) {
       } catch { /* non-fatal — fall through to estimate */ }
     }
 
-    const { kids: estimatedKids0to4, source: demandSource, detail: demandDetail } = lookupKids0to4(resolvedPostcode)
+    const { kids: estimatedKids0to4, source: demandSource, detail: demandDetail, radiusKm: finalRadiusKm } = lookupKids0to4(resolvedPostcode)
+    // Use demand lookup's radius (based on resolved postcode) if available, else dynamic from input postcode
+    const catchmentRadiusKm = finalRadiusKm ?? dynamicRadiusKm
 
     const kidsPerPlace = supply.totalPlaces > 0
       ? parseFloat((estimatedKids0to4 / supply.totalPlaces).toFixed(2))
@@ -247,7 +287,9 @@ export async function POST(req: NextRequest) {
         total_competitors:    filtered.length,
         exceeding_nqs:        supply.exceeding,
         working_towards_nqs:  supply.workingTowards,
-        radius_m:             RADIUS_M,
+        radius_m:             catchmentRadiusKm * 1000,
+        radius_km:            catchmentRadiusKm,
+        radius_label:         getRadiusLabel(catchmentRadiusKm),
       }
     })
 
