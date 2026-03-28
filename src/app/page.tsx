@@ -16,7 +16,7 @@ import type { ScoredDeal } from '@/types/scored'
 // ── Sample deal for unauthenticated preview ────────────────────────────────────
 const SAMPLE_EXTRACTED = {
   centre_name: 'Bayside Early Learning Centre',
-  address: '12 Marine Parade',
+  address: '12 Marine Parade, Brighton VIC 3186',
   suburb: 'Brighton',
   state: 'VIC',
   postcode: '3186',
@@ -62,6 +62,38 @@ const SAMPLE_SCORED = {
     fields_missing: ['churn_rate', 'b_asc_status'],
     confidence: 'high',
     confidence_note: 'IM provided full financial statements and NQS documentation.',
+  },
+  pipeline_intel: {
+    approvedDAs: 2,
+    lodgedDAs: 1,
+    permitSites: 1,
+    notes: 'Sample DA data — 2 approved centres within 2km adding 165 places',
+    applications: [
+      {
+        address: '45 Church St, Brighton VIC 3186',
+        description: 'Construction of a child care centre (90 places)',
+        status: 'approved',
+        date: '2025-08-14',
+        places: 90,
+        distance_km: 1.1,
+      },
+      {
+        address: '12 Bay Rd, Hampton VIC 3188',
+        description: 'Early learning centre - 75 places',
+        status: 'approved',
+        date: '2025-11-22',
+        places: 75,
+        distance_km: 1.8,
+      },
+      {
+        address: '88 Nepean Hwy, Brighton VIC 3186',
+        description: 'Child care centre development - 60 places',
+        status: 'lodged',
+        date: '2026-01-15',
+        places: 60,
+        distance_km: 0.9,
+      },
+    ],
   },
 }
 

@@ -1,9 +1,206 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import UnifiedNav from '@/components/nav/UnifiedNav'
 
 import type { User } from '@supabase/supabase-js'
+
+// ── Try The Map Component ─────────────────────────────────────────────────────
+function TryTheMap({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSignIn?: () => void }) {
+  const [tab, setTab] = useState<'address' | 'postcode'>('address')
+  const [address, setAddress] = useState('')
+  const [postcode, setPostcode] = useState('')
+  const [state, setState] = useState('VIC')
+  const [mapSrc, setMapSrc] = useState<string | null>(null)
+  const [focused, setFocused] = useState<string | null>(null)
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+
+  function handleSubmit() {
+    let query = ''
+    if (tab === 'address') {
+      query = address.trim()
+    } else {
+      query = `${postcode.trim()} ${state} Australia`
+    }
+    if (!query) return
+    if (apiKey) {
+      setMapSrc(`https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(query)}&zoom=13`)
+    } else {
+      setMapSrc('placeholder')
+    }
+  }
+
+  return (
+    <section id="try-map" style={{ background: '#0d1b2a', padding: '100px 48px', borderTop: '1px solid #1e3a5f' }}>
+      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00b4a0', marginBottom: 16 }}>Try The Map</div>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(28px, 3.5vw, 44px)', fontWeight: 900, color: '#fff', margin: '0 0 16px', letterSpacing: -0.5, lineHeight: 1.1 }}>
+            See your suburb&apos;s<br /><em style={{ color: '#00b4a0', fontStyle: 'italic' }}>competitive landscape</em>
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: 16, margin: 0 }}>
+            Enter any Australian address to preview the competitive map — no signup required.
+          </p>
+        </div>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', gap: 0, marginBottom: 24, background: '#112236', borderRadius: 10, padding: 4, border: '1px solid #1e3a5f' }}>
+          {(['address', 'postcode'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTab(t); setMapSrc(null) }}
+              style={{
+                flex: 1, padding: '10px 20px', borderRadius: 8, border: 'none',
+                background: tab === t ? '#00b4a0' : 'transparent',
+                color: tab === t ? '#0d1b2a' : '#94a3b8',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s',
+              }}
+            >
+              {t === 'address' ? 'By address' : 'By postcode'}
+            </button>
+          ))}
+        </div>
+
+        {/* Form */}
+        <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 12, padding: '28px 28px 24px' }}>
+          {tab === 'address' ? (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                onFocus={() => setFocused('address')}
+                onBlur={() => setFocused(null)}
+                placeholder="Enter a suburb or address (e.g. Forest Hill VIC)"
+                style={{
+                  flex: 1, background: '#0d1b2a', border: `1px solid ${focused === 'address' ? '#00b4a0' : '#1e3a5f'}`,
+                  borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15,
+                  fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.2s',
+                }}
+              />
+              <button
+                onClick={handleSubmit}
+                style={{
+                  background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '12px 24px', fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+                }}
+              >
+                Preview map →
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <input
+                type="number"
+                value={postcode}
+                onChange={(e) => setPostcode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                onFocus={() => setFocused('postcode')}
+                onBlur={() => setFocused(null)}
+                placeholder="Postcode (e.g. 3128)"
+                style={{
+                  flex: 1, background: '#0d1b2a', border: `1px solid ${focused === 'postcode' ? '#00b4a0' : '#1e3a5f'}`,
+                  borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15,
+                  fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.2s',
+                }}
+              />
+              <select
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+                onFocus={() => setFocused('state')}
+                onBlur={() => setFocused(null)}
+                style={{
+                  background: '#0d1b2a', border: `1px solid ${focused === 'state' ? '#00b4a0' : '#1e3a5f'}`,
+                  borderRadius: 8, padding: '12px 14px', color: '#fff', fontSize: 15,
+                  fontFamily: "'DM Sans', sans-serif", outline: 'none', cursor: 'pointer',
+                }}
+              >
+                {['VIC','NSW','QLD','WA','SA','TAS','ACT','NT'].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleSubmit}
+                style={{
+                  background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8,
+                  padding: '12px 24px', fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
+                }}
+              >
+                Preview map →
+              </button>
+            </div>
+          )}
+
+          {/* Map display */}
+          {mapSrc && (
+            <div style={{ marginTop: 20 }}>
+              {mapSrc === 'placeholder' ? (
+                <div style={{
+                  height: 320, background: '#0d1b2a', border: '1px solid #1e3a5f',
+                  borderRadius: 8, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 12,
+                }}>
+                  <div style={{ fontSize: 32 }}>🗺️</div>
+                  <div style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', maxWidth: 300 }}>
+                    Map preview requires a Google Maps API key.<br />
+                    <span style={{ color: '#00b4a0', fontSize: 13 }}>Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable.</span>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  src={mapSrc}
+                  style={{ width: '100%', height: 320, borderRadius: 8, border: 'none', display: 'block' }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              )}
+
+              {/* Info panel */}
+              <div style={{ marginTop: 16, background: '#0d1b2a', border: '1px solid #1e3a5f', borderRadius: 8, padding: '16px 20px' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 12 }}>What you&apos;d see in the full report</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { icon: '🟢', text: 'Existing centres within 3km', sub: 'pulled from ACECQA register' },
+                    { icon: '🔴', text: 'DA Approved centres', sub: 'future supply not yet operating' },
+                    { icon: '🟡', text: 'DA Lodged', sub: 'pending approvals that could open within 2–3 years' },
+                  ].map(item => (
+                    <div key={item.text} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
+                      <div>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{item.text}</span>
+                        <span style={{ fontSize: 13, color: '#94a3b8' }}> — {item.sub}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* CTA */}
+              <div style={{ textAlign: 'center', marginTop: 20 }}>
+                <button
+                  onClick={onGoToApp}
+                  style={{
+                    background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '14px 32px', fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  Get the full competitive analysis →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
 
 interface LandingPageProps {
   onGoToApp: () => void
@@ -151,7 +348,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
             fontSize: 17, lineHeight: 1.7, color: 'rgba(255,255,255,0.6)',
             maxWidth: 480, marginBottom: 40,
           }}>
-            Upload any Information Memorandum. Get a structured acquisition report with competitive mapping, demand analysis, scoring across 17 dimensions, and deal-breaker flags — in under 60 seconds.
+            Upload any Information Memorandum. Get a scored acquisition report with competitive mapping, DA pipeline risk, demand analysis across 17 dimensions, and deal-breaker flags — in under 60 seconds.
           </p>
 
           <div className="land-fade d3" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 48 }}>
@@ -219,8 +416,8 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
             {/* Mock map + score sidebar */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px' }}>
               {/* Mini map */}
-              <div style={{ padding: 0, overflow: 'hidden', height: 155 }}>
-                <svg viewBox="0 0 280 155" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+              <div style={{ padding: 0, overflow: 'hidden', height: 185 }}>
+                <svg viewBox="0 0 280 175" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
                   <rect width="280" height="155" fill="#e8f0e0" />
                   <line x1="0" y1="52" x2="280" y2="52" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
                   <line x1="0" y1="104" x2="280" y2="104" stroke="rgba(255,255,255,0.7)" strokeWidth="2"/>
@@ -234,16 +431,34 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
                   <rect x="200" y="65" width="50" height="15" rx="2" fill="rgba(180,180,160,0.45)"/>
                   <circle cx="128" cy="74" r="56" fill="rgba(34,197,94,0.15)" stroke="rgba(34,197,94,0.5)" strokeWidth="1.5" strokeDasharray="6,3"/>
                   <circle cx="200" cy="90" r="36" fill="rgba(245,158,11,0.13)" stroke="rgba(245,158,11,0.45)" strokeWidth="1.5" strokeDasharray="6,3"/>
+                  {/* Target centre */}
                   <circle cx="128" cy="74" r="15" fill="#0d1b2a" stroke="white" strokeWidth="2"/>
                   <text x="128" y="79" textAnchor="middle" fontSize="10" fill="white" fontWeight="700" fontFamily="DM Sans">69</text>
+                  {/* Existing centres (C) */}
                   <circle cx="72" cy="48" r="10" fill="#16a34a" stroke="white" strokeWidth="1.5"/>
                   <text x="72" y="52" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
                   <circle cx="178" cy="82" r="9" fill="#00b4a0" stroke="white" strokeWidth="1.5"/>
                   <text x="178" y="86" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
                   <circle cx="148" cy="112" r="9" fill="#d97706" stroke="white" strokeWidth="1.5"/>
                   <text x="148" y="116" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">C</text>
+                  {/* DA Approved (A) - red */}
+                  <circle cx="55" cy="100" r="9" fill="#ef4444" stroke="white" strokeWidth="1.5"/>
+                  <text x="55" y="104" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">A</text>
+                  <circle cx="220" cy="40" r="9" fill="#ef4444" stroke="white" strokeWidth="1.5"/>
+                  <text x="220" y="44" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">A</text>
+                  {/* DA Lodged (L) - amber */}
+                  <circle cx="100" cy="128" r="9" fill="#f59e0b" stroke="white" strokeWidth="1.5"/>
+                  <text x="100" y="132" textAnchor="middle" fontSize="8" fill="white" fontWeight="700">L</text>
                   <rect x="50" y="26" width="26" height="11" rx="5" fill="white" opacity="0.9"/>
                   <text x="63" y="34" textAnchor="middle" fontSize="7" fill="#1a2e42" fontWeight="700">3.1 k/p</text>
+                  {/* Legend */}
+                  <rect x="0" y="155" width="280" height="20" fill="#0f2136"/>
+                  <circle cx="16" cy="165" r="5" fill="#16a34a"/>
+                  <text x="25" y="169" fontSize="7" fill="rgba(255,255,255,0.7)" fontFamily="DM Sans">Existing</text>
+                  <circle cx="80" cy="165" r="5" fill="#ef4444"/>
+                  <text x="89" y="169" fontSize="7" fill="rgba(255,255,255,0.7)" fontFamily="DM Sans">DA Approved</text>
+                  <circle cx="168" cy="165" r="5" fill="#f59e0b"/>
+                  <text x="177" y="169" fontSize="7" fill="rgba(255,255,255,0.7)" fontFamily="DM Sans">DA Lodged</text>
                 </svg>
               </div>
 
@@ -441,7 +656,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
             {[
               { num: '01', icon: '📄', title: 'Upload Your IM', text: 'Drop in a PDF or Word IM from any broker. Supports multi-file uploads for batch analysis.' },
               { num: '02', icon: '🧠', title: 'AI Parses & Scores', text: 'Extracts financials, occupancy, lease terms, staff metrics — then scores across 17 dimensions with state-aware context.' },
-              { num: '03', icon: '🗺️', title: 'Competitive Map', text: 'See all competing centres within 3–5km, demand-to-supply ratios, approved pipeline sites, and demographic catchment data.' },
+              { num: '03', icon: '🗺️', title: 'Competitive Map', text: 'Existing centres, approved DAs, and lodged applications all plotted. See future supply risk before it hits — demand-to-supply ratios and demographic catchments included.' },
               { num: '04', icon: '⚠️', title: 'Red Flags Surfaced', text: 'Automatically flags occupancy inflation, labour cost pressure, lease risk, regulatory issues, and pipeline threats.' },
               { num: '05', icon: '📑', title: 'Export Report', text: 'Download a board-ready PDF report with scoring summary, competitive analysis, and upside opportunity assessment.' },
             ].map((step, i, arr) => (
@@ -487,7 +702,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
               { icon: '👩‍🏫', bg: '#fee2e2', title: 'Staffing & Labour Resilience', text: 'Educator cost as % revenue, turnover rate, agency usage, tenure. 2025\'s biggest risk.', badge: 'High' },
               { icon: '🏢', bg: '#e0f2fe', title: 'Lease Economics', text: 'Rent as % revenue, review mechanism, make-good obligations. Fixed costs that can\'t be cut.', badge: 'High' },
               { icon: '🤝', bg: '#fef3c7', title: 'Valuation & Deal Structure', text: 'Price per place ($60k–$120k), EBITDA multiple (4.5x–6.5x), ROIC, downside protection.', badge: 'High' },
-              { icon: '🗺️', bg: '#fff7ed', title: 'Market & Competitive Position', text: 'Supply vs demand gap, approved pipeline sites, birth rates, catchment demographics.', badge: 'High' },
+              { icon: '🗺️', bg: '#fff7ed', title: 'Market & Competitive Position', text: 'Supply vs demand gap, DA pipeline markers (approved & lodged), birth rates, catchment demographics. See future supply risk before it hits.', badge: 'High' },
               { icon: '⚙️', bg: '#f0fdf4', title: 'Management & Systems', text: 'Manager tenure, rostering/billing maturity, reporting quality, owner-dependency risk.', badge: 'Medium' },
               { icon: '📋', bg: '#faf5ff', title: 'Regulatory & Quality', text: 'NQS rating, time since last assessment, exceeding areas, active notices or conditions.', badge: 'Medium' },
               { icon: '🚀', bg: '#dcfce7', title: 'Upside Levers', text: 'Fee uplift headroom, occupancy growth potential, cost efficiencies, B/ASC extension opportunity.', badge: 'Medium' },
@@ -590,6 +805,9 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
           </table>
         </div>
       </section>
+
+      {/* ══════════════ TRY THE MAP ══════════════ */}
+      <TryTheMap onGoToApp={onGoToApp} onSignIn={onSignIn} />
 
       {/* ══════════════ PRICING ══════════════ */}
       <section id="pricing" style={{ background: '#080f18', padding: '100px 48px' }}>
