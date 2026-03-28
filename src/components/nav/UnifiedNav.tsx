@@ -166,7 +166,7 @@ export default function UnifiedNav({
             <a href="#how" style={linkBase}>How It Works</a>
             <a href="#scoring" style={linkBase}>Framework</a>
             <a href="#benchmarks" style={linkBase}>Benchmarks</a>
-            <a href="#try-map" style={linkBase}>Try Map</a>
+            <a href="#try-map" style={linkBase}>Supply Map</a>
             <a href="#pricing" style={linkBase}>Pricing</a>
             <div style={sep} />
             {user ? (

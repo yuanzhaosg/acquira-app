@@ -6,201 +6,232 @@ import UnifiedNav from '@/components/nav/UnifiedNav'
 import type { User } from '@supabase/supabase-js'
 
 // ── Try The Map Component ─────────────────────────────────────────────────────
-function TryTheMap({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSignIn?: () => void }) {
-  const [tab, setTab] = useState<'address' | 'postcode'>('address')
-  const [address, setAddress] = useState('')
+function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSignIn?: () => void }) {
+  const [tab, setTab]           = useState<'address' | 'postcode'>('address')
+  const [input, setInput]       = useState('')
   const [postcode, setPostcode] = useState('')
-  const [state, setState] = useState('VIC')
-  const [mapSrc, setMapSrc] = useState<string | null>(null)
-  const [focused, setFocused] = useState<string | null>(null)
+  const [state, setState]       = useState('VIC')
+  const [loading, setLoading]   = useState(false)
+  const [result, setResult]     = useState<any>(null)
+  const [error, setError]       = useState<string | null>(null)
+  const [focused, setFocused]   = useState<string | null>(null)
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  const ZONE_CONFIG = {
+    undersupplied: { label: 'Undersupplied',  color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.3)',  desc: 'Strong demand relative to supply — favourable for operators.' },
+    balanced:      { label: 'Balanced',        color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', desc: 'Demand and supply roughly matched — monitor pipeline carefully.' },
+    saturated:     { label: 'Saturated',       color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  desc: 'High competition — pricing pressure and occupancy risk likely.' },
+  } as const
 
-  function handleSubmit() {
-    let query = ''
-    if (tab === 'address') {
-      query = address.trim()
-    } else {
-      query = `${postcode.trim()} ${state} Australia`
-    }
+  async function handleSearch() {
+    const query = tab === 'address'
+      ? input.trim()
+      : `${postcode.trim()} ${state}`
     if (!query) return
-    if (apiKey) {
-      setMapSrc(`https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(query)}&zoom=13`)
-    } else {
-      setMapSrc('placeholder')
+
+    setLoading(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      // Use suburb as address, blank out licensed_places (we just want zone/competitors)
+      const res = await fetch('/api/map-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          address:         query,
+          suburb:          query,
+          state:           tab === 'postcode' ? state : '',
+          postcode:        tab === 'postcode' ? postcode : '',
+          licensed_places: 0,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setError(err.error || 'Could not find this location. Try a suburb name or postcode.')
+        return
+      }
+      const data = await res.json()
+      setResult(data)
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
+  const zoneConfig = result ? ZONE_CONFIG[result.demand.zone as keyof typeof ZONE_CONFIG] : null
+
   return (
-    <section id="try-map" style={{ background: '#0d1b2a', padding: '100px 48px', borderTop: '1px solid #1e3a5f' }}>
-      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+    <section id="try-map" style={{ background: '#080f18', padding: '100px 48px', borderTop: '1px solid #1e3a5f' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00b4a0', marginBottom: 16 }}>Try The Map</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#00b4a0', marginBottom: 16 }}>Supply Map Preview</div>
           <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(28px, 3.5vw, 44px)', fontWeight: 900, color: '#fff', margin: '0 0 16px', letterSpacing: -0.5, lineHeight: 1.1 }}>
-            See your suburb&apos;s<br /><em style={{ color: '#00b4a0', fontStyle: 'italic' }}>competitive landscape</em>
+            Is your target suburb<br /><em style={{ color: '#00b4a0', fontStyle: 'italic' }}>undersupplied or saturated?</em>
           </h2>
           <p style={{ color: '#94a3b8', fontSize: 16, margin: 0 }}>
-            Enter any Australian address to preview the competitive map — no signup required.
+            Enter any suburb or postcode for an instant supply/demand snapshot — no signup required.
           </p>
         </div>
 
-        {/* Tab switcher */}
-        <div style={{ display: 'flex', gap: 0, marginBottom: 24, background: '#112236', borderRadius: 10, padding: 4, border: '1px solid #1e3a5f' }}>
-          {(['address', 'postcode'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setMapSrc(null) }}
-              style={{
-                flex: 1, padding: '10px 20px', borderRadius: 8, border: 'none',
-                background: tab === t ? '#00b4a0' : 'transparent',
-                color: tab === t ? '#0d1b2a' : '#94a3b8',
-                fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", transition: 'all 0.2s',
-              }}
-            >
-              {t === 'address' ? 'By address' : 'By postcode'}
-            </button>
-          ))}
-        </div>
-
-        {/* Form */}
-        <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 12, padding: '28px 28px 24px' }}>
-          {tab === 'address' ? (
-            <div style={{ display: 'flex', gap: 12 }}>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                onFocus={() => setFocused('address')}
-                onBlur={() => setFocused(null)}
-                placeholder="Enter a suburb or address (e.g. Forest Hill VIC)"
-                style={{
-                  flex: 1, background: '#0d1b2a', border: `1px solid ${focused === 'address' ? '#00b4a0' : '#1e3a5f'}`,
-                  borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15,
-                  fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.2s',
-                }}
-              />
-              <button
-                onClick={handleSubmit}
-                style={{
-                  background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8,
-                  padding: '12px 24px', fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
-                }}
-              >
-                Preview map →
+        {/* Search form */}
+        <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 12, padding: '24px 24px 20px', marginBottom: 24 }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 0, marginBottom: 16, background: '#0d1b2a', borderRadius: 8, padding: 3 }}>
+            {(['address', 'postcode'] as const).map(t => (
+              <button key={t} onClick={() => { setTab(t); setResult(null); setError(null) }} style={{
+                flex: 1, padding: '8px 16px', borderRadius: 6, border: 'none',
+                background: tab === t ? '#1e3a5f' : 'transparent',
+                color: tab === t ? '#fff' : '#94a3b8',
+                fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
+              }}>
+                {t === 'address' ? '🏙 By suburb' : '# By postcode'}
               </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 12 }}>
-              <input
-                type="number"
-                value={postcode}
-                onChange={(e) => setPostcode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                onFocus={() => setFocused('postcode')}
-                onBlur={() => setFocused(null)}
-                placeholder="Postcode (e.g. 3128)"
-                style={{
-                  flex: 1, background: '#0d1b2a', border: `1px solid ${focused === 'postcode' ? '#00b4a0' : '#1e3a5f'}`,
-                  borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15,
-                  fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.2s',
-                }}
-              />
-              <select
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                onFocus={() => setFocused('state')}
-                onBlur={() => setFocused(null)}
-                style={{
-                  background: '#0d1b2a', border: `1px solid ${focused === 'state' ? '#00b4a0' : '#1e3a5f'}`,
-                  borderRadius: 8, padding: '12px 14px', color: '#fff', fontSize: 15,
-                  fontFamily: "'DM Sans', sans-serif", outline: 'none', cursor: 'pointer',
-                }}
-              >
-                {['VIC','NSW','QLD','WA','SA','TAS','ACT','NT'].map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <button
-                onClick={handleSubmit}
-                style={{
-                  background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8,
-                  padding: '12px 24px', fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap',
-                }}
-              >
-                Preview map →
-              </button>
-            </div>
-          )}
+            ))}
+          </div>
 
-          {/* Map display */}
-          {mapSrc && (
-            <div style={{ marginTop: 20 }}>
-              {mapSrc === 'placeholder' ? (
-                <div style={{
-                  height: 320, background: '#0d1b2a', border: '1px solid #1e3a5f',
-                  borderRadius: 8, display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', gap: 12,
-                }}>
-                  <div style={{ fontSize: 32 }}>🗺️</div>
-                  <div style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', maxWidth: 300 }}>
-                    Map preview requires a Google Maps API key.<br />
-                    <span style={{ color: '#00b4a0', fontSize: 13 }}>Set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable.</span>
-                  </div>
-                </div>
-              ) : (
-                <iframe
-                  src={mapSrc}
-                  style={{ width: '100%', height: 320, borderRadius: 8, border: 'none', display: 'block' }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
+          {/* Input row */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {tab === 'address' ? (
+              <input
+                type="text" value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                onFocus={() => setFocused('input')} onBlur={() => setFocused(null)}
+                placeholder="e.g. Forest Hill VIC"
+                style={{ flex: 1, background: '#0d1b2a', border: `1.5px solid ${focused === 'input' ? '#00b4a0' : '#1e3a5f'}`, borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.15s' }}
+              />
+            ) : (
+              <>
+                <input
+                  type="text" value={postcode} onChange={e => setPostcode(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  onFocus={() => setFocused('postcode')} onBlur={() => setFocused(null)}
+                  placeholder="e.g. 3128"
+                  style={{ flex: 1, background: '#0d1b2a', border: `1.5px solid ${focused === 'postcode' ? '#00b4a0' : '#1e3a5f'}`, borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.15s' }}
                 />
-              )}
+                <select value={state} onChange={e => setState(e.target.value)} style={{ background: '#0d1b2a', border: '1.5px solid #1e3a5f', borderRadius: 8, padding: '12px 12px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', cursor: 'pointer' }}>
+                  {['VIC','NSW','QLD','WA','SA','TAS','ACT','NT'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </>
+            )}
+            <button
+              onClick={handleSearch} disabled={loading}
+              style={{ background: loading ? '#00967f' : '#00b4a0', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 22px', fontWeight: 700, fontSize: 15, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap', opacity: loading ? 0.8 : 1 }}
+            >
+              {loading ? 'Searching…' : 'Check supply →'}
+            </button>
+          </div>
 
-              {/* Info panel */}
-              <div style={{ marginTop: 16, background: '#0d1b2a', border: '1px solid #1e3a5f', borderRadius: 8, padding: '16px 20px' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 12 }}>What you&apos;d see in the full report</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[
-                    { icon: '🟢', text: 'Existing centres within 3km', sub: 'pulled from ACECQA register' },
-                    { icon: '🔴', text: 'DA Approved centres', sub: 'future supply not yet operating' },
-                    { icon: '🟡', text: 'DA Lodged', sub: 'pending approvals that could open within 2–3 years' },
-                  ].map(item => (
-                    <div key={item.text} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                      <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
-                      <div>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{item.text}</span>
-                        <span style={{ fontSize: 13, color: '#94a3b8' }}> — {item.sub}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* CTA */}
-              <div style={{ textAlign: 'center', marginTop: 20 }}>
-                <button
-                  onClick={onGoToApp}
-                  style={{
-                    background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8,
-                    padding: '14px 32px', fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
-                >
-                  Get the full competitive analysis →
-                </button>
-              </div>
-            </div>
+          {error && (
+            <div style={{ marginTop: 12, fontSize: 13, color: '#ef4444' }}>{error}</div>
           )}
         </div>
+
+        {/* Results */}
+        {result && zoneConfig && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Zone badge — big and prominent */}
+            <div style={{ background: zoneConfig.bg, border: `1.5px solid ${zoneConfig.border}`, borderRadius: 12, padding: '24px 28px', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: zoneConfig.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Market Zone</div>
+                <div style={{ fontSize: 36, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{zoneConfig.label}</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, maxWidth: 320 }}>{zoneConfig.desc}</div>
+              </div>
+              <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                <div style={{ fontSize: 48, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{result.demand.kids_per_place.toFixed(1)}</div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>kids per licensed place</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>3km catchment</div>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {[
+                { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: 'within 3km', color: '#00b4a0' },
+                { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: '3km catchment', color: '#fff' },
+                { label: 'Kids 0–4', value: result.demand.estimated_kids_0to4.toLocaleString(), sub: result.demand.data_source || 'ABS estimate', color: '#fff' },
+              ].map(s => (
+                <div key={s.label} style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, padding: '16px 18px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: s.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Competitor preview — blurred, locked */}
+            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid #1e3a5f', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Nearby centres ({result.stats.total_competitors})
+                </span>
+                <span style={{ fontSize: 11, color: '#00b4a0', fontWeight: 600 }}>Sign up to see all →</span>
+              </div>
+              {/* Show first 2 centres, blur the rest */}
+              <div style={{ position: 'relative' }}>
+                {result.competitors.slice(0, 4).map((c: any, i: number) => (
+                  <div key={i} style={{
+                    padding: '11px 18px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    display: 'grid', gridTemplateColumns: '1fr auto auto',
+                    gap: 12, alignItems: 'center',
+                    filter: i >= 2 ? 'blur(4px)' : 'none',
+                    userSelect: i >= 2 ? 'none' : 'auto',
+                    opacity: i >= 2 ? 0.5 : 1,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: i < 2 ? '#e8edf3' : '#888', marginBottom: 2 }}>{i < 2 ? c.name : '████████████████'}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{i < 2 ? c.suburb : '█████████'} · {(c.distance_m / 1000).toFixed(1)}km</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{c.licensed_places || '—'} places</span>
+                    <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
+                      background: c.nqs_rating === 'Exceeding NQS' ? 'rgba(34,197,94,0.12)' : c.nqs_rating === 'Meeting NQS' ? 'rgba(0,180,160,0.12)' : 'rgba(245,158,11,0.12)',
+                      color: c.nqs_rating === 'Exceeding NQS' ? '#22c55e' : c.nqs_rating === 'Meeting NQS' ? '#00b4a0' : '#f59e0b',
+                    }}>
+                      {c.nqs_rating === 'Exceeding NQS' ? 'Exceeding' : c.nqs_rating === 'Meeting NQS' ? 'Meeting' : 'Working Towards'}
+                    </span>
+                  </div>
+                ))}
+                {/* Lock overlay */}
+                {result.competitors.length > 2 && (
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to bottom, transparent, #112236)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 16 }}>
+                    <button onClick={onSignIn || onGoToApp} style={{ background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                      🔓 Sign up free to see all {result.stats.total_competitors} centres + DA pipeline map
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* DA pipeline teaser */}
+            <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>🏗 DA Pipeline not shown</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5 }}>
+                  Full reports include approved DAs, lodged applications, and permit sites plotted on the competitive map — showing supply that doesn&apos;t exist yet but will.
+                </div>
+              </div>
+              <button onClick={onSignIn || onGoToApp} style={{ background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 8, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+                See full map →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state — before search */}
+        {!result && !loading && !error && (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: '#94a3b8', fontSize: 14 }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🗺️</div>
+            Enter a suburb above to see the supply/demand snapshot for that catchment.
+          </div>
+        )}
       </div>
     </section>
   )
 }
+
 
 interface LandingPageProps {
   onGoToApp: () => void
@@ -807,7 +838,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
       </section>
 
       {/* ══════════════ TRY THE MAP ══════════════ */}
-      <TryTheMap onGoToApp={onGoToApp} onSignIn={onSignIn} />
+      <SupplyMapPreview onGoToApp={onGoToApp} onSignIn={onSignIn} />
 
       {/* ══════════════ PRICING ══════════════ */}
       <section id="pricing" style={{ background: '#080f18', padding: '100px 48px' }}>
