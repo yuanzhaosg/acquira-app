@@ -982,6 +982,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               licensed_places={extracted.centre.licensed_places || 0}
               centre_name={scored.centre_name || ''}
               overall_score={canonicalScore}
+              pipelineIntel={(currentScored as any).pipeline_intel ?? null}
             />
           </div>
         )}
@@ -1372,213 +1373,390 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       </div>
 
 
-        {/* ── COMPETITIVE ANALYSIS ── */}
-        <SectionTitle>Competitive Analysis</SectionTitle>
-        <div style={{ marginBottom: 32 }}>
-          {/* Load buttons row */}
-          {(nearbyCentres === null || daPipeline === null) && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-              {nearbyCentres === null && (
-                <button onClick={loadNearbyCentres} disabled={nearbyLoading} style={{
-                  background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
-                  borderRadius: 8, padding: '9px 18px', color: '#00b4a0',
-                  fontSize: 13, cursor: nearbyLoading ? 'wait' : 'pointer', fontWeight: 600,
-                }}>
-                  {nearbyLoading ? 'Loading…' : '🏫 Load Existing Centres'}
-                </button>
-              )}
-              {daPipeline === null && (
-                <button onClick={loadDAPipeline} disabled={daLoading} style={{
-                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-                  borderRadius: 8, padding: '9px 18px', color: '#ef4444',
-                  fontSize: 13, cursor: daLoading ? 'wait' : 'pointer', fontWeight: 600,
-                }}>
-                  {daLoading ? 'Loading…' : '🏗 Load DA Pipeline'}
-                </button>
-              )}
-            </div>
-          )}
 
-          {/* Mock data notice */}
-          {daPipeline?.source === 'mock' && (
-            <div style={{
-              background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)',
-              borderRadius: 6, padding: '7px 12px', marginBottom: 12, fontSize: 11, color: '#f59e0b',
-            }}>
-              ℹ DA data is sample only — set PLANNING_ALERTS_API_KEY for live council data
-            </div>
-          )}
-
-          {/* Pipeline risk summary banner */}
-          {daPipeline !== null && daPipeline.summary.total > 0 && (
-            <div style={{
-              background: daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.06)',
-              border: `1px solid ${daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.25)' : 'rgba(34,197,94,0.2)'}`,
-              borderRadius: 8, padding: '12px 16px', marginBottom: 16,
-              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-            }}>
-              <span style={{
-                padding: '2px 10px', borderRadius: 4, fontSize: 11, fontWeight: 700,
-                fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em',
-                background: daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.12)',
-                color: daPipeline.summary.risk_flag ? '#ef4444' : '#22c55e',
-                border: `1px solid ${daPipeline.summary.risk_flag ? 'rgba(239,68,68,0.3)' : 'rgba(34,197,94,0.25)'}`,
-              }}>
-                {daPipeline.summary.risk_flag ? 'HIGH PIPELINE RISK' : 'LOW PIPELINE RISK'}
-              </span>
-              <span style={{ fontSize: 12, color: '#94a3b8', flex: 1 }}>{daPipeline.summary.risk_note}</span>
-              <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: "'DM Mono', monospace" }}>
-                <span style={{ color: '#ef4444' }}>{daPipeline.summary.approved} approved</span>
-                <span style={{ color: '#f59e0b' }}>{daPipeline.summary.lodged} lodged</span>
-                <span style={{ color: '#94a3b8' }}>{daPipeline.summary.total_approved_places} pipeline places</span>
-              </div>
-            </div>
-          )}
-
-          {/* Combined centre list */}
-          {(nearbyCentres !== null || daPipeline !== null) && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Legend */}
-              <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 11, flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b4a0', display: 'inline-block' }} />
-                  Existing centre
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
-                  DA approved
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#94a3b8' }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-                  DA lodged
-                </span>
-              </div>
-
-              {/* Existing ACECQA centres */}
-              {nearbyCentres !== null && nearbyCentres.map((c, i) => (
-                <div key={`existing-${i}`} style={{
-                  background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
-                  padding: '11px 14px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'start',
-                }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00b4a0', marginTop: 4, flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8edf3', marginBottom: 2 }}>{c.name}</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>
-                      {c.address} · {c.distance_km}km · {c.licensed_places} places
-                    </div>
-                  </div>
-                  <span style={{
-                    padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap',
-                    background: c.nqs_rating === 'Exceeding NQS' ? 'rgba(34,197,94,0.12)' : c.nqs_rating === 'Meeting NQS' ? 'rgba(0,180,160,0.12)' : 'rgba(245,158,11,0.12)',
-                    color: c.nqs_rating === 'Exceeding NQS' ? '#22c55e' : c.nqs_rating === 'Meeting NQS' ? '#00b4a0' : '#f59e0b',
-                  }}>{c.nqs_rating}</span>
-                </div>
+        {/* FLAGS */}
+        {hasFlagsToShow && (
+          <>
+            <SectionTitle>Flags & Observations</SectionTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
+              {/* v2 deal_breaker_flags */}
+              {triggeredFlags.map((flag, i) => (
+                <FlagItem
+                  key={flag.id}
+                  severity={flag.severity === 'critical' ? 'critical' : 'warning'}
+                  title={flag.label}
+                  description={flag.reason || flag.id.replace(/_/g, ' ')}
+                  delay={i * 0.05}
+                />
               ))}
+              {/* v1 hard_flags_triggered fallback */}
+              {triggeredFlags.length === 0 && legacyFlagIds.map((id, i) => {
+                const extractedFlag = hardFlags.find((f: any) => f.id === id)
+                const isCritical = ['occupancy_critical','labour_ratio_critical','ebitda_negative_no_ramp','lease_expired'].includes(id)
+                return (
+                  <FlagItem
+                    key={id}
+                    severity={isCritical ? 'critical' : 'warning'}
+                    title={id.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                    description={extractedFlag?.description || id.replace(/_/g, ' ')}
+                    delay={i * 0.05}
+                  />
+                )
+              })}
+              {currentScored.score_capped && (
+                <FlagItem
+                  severity="warning"
+                  title="Score Cap Applied"
+                  description={currentScored.score_cap_reason || 'Score capped due to hard flag — resolve flagged items to unlock full score'}
+                  delay={(triggeredFlags.length + legacyFlagIds.length) * 0.05}
+                />
+              )}
+            </div>
+          </>
+        )}
 
-              {/* DA pipeline entries */}
-              {daPipeline !== null && daPipeline.applications.map((app, i) => (
-                <div key={`da-${i}`} style={{
-                  background: app.status === 'approved' ? 'rgba(239,68,68,0.04)' : 'rgba(245,158,11,0.03)',
-                  border: `1px solid ${app.status === 'approved' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.15)'}`,
-                  borderRadius: 8, padding: '11px 14px',
-                  display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'start',
+        {/* DIMENSION SCORES — grouped into 4 categories */}
+        <SectionTitle>Score Breakdown</SectionTitle>
+        <div style={{ marginBottom: 40 }}>
+          {([
+            {
+              group: 'Operational Stability',
+              color: '#00b4a0',
+              ids: ['occupancy_demand', 'staffing_resilience', 'regulatory_quality', 'management_systems', 'operator_quality', 'enrolment_trend', 'staff_qualification_mix'],
+            },
+            {
+              group: 'Financial Performance',
+              color: '#22c55e',
+              ids: ['profitability_cashflow', 'revenue_pricing', 'fee_benchmarking', 'upside_levers'],
+            },
+            {
+              group: 'Lease & Property',
+              color: '#f59e0b',
+              ids: ['lease_economics', 'lease_tail', 'capex_liability'],
+            },
+            {
+              group: 'Strategic Risk',
+              color: '#ef4444',
+              ids: ['valuation_structure', 'market_position', 'ccs_risk'],
+            },
+          ] as const).map(({ group, color, ids }) => {
+            const groupDims = ids
+              .map(id => [id, currentScored.dimensions?.[id as DimensionId]] as [string, any])
+              .filter(([, dim]) => dim != null)
+            if (groupDims.length === 0) return null
+
+            // Group average — simple mean of dimension scores (0–10)
+            // Note: dim.weight is only present after a rescore; use mean to avoid 0/10 on fresh pipeline results
+            const groupAvg = groupDims.length > 0
+              ? groupDims.reduce((sum, [, dim]) => sum + (typeof dim.score === 'number' ? dim.score : 0), 0) / groupDims.length
+              : 0
+
+            return (
+              <div key={group} style={{ marginBottom: 28 }}>
+                {/* Group header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  marginBottom: 8, paddingBottom: 8,
+                  borderBottom: `1px solid ${color}22`,
                 }}>
-                  <span style={{
-                    width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0,
-                    background: app.status === 'approved' ? '#ef4444' : app.status === 'lodged' ? '#f59e0b' : '#94a3b8',
-                  }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8edf3', marginBottom: 2 }}>
-                      {app.address || 'Address unknown'}
-                      {app.places ? <span style={{ color: '#94a3b8', fontWeight: 400 }}> · {app.places} places</span> : null}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.4 }}>
-                      {app.description.length > 80 ? app.description.slice(0, 80) + '…' : app.description}
-                    </div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 3, fontFamily: "'DM Mono', monospace" }}>
-                      {app.date || 'No date'}{app.distance_km != null ? ` · ${app.distance_km}km` : ''}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 3, height: 14, borderRadius: 2, background: color, flexShrink: 0 }} />
                     <span style={{
-                      padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700,
-                      fontFamily: "'DM Mono', monospace",
-                      background: app.status === 'approved' ? 'rgba(239,68,68,0.12)' : app.status === 'lodged' ? 'rgba(245,158,11,0.12)' : 'rgba(255,255,255,0.06)',
-                      color: app.status === 'approved' ? '#ef4444' : app.status === 'lodged' ? '#f59e0b' : '#94a3b8',
-                    }}>{app.status.toUpperCase()}</span>
-                    {app.info_url && (
-                      <a href={app.info_url} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 10, color: '#00b4a0', textDecoration: 'none' }}>View →</a>
-                    )}
+                      fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5,
+                      textTransform: 'uppercase', letterSpacing: '0.1em',
+                      color: 'rgba(255,255,255,0.4)',
+                    }}>{group}</span>
+                  </div>
+                  <span style={{
+                    fontFamily: 'Space Grotesk, sans-serif', fontSize: 13, fontWeight: 700,
+                    color: scoreColor(groupAvg * 10),
+                  }}>
+                    {(groupAvg * 10).toFixed(0)}<span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)', marginLeft: 2 }}>/100</span>
+                  </span>
+                </div>
+
+                {/* Dimensions in this group */}
+                {groupDims.map(([id, dim]) => (
+                  <DimensionRow
+                    key={id} id={id} dim={dim}
+                    isActive={activeDim === id}
+                    onClick={() => setActiveDim(activeDim === id ? null : id)}
+                    pipelineIntelUsed={id === 'market_position' && !!(currentScored as any).pipeline_intel_used}
+                  />
+                ))}
+              </div>
+            )
+          })}
+
+          {/* Catch-all: any dimensions not in a group (future-proofing) */}
+          {(() => {
+            const allGrouped = ['occupancy_demand','staffing_resilience','regulatory_quality','management_systems','operator_quality','enrolment_trend','staff_qualification_mix','profitability_cashflow','revenue_pricing','fee_benchmarking','upside_levers','lease_economics','lease_tail','capex_liability','valuation_structure','market_position','ccs_risk']
+            const ungrouped = dimEntries.filter(([id]) => !allGrouped.includes(id))
+            if (ungrouped.length === 0) return null
+            return (
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)' }}>Other</span>
+                </div>
+                {ungrouped.map(([id, dim]) => (
+                  <DimensionRow key={id} id={id} dim={dim} isActive={activeDim === id} onClick={() => setActiveDim(activeDim === id ? null : id)} pipelineIntelUsed={false} />
+                ))}
+              </div>
+            )
+          })()}
+        </div>
+
+        {/* AUDIT TRAIL */}
+        {currentScored.audit_trail && (
+          <>
+            <SectionTitle>Scoring Audit</SectionTitle>
+            <div style={{
+              background: '#152336', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: 16, marginBottom: 40,
+              display: 'flex', flexDirection: 'column', gap: 10
+            }}>
+              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                <div>
+                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Confidence
+                  </span>
+                  <div style={{
+                    fontSize: 13, fontWeight: 600, marginTop: 4,
+                    color: currentScored.audit_trail.confidence === 'high' ? '#22c55e'
+                      : currentScored.audit_trail.confidence === 'medium' ? '#00b4a0' : '#f59e0b'
+                  }}>
+                    {currentScored.audit_trail.confidence?.toUpperCase()}
                   </div>
                 </div>
-              ))}
-
-              {nearbyCentres !== null && nearbyCentres.length === 0 && daPipeline !== null && daPipeline.applications.length === 0 && (
-                <div style={{ fontSize: 13, color: '#94a3b8' }}>No nearby centres or DAs found in this area.</div>
+                {currentScored.audit_trail.fields_missing?.length > 0 && (
+                  <div>
+                    <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Missing Fields
+                    </span>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4 }}>
+                      {currentScored.audit_trail.fields_missing.join(', ')}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {currentScored.audit_trail.confidence_note && (
+                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
+                  {currentScored.audit_trail.confidence_note}
+                </div>
               )}
             </div>
-          )}
+          </>
+        )}
 
-          {/* Research links */}
-          <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 12, flexWrap: 'wrap' }}>
-            <a href="https://www.planningalerts.org.au" target="_blank" rel="noopener noreferrer"
-              style={{ color: '#00b4a0', textDecoration: 'none' }}>Search PlanningAlerts →</a>
-            <a href="https://www.planningalerts.org.au/where_to_find_planning_alerts" target="_blank" rel="noopener noreferrer"
-              style={{ color: '#00b4a0', textDecoration: 'none' }}>Council registers →</a>
+        {/* CONDITIONALS */}
+        {conditionals.length > 0 && (
+          <>
+            <SectionTitle>Conditionals Required</SectionTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
+              {conditionals.map((c, i) => {
+                const isString = typeof c === 'string'
+                const dim    = isString ? '' : c.dimension
+                const desc   = isString ? (c as unknown as string) : c.description
+                const impact = isString ? '' : c.score_impact
+                return (
+                  <div key={i} style={{
+                    background: '#152336', border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8, padding: 16,
+                    display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14
+                  }}>
+                    <span style={{
+                      fontFamily: 'IBM Plex Mono, monospace', fontSize: 11,
+                      color: '#00b4a0', background: 'rgba(0,180,160,0.1)',
+                      borderRadius: 4, padding: '3px 7px', height: 'fit-content', whiteSpace: 'nowrap'
+                    }}>C{i + 1}</span>
+                    <div>
+                      {dim && (
+                        <div style={{ fontSize: 10.5, fontFamily: 'IBM Plex Mono, monospace', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+                          {dim}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.55, marginBottom: 6 }}>{desc}</div>
+                      {impact && (
+                        <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.3)', fontStyle: 'italic' }}>
+                          Score impact: <span style={{ color: '#00b4a0' }}>{impact}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* ANALYST SUMMARY / VERDICT */}
+        <SectionTitle>Analyst Summary</SectionTitle>
+        <div style={{
+          background: '#152336',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderLeft: `3px solid ${mainColor}`,
+          borderRadius: 8, padding: '20px 22px',
+          fontSize: 14, color: 'rgba(255,255,255,0.6)',
+          lineHeight: 1.75, marginBottom: 16
+        }}>
+          {currentScored.verdict?.one_liner || currentScored.analyst_summary || '—'}
+        </div>
+        {currentScored.verdict?.recommended_buyer_profile && (
+          <div style={{
+            background: 'rgba(0,180,160,0.06)', border: '1px solid rgba(0,180,160,0.15)',
+            borderRadius: 8, padding: '14px 18px', marginBottom: 40,
+            fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6
+          }}>
+            <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: '#00b4a0', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 8 }}>
+              Ideal Buyer
+            </span>
+            {currentScored.verdict.recommended_buyer_profile}
           </div>
-        </div>
+        )}
 
-        {/* ── P4.2: CATCHMENT DEMOGRAPHICS ── */}
-        {/* ── P4.2: CATCHMENT DEMOGRAPHICS ── */}
-        <SectionTitle>Catchment Demographics</SectionTitle>
+        {/* ── DECISION CHECKLIST ── */}
         <div style={{ marginBottom: 32 }}>
-          {demographics === null && (
-            <button
-              onClick={loadDemographics}
-              disabled={demoLoading}
-              style={{
-                background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
-                borderRadius: 8, padding: '10px 20px', color: '#00b4a0',
-                fontSize: 13, cursor: demoLoading ? 'wait' : 'pointer', fontWeight: 600,
-              }}
-            >
-              {demoLoading ? 'Loading…' : 'Load ABS Demographics'}
-            </button>
-          )}
-          {demographics !== null && (
-            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8, padding: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>0-4 Pop Trend</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: demographics.population_0_4.trend === 'declining' ? '#ef4444' : '#00b4a0' }}>
-                    {demographics.population_0_4.trend}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>5yr Change</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: demographics.population_0_4.pct_change_5yr < 0 ? '#ef4444' : '#22c55e' }}>
-                    {demographics.population_0_4.pct_change_5yr > 0 ? '+' : ''}{demographics.population_0_4.pct_change_5yr}%
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Median Income</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#00b4a0' }}>
-                    ${(demographics.median_household_income / 1000).toFixed(0)}K
-                  </div>
-                </div>
-              </div>
-              {demographics.population_0_4.risk_flag && (
-                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#ef4444' }}>
-                  ⚠ {demographics.population_0_4.risk_note}
+          <button
+            onClick={() => setChecklistOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '12px 16px', cursor: 'pointer', color: '#e8edf3',
+              fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600,
+            }}
+          >
+            <span style={{ color: '#00b4a0' }}>{checklistOpen ? '▾' : '▸'}</span>
+            Decision Checklist
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>
+              {Object.values(checklistAnswers).filter(Boolean).length}/{CHECKLIST_QUESTIONS.length} answered
+            </span>
+          </button>
+          {checklistOpen && (
+            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 20 }}>
+              {/* Flag badges */}
+              {Object.entries(checklistAnswers).filter(([, v]) => v === 'no').length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {CHECKLIST_QUESTIONS.filter(q => checklistAnswers[q.id] === 'no').map(q => (
+                    <span key={q.id} style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: 'rgba(239,68,68,0.12)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      ⚠ {q.id.replace(/_/g, ' ')}
+                    </span>
+                  ))}
                 </div>
               )}
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 12 }}>
-                Source: {demographics.source} · Postcode {demographics.postcode}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {CHECKLIST_QUESTIONS.map(q => {
+                  const ans = checklistAnswers[q.id] ?? null
+                  return (
+                    <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', flex: 1 }}>{q.label}</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {(['yes', 'no', 'unsure'] as const).map(opt => (
+                          <button
+                            key={opt}
+                            onClick={() => setChecklistAnswer(q.id, ans === opt ? null : opt)}
+                            style={{
+                              padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer', border: '1px solid',
+                              fontFamily: "'DM Sans', sans-serif",
+                              background: ans === opt
+                                ? opt === 'yes' ? 'rgba(34,197,94,0.2)' : opt === 'no' ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'
+                                : 'transparent',
+                              borderColor: ans === opt
+                                ? opt === 'yes' ? '#22c55e' : opt === 'no' ? '#ef4444' : '#f59e0b'
+                                : 'rgba(255,255,255,0.15)',
+                              color: ans === opt
+                                ? opt === 'yes' ? '#22c55e' : opt === 'no' ? '#ef4444' : '#f59e0b'
+                                : 'rgba(255,255,255,0.4)',
+                            }}
+                          >
+                            {opt === 'yes' ? '✓ Yes' : opt === 'no' ? '✗ No' : '? Unsure'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
         </div>
+
+        {/* ── NOTES & TAGS ── */}
+        <div style={{ marginBottom: 40 }}>
+          <button
+            onClick={() => setNotesOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 8, padding: '12px 16px', cursor: 'pointer', color: '#e8edf3',
+              fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600,
+            }}
+          >
+            <span style={{ color: '#00b4a0' }}>{notesOpen ? '▾' : '▸'}</span>
+            Notes & Tags
+            {notesSaving && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>saving…</span>}
+          </button>
+          {notesOpen && (
+            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 20 }}>
+              <textarea
+                placeholder="Add notes about this deal…"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                onBlur={() => saveNotesAndTags(notes, tags)}
+                style={{
+                  width: '100%', minHeight: 100, background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8,
+                  color: '#e8edf3', fontSize: 13, padding: 12, resize: 'vertical',
+                  fontFamily: "'DM Sans', sans-serif", lineHeight: 1.6,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6, fontFamily: "'DM Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tags</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {tags.map(tag => (
+                    <span key={tag} style={{
+                      padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+                      background: 'rgba(0,180,160,0.1)', color: '#00b4a0',
+                      border: '1px solid rgba(0,180,160,0.2)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {tag}
+                      <button
+                        onClick={() => removeTag(tag)}
+                        style={{ background: 'none', border: 'none', color: '#00b4a0', cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }}
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    placeholder="Add tag…"
+                    value={tagsInput}
+                    onChange={e => setTagsInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(tagsInput) } }}
+                    style={{
+                      flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 6, color: '#e8edf3', fontSize: 13, padding: '6px 10px',
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  />
+                  <button
+                    onClick={() => addTag(tagsInput)}
+                    style={{
+                      background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+                      borderRadius: 6, padding: '6px 14px', color: '#00b4a0',
+                      fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+      </div>{/* end report-content */}
+
       {/* ── FOOTER ── */}
       <footer style={{
         borderTop: '1px solid rgba(255,255,255,0.07)',
