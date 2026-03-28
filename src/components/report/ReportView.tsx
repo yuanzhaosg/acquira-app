@@ -512,6 +512,48 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
     saveNotesAndTags(notes, next)
   }
 
+  // P4 — Data intelligence
+  type NearbyCentre = { name: string; address: string; nqs_rating: string; licensed_places: number; distance_km: number; provider: string }
+  type DemographicData = { postcode: string; population_0_4: { trend: string; pct_change_5yr: number; risk_flag: boolean; risk_note: string }; median_household_income: number; source: string }
+  const [nearbyCentres, setNearbyCentres]     = useState<NearbyCentre[] | null>(null)
+  const [nearbyLoading, setNearbyLoading]     = useState(false)
+  const [demographics, setDemographics]       = useState<DemographicData | null>(null)
+  const [demoLoading, setDemoLoading]         = useState(false)
+
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'https://acquira-api-production.up.railway.app'
+
+  async function loadNearbyCentres() {
+    setNearbyLoading(true)
+    try {
+      const c = (extracted as any).centre
+      const lat = c?.lat ?? null
+      const lng = c?.lng ?? null
+      const postcode = c?.postcode ?? null
+      const qs = new URLSearchParams()
+      if (lat) qs.set('lat', lat)
+      if (lng) qs.set('lng', lng)
+      if (postcode) qs.set('postcode', postcode)
+      qs.set('radius_km', '2')
+      const res = await fetch(`${apiBase}/acecqa/nearby?${qs}`)
+      const json = await res.json()
+      setNearbyCentres(json.centres ?? [])
+    } catch { setNearbyCentres([]) }
+    setNearbyLoading(false)
+  }
+
+  async function loadDemographics() {
+    setDemoLoading(true)
+    try {
+      const c = (extracted as any).centre
+      const postcode = c?.postcode ?? '3000'
+      const res = await fetch(`${apiBase}/demographics/${postcode}`)
+      const json = await res.json()
+      setDemographics(json)
+    } catch { setDemographics(null) }
+    setDemoLoading(false)
+  }
+
+
   useEffect(() => { setCurrentScored(scored) }, [scored])
 
   const handleOverride = (field: string, rawVal: string) => {
@@ -1265,6 +1307,120 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         </div>
 
       </div>
+
+
+        {/* ── P4.1: NEARBY CENTRES ── */}
+        <SectionTitle>Nearby Centres</SectionTitle>
+        <div style={{ marginBottom: 32 }}>
+          {nearbyCentres === null && (
+            <button
+              onClick={loadNearbyCentres}
+              disabled={nearbyLoading}
+              style={{
+                background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+                borderRadius: 8, padding: '10px 20px', color: '#00b4a0',
+                fontSize: 13, cursor: nearbyLoading ? 'wait' : 'pointer', fontWeight: 600,
+              }}
+            >
+              {nearbyLoading ? 'Loading…' : 'Load Nearby ACECQA Centres'}
+            </button>
+          )}
+          {nearbyCentres !== null && nearbyCentres.length === 0 && (
+            <div style={{ color: '#94a3b8', fontSize: 13 }}>No nearby centres found.</div>
+          )}
+          {nearbyCentres !== null && nearbyCentres.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {nearbyCentres.map((c, i) => (
+                <div key={i} style={{
+                  background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8,
+                  padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'start',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e8edf3', marginBottom: 2 }}>{c.name}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', fontFamily: "'DM Mono', monospace" }}>{c.address} · {c.distance_km} km</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 600,
+                      background: c.nqs_rating === 'Exceeding NQS' ? 'rgba(34,197,94,0.12)' : c.nqs_rating === 'Meeting NQS' ? 'rgba(0,180,160,0.12)' : 'rgba(245,158,11,0.12)',
+                      color: c.nqs_rating === 'Exceeding NQS' ? '#22c55e' : c.nqs_rating === 'Meeting NQS' ? '#00b4a0' : '#f59e0b',
+                    }}>{c.nqs_rating}</span>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>{c.licensed_places} places · {c.provider}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', fontFamily: "'DM Mono', monospace", marginTop: 4 }}>
+                Source: Mock data — ACECQA public API not available. TODO: Automate when API released.
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── P4.2: CATCHMENT DEMOGRAPHICS ── */}
+        <SectionTitle>Catchment Demographics</SectionTitle>
+        <div style={{ marginBottom: 32 }}>
+          {demographics === null && (
+            <button
+              onClick={loadDemographics}
+              disabled={demoLoading}
+              style={{
+                background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+                borderRadius: 8, padding: '10px 20px', color: '#00b4a0',
+                fontSize: 13, cursor: demoLoading ? 'wait' : 'pointer', fontWeight: 600,
+              }}
+            >
+              {demoLoading ? 'Loading…' : 'Load ABS Demographics'}
+            </button>
+          )}
+          {demographics !== null && (
+            <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 8, padding: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>0-4 Pop Trend</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: demographics.population_0_4.trend === 'declining' ? '#ef4444' : '#00b4a0' }}>
+                    {demographics.population_0_4.trend}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>5yr Change</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: demographics.population_0_4.pct_change_5yr < 0 ? '#ef4444' : '#22c55e' }}>
+                    {demographics.population_0_4.pct_change_5yr > 0 ? '+' : ''}{demographics.population_0_4.pct_change_5yr}%
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Median Income</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#00b4a0' }}>
+                    ${(demographics.median_household_income / 1000).toFixed(0)}K
+                  </div>
+                </div>
+              </div>
+              {demographics.population_0_4.risk_flag && (
+                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: '#ef4444' }}>
+                  ⚠ {demographics.population_0_4.risk_note}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 12 }}>
+                Source: {demographics.source} · Postcode {demographics.postcode}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── P4.3: CHILDCARE COPILOT PLACEHOLDER ── */}
+        <SectionTitle>Enhanced Analysis</SectionTitle>
+        <div style={{
+          background: '#112236', border: '1px dashed #1e3a5f', borderRadius: 12,
+          padding: '28px 24px', marginBottom: 40, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 20, marginBottom: 12 }}>🐂 🐻 ⚖️</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#e8edf3', marginBottom: 8 }}>Bull / Bear / Judge Agent Analysis</div>
+          <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6, maxWidth: 480, margin: '0 auto 16px' }}>
+            Multi-agent AI analysis: one agent argues the bull case, one the bear case, and a judge agent adjudicates.
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>
+            TODO: Integrate ~/childcare-copilot
+          </div>
+        </div>
 
       {/* ── FOOTER ── */}
       <footer style={{
