@@ -6,7 +6,7 @@ import UnifiedNav from '@/components/nav/UnifiedNav'
 import type { User } from '@supabase/supabase-js'
 
 // ── Try The Map Component ─────────────────────────────────────────────────────
-function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSignIn?: () => void }) {
+function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () => void; onSignIn?: () => void; onMapSignIn?: () => void }) {
   const [tab, setTab]           = useState<'address' | 'postcode'>('address')
   const [input, setInput]       = useState('')
   const [postcode, setPostcode] = useState('')
@@ -220,7 +220,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
                 {/* Lock overlay */}
                 {result.competitors.length > 2 && (
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 80, background: 'linear-gradient(to bottom, transparent, #112236)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 16 }}>
-                    <button onClick={onSignIn || onGoToApp} style={{ background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                    <button onClick={onMapSignIn || onSignIn || onGoToApp} style={{ background: '#00b4a0', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                       🔓 Sign up free to see all {result.stats.total_competitors} centres + DA pipeline map
                     </button>
                   </div>
@@ -236,7 +236,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn }: { onGoToApp: () => void; onSi
                   Full reports include approved DAs, lodged applications, and permit sites plotted on the competitive map — showing supply that doesn&apos;t exist yet but will.
                 </div>
               </div>
-              <button onClick={onSignIn || onGoToApp} style={{ background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 8, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
+              <button onClick={onMapSignIn || onSignIn || onGoToApp} style={{ background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 8, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>
                 See full map →
               </button>
             </div>
@@ -273,10 +273,11 @@ interface LandingPageProps {
   onGoToApp: () => void
   onViewSample?: () => void
   onSignIn?: () => void
+  onMapSignIn?: () => void
   user?: User | null
 }
 
-export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }: LandingPageProps) {
+export default function LandingPage({ onGoToApp, onViewSample, onSignIn, onMapSignIn, user }: LandingPageProps) {
   // Scroll-based fade-in for sections
   const observerRef = useRef<IntersectionObserver | null>(null)
   useEffect(() => {
@@ -874,7 +875,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, user }:
       </section>
 
       {/* ══════════════ TRY THE MAP ══════════════ */}
-      <SupplyMapPreview onGoToApp={onGoToApp} onSignIn={onSignIn} />
+      <SupplyMapPreview onGoToApp={onGoToApp} onSignIn={onSignIn} onMapSignIn={onMapSignIn} />
 
       {/* ══════════════ PRICING ══════════════ */}
       <section id="pricing" style={{ background: '#080f18', padding: '100px 48px' }}>

@@ -6,9 +6,10 @@ import { signInWithEmail, signUpWithEmail } from '@/lib/useAuth'
 interface AuthModalProps {
   onClose: () => void
   defaultMode?: 'signin' | 'signup'
+  reason?: 'upload' | 'map'
 }
 
-export default function AuthModal({ onClose, defaultMode = 'signin' }: AuthModalProps) {
+export default function AuthModal({ onClose, defaultMode = 'signup', reason = 'upload' }: AuthModalProps) {
   const [mode, setMode]         = useState<'signin' | 'signup'>(defaultMode)
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -64,7 +65,11 @@ export default function AuthModal({ onClose, defaultMode = 'signin' }: AuthModal
             {mode === 'signin' ? 'Sign in to your account' : 'Create your account'}
           </h2>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 6 }}>
-            {mode === 'signin' ? 'Access your deal pipeline.' : 'Start analysing childcare acquisitions.'}
+            {mode === 'signin'
+              ? 'Access your deal pipeline.'
+              : reason === 'map'
+                ? 'See the full competitive map, DA pipeline, and all nearby centres.'
+                : 'Start analysing childcare acquisitions — free.'}
           </p>
         </div>
 

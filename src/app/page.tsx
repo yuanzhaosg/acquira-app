@@ -203,6 +203,7 @@ export default function Home() {
 
   const [view, setView]           = useState<View>('landing')
   const [showAuth, setShowAuth]   = useState(false)
+  const [signupReason, setSignupReason] = useState<'upload' | 'map'>('upload')
   const [extracted, setExtracted] = useState<ExtractedDeal | null>(null)
   const [scored, setScored]       = useState<ScoredDeal | null>(null)
   const [dealId, setDealId]       = useState<string | null>(null)
@@ -212,13 +213,30 @@ export default function Home() {
     if (user) {
       setView('upload')
     } else {
+      setSignupReason('upload')
+      setShowAuth(true)
+    }
+  }
+
+  function handleMapSignupIntent() {
+    if (user) {
+      setView('list')
+    } else {
+      setSignupReason('map')
       setShowAuth(true)
     }
   }
 
   function handleAuthClose() {
     setShowAuth(false)
-    if (user) setView('upload')
+    if (user) {
+      // Route based on what triggered the signup
+      if (signupReason === 'map') {
+        setView('list')
+      } else {
+        setView('upload')
+      }
+    }
   }
 
   if (loading) {
@@ -233,7 +251,7 @@ export default function Home() {
   if (view === 'sample') {
     return (
       <>
-        {showAuth && <AuthModal onClose={handleAuthClose} />}
+        {showAuth && <AuthModal onClose={handleAuthClose} reason={signupReason} />}
         <ReportView
           extracted={SAMPLE_EXTRACTED as unknown as ExtractedDeal}
           scored={SAMPLE_SCORED as unknown as ScoredDeal}
@@ -250,12 +268,13 @@ export default function Home() {
   if (view === 'landing') {
     return (
       <>
-        {showAuth && <AuthModal onClose={handleAuthClose} />}
+        {showAuth && <AuthModal onClose={handleAuthClose} reason={signupReason} />}
         <LandingPage
           onGoToApp={handleUploadIntent}
           onViewSample={() => setView('sample')}
           user={user}
-          onSignIn={() => setShowAuth(true)}
+          onSignIn={() => { setSignupReason('upload'); setShowAuth(true) }}
+          onMapSignIn={handleMapSignupIntent}
         />
       </>
     )
