@@ -108,43 +108,74 @@ function lookupKids0to4(postcode: string): DemandLookup {
     return 1.04
   }
 
-  function scaleToRadius(postcodeKids: number, pcode: string): {
-    scaled: number; postcodeArea: number; ratio: number; radiusKm: number; catchmentArea: number
+  // ── Multi-postcode greedy catchment fill ────────────────────────────────────
+  // Bug fix: the old algorithm capped at ratio=1.0, counting only the origin
+  // postcode even when the catchment circle spans 3–5 postcodes (common in
+  // dense inner suburbs where postcodes are 2–7 km² but the 2km circle is 12.6 km²).
+  // Fix: fill the catchment area greedily from neighbouring postcodes ±12,
+  // proportional to each postcode's area contribution.
+  function fillCatchment(originPostcode: string, gf: number): {
+    kids: number; radiusKm: number; catchmentAreaKm2: number
+    postcodesSampled: number; coveragePct: number; primaryPostcodeRaw: number
   } {
-    const postcodeAreaKm2 = POSTCODE_AREA_KM2[pcode]
-    if (!postcodeAreaKm2 || postcodeAreaKm2 <= 0) {
-      return { scaled: postcodeKids, postcodeArea: 0, ratio: 1, radiusKm: 3, catchmentArea: Math.PI * 9 }
+    const op = parseInt(originPostcode)
+    const originArea = POSTCODE_AREA_KM2[originPostcode]
+    const radiusKm = getRadiusKm(originArea)
+    const catchmentArea = Math.PI * radiusKm * radiusKm
+
+    let remaining = catchmentArea
+    let totalKids = 0
+    let postcodesSampled = 0
+    let primaryRaw = 0
+
+    // Centre-outward: 0, ±1, ±2 … ±12
+    const offsets = [0,-1,1,-2,2,-3,3,-4,4,-5,5,-6,6,-7,7,-8,8,-9,9,-10,10,-11,11,-12,12]
+    for (const offset of offsets) {
+      if (remaining <= 0.01) break
+      const pc   = String(op + offset)
+      const area = POSTCODE_AREA_KM2[pc]
+      const kids = ABS_KIDS_0_4[pc]
+      if (!area || area <= 0 || kids === undefined || kids <= 0) continue
+      // Skip large postcodes (>80 km²) beyond origin — geographically unlikely to be adjacent in metro
+      if (area > 80 && offset !== 0) continue
+      const used = Math.min(area, remaining)
+      totalKids += kids * gf * (used / area)
+      if (offset === 0) primaryRaw = kids
+      remaining -= used
+      postcodesSampled++
     }
-    const rKm = getRadiusKm(postcodeAreaKm2)
-    const catchmentAreaKm2 = Math.PI * rKm * rKm
-    const ratio = Math.min(catchmentAreaKm2 / postcodeAreaKm2, 1.0)
+
     return {
-      scaled: Math.round(postcodeKids * ratio),
-      postcodeArea: postcodeAreaKm2,
-      ratio,
-      radiusKm: rKm,
-      catchmentArea: parseFloat(catchmentAreaKm2.toFixed(1)),
+      kids:               Math.round(totalKids),
+      radiusKm,
+      catchmentAreaKm2:   parseFloat(catchmentArea.toFixed(1)),
+      postcodesSampled,
+      coveragePct:        Math.round((1 - Math.max(remaining, 0) / catchmentArea) * 100),
+      primaryPostcodeRaw: primaryRaw,
     }
   }
 
-  const exact = ABS_KIDS_0_4[postcode]
-  const p = parseInt(postcode)
+  const p  = parseInt(postcode)
   const gf = isNaN(p) ? 1.04 : growthFactor(p)
 
-  if (exact !== undefined && exact > 0) {
-    const withGrowth = Math.round(exact * gf)
-    const { scaled, postcodeArea, ratio, radiusKm, catchmentArea } = scaleToRadius(withGrowth, postcode)
+  // Check if we have data for this postcode or any immediate neighbour
+  const hasData = ABS_KIDS_0_4[postcode] !== undefined ||
+    [-2,-1,1,2].some(o => ABS_KIDS_0_4[String(p + o)] !== undefined)
+
+  if (!isNaN(p) && hasData) {
+    const { kids, radiusKm, catchmentAreaKm2, postcodesSampled, coveragePct, primaryPostcodeRaw } =
+      fillCatchment(postcode, gf)
     return {
-      kids: scaled,
-      source: `ABS 2021 Census (${radiusKm}km catchment est.)`,
+      kids,
+      source: `ABS 2021 Census (${radiusKm}km catchment, ${postcodesSampled} postcode${postcodesSampled !== 1 ? 's' : ''})`,
       radiusKm,
       detail: {
-        abs2021Raw:       exact,
+        abs2021Raw:       primaryPostcodeRaw,
         growthFactor:     gf,
         growthPct:        Math.round((gf - 1) * 100),
-        postcodeAreaKm2:  postcodeArea,
-        catchmentAreaKm2: catchmentArea,
-        areaRatioPct:     Math.round(ratio * 100),
+        postcodeAreaKm2:  POSTCODE_AREA_KM2[postcode] || 0,
+        catchmentAreaKm2,
+        areaRatioPct:     coveragePct,   // now = % of catchment area covered by data
         yearEstimate:     YEAR_ESTIMATE,
         radiusKm,
         radiusLabel:      getRadiusLabel(radiusKm),
@@ -152,32 +183,8 @@ function lookupKids0to4(postcode: string): DemandLookup {
     }
   }
 
-  // Adjacent postcode fallback
+  // Fallback regional estimates (no postcode data)
   if (!isNaN(p)) {
-    const neighbours = [p-2, p-1, p+1, p+2]
-      .map(n => ABS_KIDS_0_4[String(n)])
-      .filter(v => v !== undefined && v > 0) as number[]
-    if (neighbours.length > 0) {
-      const avg = Math.round(neighbours.reduce((a, b) => a + b, 0) / neighbours.length)
-      const withGrowth = Math.round(avg * gf)
-      const { scaled, postcodeArea, ratio, radiusKm, catchmentArea } = scaleToRadius(withGrowth, postcode)
-      return {
-        kids: scaled,
-        source: `ABS 2021 Census (${radiusKm}km catchment est.)`,
-        radiusKm,
-        detail: {
-          abs2021Raw:       avg,
-          growthFactor:     gf,
-          growthPct:        Math.round((gf - 1) * 100),
-          postcodeAreaKm2:  postcodeArea,
-          catchmentAreaKm2: catchmentArea,
-          areaRatioPct:     Math.round(ratio * 100),
-          yearEstimate:     YEAR_ESTIMATE,
-          radiusKm,
-          radiusLabel:      getRadiusLabel(radiusKm),
-        },
-      }
-    }
     if (p >= 3500) return { kids: Math.round(950  * 1.18), source: 'ABS estimate (outer growth corridor)', radiusKm: 5, detail: null }
     if (p >= 3300) return { kids: Math.round(800  * 1.10), source: 'ABS estimate (middle suburban VIC)',   radiusKm: 3, detail: null }
     if (p >= 3208) return { kids: Math.round(700  * 1.06), source: 'ABS estimate (suburban VIC)',          radiusKm: 3, detail: null }
