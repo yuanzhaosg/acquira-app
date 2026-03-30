@@ -8,6 +8,7 @@ import ReportView from '@/components/report/ReportView'
 import DealList from '@/components/deals/DealList'
 import CompareView from '@/components/compare/CompareView'
 import AuthModal from '@/components/auth/AuthModal'
+import SupplyMapPage from '@/components/map/SupplyMapPage'
 import { useAuth, supabase } from '@/lib/useAuth'
 import { getDeal } from '@/lib/deals'
 import type { ExtractedDeal } from '@/types/extracted'
@@ -196,7 +197,7 @@ const SAMPLE_SCORED = {
   },
 }
 
-type View = 'landing' | 'upload' | 'report' | 'list' | 'sample' | 'compare'
+type View = 'landing' | 'upload' | 'report' | 'list' | 'sample' | 'compare' | 'map'
 
 export default function Home() {
   const { user, loading } = useAuth()
@@ -220,7 +221,7 @@ export default function Home() {
 
   function handleMapSignupIntent() {
     if (user) {
-      setView('list')
+      setView('map')
     } else {
       setSignupReason('map')
       setShowAuth(true)
@@ -232,7 +233,7 @@ export default function Home() {
     if (user) {
       // Route based on what triggered the signup
       if (signupReason === 'map') {
-        setView('list')
+        setView('map')
       } else {
         setView('upload')
       }
@@ -331,6 +332,18 @@ export default function Home() {
       <CompareView
         deals={compareDeals}
         onBack={() => setView('list')}
+      />
+    )
+  }
+
+  // ── Supply Map ────────────────────────────────────────────────────────────
+  if (view === 'map') {
+    return (
+      <SupplyMapPage
+        user={user}
+        onLogoClick={() => setView('landing')}
+        onUpload={() => setView('upload')}
+        onPipeline={() => setView('list')}
       />
     )
   }
