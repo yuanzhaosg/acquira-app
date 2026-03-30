@@ -73,7 +73,7 @@ REVENUE_PRICING:
 +1.5  Revenue growing 3 consecutive years
 +0.5  Revenue growing 1–2 years
 -1.0  Revenue declining
-+0.5  Kinder/subsidy funding present (VIC)
++0.5  Government preschool/kinder funding present (VIC kinder, NSW preschool, QLD kindy, etc.)
 -0.5  Revenue data provisional or partial year
 -0.5  No fee schedule or ARPU data
 
