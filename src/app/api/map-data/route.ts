@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const dynamic = 'force-dynamic' // never cache — results vary by location
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
@@ -298,7 +300,10 @@ export async function POST(req: NextRequest) {
     // Site mode: input has street number (e.g. "45 Main St, Blacktown")
     // Suburb mode: input is just suburb name (e.g. "Blacktown NSW") — no street number, no postcode tab
     const hasStreetNumber = /^\d+\s+\w/.test((address || '').trim())
-    const isSuburbMode = !hasStreetNumber && !postcode
+    const postcodeIsValid = /^\d{4}$/.test((postcode || '').trim())
+    // Suburb mode when: no street number in address, OR a postcode was explicitly provided (postcode tab)
+    // Postcode tab always = suburb-level intent, never site-level
+    const isSuburbMode = !hasStreetNumber || postcodeIsValid
 
     // ── 1. Geocode (skip if lat/lng passed directly from interactive map drag) ──
     let coords: { lat: number; lng: number } | null = null
@@ -327,7 +332,7 @@ export async function POST(req: NextRequest) {
 
     // ── 2. Resolve postcode via reverse-geocode (BUG 3 fix: do this BEFORE spatial query) ──
     // Only trust postcode if it's actually numeric (user might type suburb name in postcode field)
-    const postcodeIsValid = /^\d{4}$/.test((postcode || '').trim())
+    // (postcodeIsValid already declared above)
     let resolvedPostcode = postcodeIsValid ? postcode.trim() : ''
     if (!resolvedPostcode && GOOGLE_API_KEY) {
       try {
