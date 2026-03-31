@@ -402,6 +402,17 @@ export async function POST(req: NextRequest) {
     // Zone classification uses adjusted mid-point
     const zone = demandZone(adjKidsPerPlaceMid)
 
+    // ── Demand trend from growth factor ───────────────────────────────────────
+    const gfValue = demandDetail?.growthFactor ?? 1.04
+    const demandTrend: 'growing' | 'flat' | 'declining' =
+      gfValue >= 1.08 ? 'growing' :
+      gfValue >= 1.03 ? 'flat' :
+      'declining'
+    const demandTrendLabel =
+      demandTrend === 'growing'  ? '📈 Growing demand' :
+      demandTrend === 'flat'     ? '➡️ Flat demand' :
+      '📉 Declining demand'
+
     // ── 7. Return ──────────────────────────────────────────────────────────────
     return NextResponse.json({
       target: {
@@ -445,6 +456,16 @@ export async function POST(req: NextRequest) {
         data_source:           demandSource,
         census_year:           2021,
         demand_detail:         demandDetail,
+        demand_trend: {
+          trend:      demandTrend,
+          label:      demandTrendLabel,
+          gf:         gfValue,
+          note:       demandTrend === 'declining'
+            ? 'Child cohort in this catchment is flat or declining — demand headroom is limited.'
+            : demandTrend === 'flat'
+            ? 'Child cohort is broadly stable. Market dynamics driven by supply competition.'
+            : 'Child cohort is growing — structural demand tailwind for operators.',
+        },
       },
       stats: {
         total_competitors:    filtered.length,
