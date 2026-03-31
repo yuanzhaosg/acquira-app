@@ -44,9 +44,10 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
   } as const
 
   async function handleSearch() {
-    const query = tab === 'address'
-      ? input.trim()
-      : `${postcode.trim()} ${state}`
+    const rawInput = input.trim()
+    const hasState = /\b(VIC|NSW|QLD|SA|WA|TAS|ACT|NT)\b/i.test(rawInput)
+    const addressQuery = rawInput && !hasState ? `${rawInput} ${state}` : rawInput
+    const query = tab === 'address' ? addressQuery : `${postcode.trim()} ${state}`
     if (!query) return
 
     setLoading(true)
@@ -61,7 +62,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
         body: JSON.stringify({
           address:         query,
           suburb:          query,
-          state:           tab === 'postcode' ? state : '',
+          state:           state,
           postcode:        tab === 'postcode' ? postcode : '',
           licensed_places: 0,
         }),
@@ -132,14 +133,19 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
           {/* Input row */}
           <div style={{ display: 'flex', gap: 10 }}>
             {tab === 'address' ? (
-              <input
-                type="text" value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                onFocus={() => setFocused('input')} onBlur={() => setFocused(null)}
-                placeholder="e.g. 45 Church St, Brighton VIC 3186"
-                style={{ flex: 1, background: '#0d1b2a', border: `1.5px solid ${focused === 'input' ? '#00b4a0' : '#1e3a5f'}`, borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.15s' }}
-              />
+              <>
+                <input
+                  type="text" value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  onFocus={() => setFocused('input')} onBlur={() => setFocused(null)}
+                  placeholder="e.g. Forest Hill VIC or 45 Church St, Brighton"
+                  style={{ flex: 1, background: '#0d1b2a', border: `1.5px solid ${focused === 'input' ? '#00b4a0' : '#1e3a5f'}`, borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', transition: 'border-color 0.15s' }}
+                />
+                <select value={state} onChange={e => setState(e.target.value)} title="State filter (auto-appended if not in address)" style={{ background: '#0d1b2a', border: '1.5px solid #1e3a5f', borderRadius: 8, padding: '12px 10px', color: '#fff', fontSize: 15, fontFamily: "'DM Sans', sans-serif", outline: 'none', cursor: 'pointer' }}>
+                  {['VIC','NSW','QLD','WA','SA','TAS','ACT','NT'].map(s => <option key={s}>{s}</option>)}
+                </select>
+              </>
             ) : (
               <>
                 <input
