@@ -22,6 +22,27 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
   const [input, setInput]       = useState('')
   const [postcode, setPostcode] = useState('')
   const [state, setState]       = useState('VIC')
+
+  function inferStateFromPostcode(pc: string): string | null {
+    const p = parseInt(pc)
+    if (isNaN(p) || pc.length !== 4) return null
+    if (p >= 2600 && p <= 2618) return 'ACT'
+    if (p >= 2900 && p <= 2920) return 'ACT'
+    if ((p >= 1000 && p <= 1999) || (p >= 2000 && p <= 2599) || (p >= 2619 && p <= 2899) || (p >= 2921 && p <= 2999)) return 'NSW'
+    if ((p >= 3000 && p <= 3999) || (p >= 8000 && p <= 8999)) return 'VIC'
+    if ((p >= 4000 && p <= 4999) || (p >= 9000 && p <= 9999)) return 'QLD'
+    if (p >= 5000 && p <= 5999) return 'SA'
+    if (p >= 6000 && p <= 6999) return 'WA'
+    if (p >= 7000 && p <= 7999) return 'TAS'
+    if (p >= 800  && p <= 999)  return 'NT'
+    return null
+  }
+
+  function handlePostcodeChange(val: string) {
+    setPostcode(val)
+    const inferred = inferStateFromPostcode(val.trim())
+    if (inferred) setState(inferred)
+  }
   const [loading, setLoading]   = useState(false)
   const [result, setResult]     = useState<any>(null)
   const [error, setError]       = useState<string | null>(null)
@@ -109,7 +130,7 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
               />
             ) : (
               <>
-                <input type="text" value={postcode} onChange={e => setPostcode(e.target.value)}
+                <input type="text" value={postcode} onChange={e => handlePostcodeChange(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   onFocus={() => setFocused('postcode')} onBlur={() => setFocused(null)}
                   placeholder="e.g. 3128"

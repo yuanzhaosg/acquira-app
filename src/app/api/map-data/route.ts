@@ -320,7 +320,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Resolve postcode via reverse-geocode (BUG 3 fix: do this BEFORE spatial query) ──
-    let resolvedPostcode = postcode || ''
+    // Only trust postcode if it's actually numeric (user might type suburb name in postcode field)
+    const postcodeIsValid = /^\d{4}$/.test((postcode || '').trim())
+    let resolvedPostcode = postcodeIsValid ? postcode.trim() : ''
     if (!resolvedPostcode && GOOGLE_API_KEY) {
       try {
         const rgUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.lat},${coords.lng}&key=${GOOGLE_API_KEY}`
