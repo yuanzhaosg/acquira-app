@@ -169,13 +169,28 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
                   </div>
                 )}
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>dynamic catchment radius</div>
+                {result.demand.demand_trend && (
+                  <div style={{
+                    marginTop: 8,
+                    fontSize: 11, fontWeight: 700,
+                    color: result.demand.demand_trend.trend === 'growing' ? '#22c55e'
+                         : result.demand.demand_trend.trend === 'flat'    ? '#f59e0b'
+                         : '#ef4444',
+                    background: result.demand.demand_trend.trend === 'growing' ? 'rgba(34,197,94,0.1)'
+                              : result.demand.demand_trend.trend === 'flat'    ? 'rgba(245,158,11,0.1)'
+                              : 'rgba(239,68,68,0.1)',
+                    borderRadius: 20, padding: '2px 10px', display: 'inline-block',
+                  }}>
+                    {result.demand.demand_trend.label}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Stats grid — 2-col when LDC data present, else 3-col */}
             <div className="smp-stats-grid" style={{ display: 'grid', gridTemplateColumns: result.demand.adj_kids_per_place ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
               {[
-                { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km (${result.stats.radius_label ?? 'suburban'})`, color: '#00b4a0' },
+                { label: 'LDC centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km · long day care only`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: `${result.stats.radius_km ?? 2}–${(result.stats.radius_km ?? 3) + 2}km catchment`, color: '#fff' },
                 {
                   label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,
@@ -206,6 +221,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
                 <strong style={{ color: '#a78bfa' }}>ℹ️ Methodology:</strong> Kids per place = ABS 2021 Census 0–4 population
                 (catchment-area adjusted, growth-indexed to {new Date().getFullYear()}) ÷ ACECQA licensed places within dynamic radius.
                 {result.demand.adj_kids_per_place && ' LDC-adjusted ratio accounts for LDC utilisation rates from ACECQA operational data.'}
+                {' '}{result.demand.demand_trend?.note}
                 {' '}Zones: &gt;2.0 Undersupplied · 1.0–2.0 Balanced · &lt;1.0 Oversupplied.
                 Indicative only — not a substitute for site-specific due diligence.
               </p>

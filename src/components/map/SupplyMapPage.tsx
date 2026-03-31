@@ -26,11 +26,12 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
   const [result, setResult]     = useState<any>(null)
   const [error, setError]       = useState<string | null>(null)
   const [focused, setFocused]   = useState<string | null>(null)
+  const [vacancySignal, setVacancySignal] = useState<'unknown' | 'none' | 'some' | 'widespread'>('unknown')
 
   async function handleSearch() {
     const query = tab === 'address' ? input.trim() : `${postcode.trim()} ${state}`
     if (!query) return
-    setLoading(true); setError(null); setResult(null)
+    setLoading(true); setError(null); setResult(null); setVacancySignal('unknown')
     try {
       const res = await fetch('/api/map-data', {
         method: 'POST',
@@ -127,6 +128,35 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
           {error && <div style={{ marginTop: 10, fontSize: 13, color: '#ef4444' }}>{error}</div>}
         </div>
 
+        {/* Vacancy signal — user input */}
+        {result && (
+          <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, padding: '14px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              Vacancies visible in this market?
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['unknown', 'none', 'some', 'widespread'] as const).map(v => (
+                <button key={v} onClick={() => setVacancySignal(v)} style={{
+                  padding: '5px 12px', borderRadius: 20, border: 'none', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  background: vacancySignal === v
+                    ? v === 'none' ? '#22c55e' : v === 'some' ? '#f59e0b' : v === 'widespread' ? '#ef4444' : '#1e3a5f'
+                    : 'rgba(255,255,255,0.05)',
+                  color: vacancySignal === v ? '#fff' : '#94a3b8',
+                }}>
+                  {v === 'unknown' ? '❓ Unknown' : v === 'none' ? '✅ None' : v === 'some' ? '⚠️ Some' : '🔴 Widespread'}
+                </button>
+              ))}
+            </div>
+            {vacancySignal !== 'unknown' && (
+              <div style={{ fontSize: 11, color: '#94a3b8', flex: 1 }}>
+                {vacancySignal === 'none' && 'No visible vacancies — market absorbing supply.'}
+                {vacancySignal === 'some' && 'Some vacancies visible — monitor competition closely.'}
+                {vacancySignal === 'widespread' && 'Widespread vacancies — market may be oversupplied despite ratio.'}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Empty state */}
         {!result && !loading && !error && (
           <div style={{ textAlign: 'center', padding: '48px 0', color: '#475569', fontSize: 14 }}>
@@ -144,7 +174,19 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: zoneConfig.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>Market Zone</div>
                 <div style={{ fontSize: 34, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{zoneConfig.label}</div>
-                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, maxWidth: 320 }}>{zoneConfig.desc}</div>
+                <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, maxWidth: 320 }}>
+                  {zoneConfig.desc}
+                  {vacancySignal === 'widespread' && (
+                    <span style={{ color: '#ef4444', fontWeight: 700, display: 'block', marginTop: 4 }}>
+                      ⚠️ Widespread vacancies observed — actual market softer than ratio suggests.
+                    </span>
+                  )}
+                  {vacancySignal === 'some' && (
+                    <span style={{ color: '#f59e0b', fontWeight: 700, display: 'block', marginTop: 4 }}>
+                      ⚠️ Some vacancies visible — competitive pressure present.
+                    </span>
+                  )}
+                </div>
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                 <div style={{ fontSize: 44, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
@@ -154,13 +196,28 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
                   raw: {result.demand.kids_per_place.toFixed(1)} · {result.demand.ldc_util_rate?.is_regional ? 'regional' : 'metro'} utilisation applied
                 </div>
+                {result.demand.demand_trend && (
+                  <div style={{
+                    marginTop: 8,
+                    fontSize: 11, fontWeight: 700,
+                    color: result.demand.demand_trend.trend === 'growing' ? '#22c55e'
+                         : result.demand.demand_trend.trend === 'flat'    ? '#f59e0b'
+                         : '#ef4444',
+                    background: result.demand.demand_trend.trend === 'growing' ? 'rgba(34,197,94,0.1)'
+                              : result.demand.demand_trend.trend === 'flat'    ? 'rgba(245,158,11,0.1)'
+                              : 'rgba(239,68,68,0.1)',
+                    borderRadius: 20, padding: '2px 10px', display: 'inline-block',
+                  }}>
+                    {result.demand.demand_trend.label}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Stats grid */}
             <div style={{ display: 'grid', gridTemplateColumns: result.demand.ldc_kids_range ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
               {[
-                { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km`, color: '#00b4a0' },
+                { label: 'LDC centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km · long day care only`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: 'catchment total', color: '#fff' },
                 {
                   label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,
@@ -194,6 +251,7 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
                   Raw kids 0–4 ({result.demand.estimated_kids_0to4.toLocaleString()}) adjusted by {result.demand.ldc_util_rate.is_regional ? '35–45%' : '40–55%'} {result.demand.ldc_util_rate.is_regional ? 'regional' : 'metro'} LDC utilisation rate (Dept of Education, March 2024 quarter).
                   Adjusted ratio: <strong style={{ color: 'rgba(167,139,250,0.9)' }}>{result.demand.adj_kids_per_place?.low.toFixed(1)}–{result.demand.adj_kids_per_place?.high.toFixed(1)}</strong> LDC-using kids per place.
                   Raw ratio shown for reference only.
+                  {' '}{result.demand.demand_trend?.note}
                 </div>
               </div>
             )}
