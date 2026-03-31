@@ -125,7 +125,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
                 fontWeight: 600, fontSize: 13, cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s',
               }}>
-                {t === 'address' ? '📍 By address' : '🏙 By suburb / postcode'}
+                {t === 'address' ? '📍 By address' : '🏙 By postcode'}
               </button>
             ))}
           </div>
