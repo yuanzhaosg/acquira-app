@@ -295,7 +295,28 @@ export async function POST(req: NextRequest) {
       ? parseFloat((estimatedKids0to4 / supply.totalPlaces).toFixed(2))
       : 0
 
-    const zone = demandZone(kidsPerPlace)
+    // ── LDC utilisation adjustment ─────────────────────────────────────────────
+    // Not all kids 0-4 use LDC. Nationally ~50% metro, ~35% regional.
+    // Source: Dept of Education CCS Quarterly Report March 2024
+    const isRegional = (demandDetail?.postcodeAreaKm2 ?? 0) > 200 ||
+      demandSource.toLowerCase().includes('regional') ||
+      demandSource.toLowerCase().includes('outer') ||
+      (demandSource.toLowerCase().includes('estimate') && !demandSource.toLowerCase().includes('abs 2021 census'))
+
+    const ldcUtilLow  = isRegional ? 0.35 : 0.40
+    const ldcUtilHigh = isRegional ? 0.45 : 0.55
+    const ldcUtilMid  = (ldcUtilLow + ldcUtilHigh) / 2
+
+    const ldcKidsLow  = Math.round(estimatedKids0to4 * ldcUtilLow)
+    const ldcKidsHigh = Math.round(estimatedKids0to4 * ldcUtilHigh)
+    const ldcKidsMid  = Math.round(estimatedKids0to4 * ldcUtilMid)
+
+    const adjKidsPerPlaceLow  = supply.totalPlaces > 0 ? parseFloat((ldcKidsLow  / supply.totalPlaces).toFixed(2)) : 0
+    const adjKidsPerPlaceMid  = supply.totalPlaces > 0 ? parseFloat((ldcKidsMid  / supply.totalPlaces).toFixed(2)) : 0
+    const adjKidsPerPlaceHigh = supply.totalPlaces > 0 ? parseFloat((ldcKidsHigh / supply.totalPlaces).toFixed(2)) : 0
+
+    // Zone classification uses adjusted mid-point
+    const zone = demandZone(adjKidsPerPlaceMid)
 
     // ── 5. Return ──────────────────────────────────────────────────────────────
     return NextResponse.json({
@@ -319,6 +340,23 @@ export async function POST(req: NextRequest) {
         estimated_kids_0to4:   estimatedKids0to4,
         total_licensed_places: supply.totalPlaces,
         kids_per_place:        kidsPerPlace,
+        // Adjusted for LDC utilisation rate
+        ldc_util_rate: {
+          low:       ldcUtilLow,
+          high:      ldcUtilHigh,
+          mid:       ldcUtilMid,
+          is_regional: isRegional,
+        },
+        ldc_kids_range: {
+          low:  ldcKidsLow,
+          mid:  ldcKidsMid,
+          high: ldcKidsHigh,
+        },
+        adj_kids_per_place: {
+          low:  adjKidsPerPlaceLow,
+          mid:  adjKidsPerPlaceMid,
+          high: adjKidsPerPlaceHigh,
+        },
         zone,
         data_source:           demandSource,
         census_year:           2021,

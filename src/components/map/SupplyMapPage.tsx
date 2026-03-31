@@ -147,14 +147,18 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
                 <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, maxWidth: 320 }}>{zoneConfig.desc}</div>
               </div>
               <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                <div style={{ fontSize: 44, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{result.demand.kids_per_place.toFixed(1)}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>kids per licensed place</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>dynamic catchment radius</div>
+                <div style={{ fontSize: 44, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                  {result.demand.adj_kids_per_place?.mid.toFixed(1) ?? result.demand.kids_per_place.toFixed(1)}
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>LDC-adjusted kids per place</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                  raw: {result.demand.kids_per_place.toFixed(1)} · {result.demand.ldc_util_rate?.is_regional ? 'regional' : 'metro'} utilisation applied
+                </div>
               </div>
             </div>
 
             {/* Stats grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: result.demand.ldc_kids_range ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
               {[
                 { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: 'catchment total', color: '#fff' },
@@ -166,6 +170,12 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
                     : result.demand.data_source || 'ABS estimate',
                   color: '#fff',
                 },
+                ...(result.demand.ldc_kids_range ? [{
+                  label: 'LDC demand est.',
+                  value: `${result.demand.ldc_kids_range.low.toLocaleString()}–${result.demand.ldc_kids_range.high.toLocaleString()}`,
+                  sub: `${result.demand.ldc_util_rate?.is_regional ? 'regional' : 'metro'} · ${Math.round((result.demand.ldc_util_rate?.low ?? 0.4) * 100)}–${Math.round((result.demand.ldc_util_rate?.high ?? 0.5) * 100)}% utilisation · DoE 2024`,
+                  color: '#a78bfa',
+                }] : []),
               ].map(s => (
                 <div key={s.label} style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, padding: '14px 16px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
@@ -174,6 +184,19 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
                 </div>
               ))}
             </div>
+
+            {/* Utilisation methodology note */}
+            {result.demand.ldc_util_rate && (
+              <div style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: 8, padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ fontSize: 14, flexShrink: 0 }}>ℹ️</span>
+                <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+                  <strong style={{ color: 'rgba(167,139,250,0.9)' }}>LDC utilisation adjustment applied.</strong>{' '}
+                  Raw kids 0–4 ({result.demand.estimated_kids_0to4.toLocaleString()}) adjusted by {result.demand.ldc_util_rate.is_regional ? '35–45%' : '40–55%'} {result.demand.ldc_util_rate.is_regional ? 'regional' : 'metro'} LDC utilisation rate (Dept of Education, March 2024 quarter).
+                  Adjusted ratio: <strong style={{ color: 'rgba(167,139,250,0.9)' }}>{result.demand.adj_kids_per_place?.low.toFixed(1)}–{result.demand.adj_kids_per_place?.high.toFixed(1)}</strong> LDC-using kids per place.
+                  Raw ratio shown for reference only.
+                </div>
+              </div>
+            )}
 
             {/* Full competitor list — no blur */}
             <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, overflow: 'hidden' }}>
