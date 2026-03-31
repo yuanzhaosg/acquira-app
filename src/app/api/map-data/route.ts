@@ -173,6 +173,32 @@ function lookupKids0to4(postcode: string): DemandLookup {
     let postcodesSampled = 0
     let primaryRaw = 0
 
+    // ── Compact town override ───────────────────────────────────────────────
+    // Problem: large rural/regional postcodes (e.g. Goulburn 2580 = 3,408 km²)
+    // have their entire urban population concentrated in a small core (~10-15 km²).
+    // The area-ratio formula would assign only 2.3% of kids to a 5km catchment,
+    // massively undercounting (44 kids instead of ~1,829).
+    //
+    // Fix: when the postcode area is much larger than the catchment circle AND the
+    // catchment radius is regional (5km), assume the 5km circle captures the full
+    // urban population of that postcode — use 100% of kids, not the area ratio.
+    //
+    // Threshold: postcode > 500 km² with regional 5km radius = compact town pattern.
+    // This covers Goulburn (3408 km²), Wagga (838 km²), Albury (380 km²), etc.
+    // Metro postcodes are all <80 km² so this never fires for them.
+    const originKids = ABS_KIDS_0_4[originPostcode]
+    if (originArea && originArea > 500 && radiusKm >= 5 && originKids !== undefined && originKids > 0) {
+      // Compact town: entire urban population is within the 5km catchment
+      return {
+        kids:               Math.round(originKids * gf),
+        radiusKm,
+        catchmentAreaKm2:   parseFloat(catchmentArea.toFixed(1)),
+        postcodesSampled:   1,
+        coveragePct:        100,
+        primaryPostcodeRaw: originKids,
+      }
+    }
+
     // Centre-outward: 0, ±1, ±2 … ±12
     const offsets = [0,-1,1,-2,2,-3,3,-4,4,-5,5,-6,6,-7,7,-8,8,-9,9,-10,10,-11,11,-12,12]
     for (const offset of offsets) {
