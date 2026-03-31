@@ -157,14 +157,23 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
                 <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 8, maxWidth: 320 }}>{zoneConfig.desc}</div>
               </div>
               <div className="smp-kids-stat" style={{ marginLeft: 'auto', textAlign: 'right' }}>
-                <div style={{ fontSize: 48, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{result.demand.kids_per_place.toFixed(1)}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>kids per licensed place</div>
+                <div style={{ fontSize: 48, fontWeight: 900, color: zoneConfig.color, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                  {(result.demand.adj_kids_per_place?.mid ?? result.demand.kids_per_place).toFixed(1)}
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>
+                  {result.demand.adj_kids_per_place ? 'LDC-adj. kids per place' : 'kids per licensed place'}
+                </div>
+                {result.demand.adj_kids_per_place && (
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
+                    raw ratio: {result.demand.kids_per_place.toFixed(1)}
+                  </div>
+                )}
                 <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>dynamic catchment radius</div>
               </div>
             </div>
 
-            {/* Stats grid */}
-            <div className="smp-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {/* Stats grid — 2-col when LDC data present, else 3-col */}
+            <div className="smp-stats-grid" style={{ display: 'grid', gridTemplateColumns: result.demand.adj_kids_per_place ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
               {[
                 { label: 'Existing centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km (${result.stats.radius_label ?? 'suburban'})`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: `${result.stats.radius_km ?? 2}–${(result.stats.radius_km ?? 3) + 2}km catchment`, color: '#fff' },
@@ -176,6 +185,12 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
                     : result.demand.data_source || 'ABS estimate',
                   color: '#fff'
                 },
+                ...(result.demand.adj_kids_per_place ? [{
+                  label: 'LDC demand est.',
+                  value: `${result.demand.adj_kids_per_place.mid.toFixed(1)}`,
+                  sub: `LDC-utilisation adjusted · range ${result.demand.adj_kids_per_place.low.toFixed(1)}–${result.demand.adj_kids_per_place.high.toFixed(1)}`,
+                  color: zoneConfig.color,
+                }] : []),
               ].map(s => (
                 <div key={s.label} style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, padding: '16px 18px' }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{s.label}</div>
@@ -183,6 +198,17 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
                   <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{s.sub}</div>
                 </div>
               ))}
+            </div>
+
+            {/* Methodology note — before competitor list */}
+            <div style={{ padding: '12px 16px', background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 8 }}>
+              <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+                <strong style={{ color: '#a78bfa' }}>ℹ️ Methodology:</strong> Kids per place = ABS 2021 Census 0–4 population
+                (catchment-area adjusted, growth-indexed to {new Date().getFullYear()}) ÷ ACECQA licensed places within dynamic radius.
+                {result.demand.adj_kids_per_place && ' LDC-adjusted ratio accounts for LDC utilisation rates from ACECQA operational data.'}
+                {' '}Zones: &gt;2.0 Undersupplied · 1.0–2.0 Balanced · &lt;1.0 Oversupplied.
+                Indicative only — not a substitute for site-specific due diligence.
+              </p>
             </div>
 
             {/* Competitor preview — blurred, locked */}
@@ -243,18 +269,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
           </div>
         )}
 
-        {/* Methodology note */}
-        {result && (
-          <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid #1e3a5f', borderRadius: 8 }}>
-            <p style={{ margin: 0, fontSize: 11, color: '#475569', lineHeight: 1.6 }}>
-              <strong style={{ color: '#64748b' }}>Methodology:</strong> Kids per place = ABS 2021 Census 0–4 population
-              (catchment-area adjusted, growth-indexed to {new Date().getFullYear()}) ÷ ACECQA licensed places within dynamic radius.
-              Zones: &gt;2.0 Undersupplied · 1.0–2.0 Balanced · &lt;1.0 Oversupplied.
-              Calibrated against national LDC occupancy (~79%, ACECQA) and ABS Preschool Education Australia 2024.
-              Indicative only — not a substitute for site-specific due diligence.
-            </p>
-          </div>
-        )}
+
 
         {/* Empty state — before search */}
         {!result && !loading && !error && (

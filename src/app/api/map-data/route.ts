@@ -36,6 +36,25 @@ const POSTCODE_AREA_KM2: Record<string, number> = {"2580":1829,"2581":420,"2582"
 // Catchment radius is now computed dynamically per postcode in lookupKids0to4
 
 
+// ── State inference from postcode ──────────────────────────────────────────────
+function inferState(postcode: string): string {
+  const p = parseInt(postcode)
+  if (isNaN(p)) return ''
+  if (p >= 800  && p <= 999)  return 'NT'
+  if (p >= 1000 && p <= 2599) return 'NSW'
+  if (p >= 2600 && p <= 2618) return 'ACT'
+  if (p >= 2619 && p <= 2899) return 'NSW'
+  if (p >= 2900 && p <= 2920) return 'ACT'
+  if (p >= 2921 && p <= 2999) return 'NSW'
+  if (p >= 3000 && p <= 3999) return 'VIC'
+  if (p >= 4000 && p <= 4999) return 'QLD'
+  if (p >= 5000 && p <= 5999) return 'SA'
+  if (p >= 6000 && p <= 6999) return 'WA'
+  if (p >= 7000 && p <= 7999) return 'TAS'
+  if (p >= 8000 && p <= 8999) return 'VIC'  // VIC PO boxes
+  return ''
+}
+
 // ── Geocode address ────────────────────────────────────────────────────────────
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address + ', Australia')}&key=${GOOGLE_API_KEY}`
@@ -246,70 +265,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Address or coordinates required' }, { status: 400 })
     }
 
+    // BUG 2 fix: always prefer inferred state from postcode (override user dropdown)
+    const resolvedState = postcode ? inferState(postcode) : (state || '')
+
     // ── 1. Geocode (skip if lat/lng passed directly from interactive map drag) ──
     let coords: { lat: number; lng: number } | null = null
-    // Auto-detect state from postcode if not provided (address tab leaves state blank)
-    function inferState(pc: string): string {
-      const p = parseInt(pc || '0')
-      if (p >= 1000 && p <= 1999) return 'NSW'
-      if (p >= 2000 && p <= 2599) return 'NSW'
-      if (p >= 2619 && p <= 2899) return 'NSW'
-      if (p >= 2921 && p <= 2999) return 'NSW'
-      if (p >= 2600 && p <= 2618) return 'ACT'
-      if (p >= 2900 && p <= 2920) return 'ACT'
-      if (p >= 3000 && p <= 3999) return 'VIC'
-      if (p >= 8000 && p <= 8999) return 'VIC'
-      if (p >= 4000 && p <= 4999) return 'QLD'
-      if (p >= 9000 && p <= 9999) return 'QLD'
-      if (p >= 5000 && p <= 5999) return 'SA'
-      if (p >= 6000 && p <= 6999) return 'WA'
-      if (p >= 7000 && p <= 7999) return 'TAS'
-      if (p >= 800  && p <= 999)  return 'NT'
-      return 'NSW' // default fallback
+
+    // BUG 1 & 5 fix: build geocode query correctly per tab
+    let geocodeQuery: string
+    if (postcode) {
+      // Postcode tab: geocode postcode + correctly-inferred state
+      geocodeQuery = `${postcode} ${resolvedState} Australia`
+    } else {
+      // Address tab: user already typed suburb+state (e.g. "Goulburn NSW"), geocode directly
+      geocodeQuery = address
     }
-    const resolvedState = state || (postcode ? inferState(postcode) : '')
-    const fullAddress = `${address}, ${suburb} ${resolvedState} ${postcode}`
 
     if (lat_override !== undefined && lng_override !== undefined) {
       coords = { lat: lat_override, lng: lng_override }
     } else {
-      coords = await geocodeAddress(fullAddress)
+      // geocodeAddress appends ', Australia' — strip any trailing 'Australia' (with or without comma)
+      const cleanQuery = geocodeQuery.replace(/,?\s*Australia\s*$/i, '').trim()
+      coords = await geocodeAddress(cleanQuery)
     }
 
     if (!coords) {
       return NextResponse.json({ error: 'Could not geocode address' }, { status: 400 })
     }
 
-    // ── 2. Determine dynamic radius from postcode area ────────────────────────
-    const postcodeAreaForRadius = POSTCODE_AREA_KM2[postcode || '']
-    const dynamicRadiusKm = getRadiusKm(postcodeAreaForRadius)
-    const dynamicRadiusM  = dynamicRadiusKm * 1000
-
-    // ── 3. Query nearby centres ────────────────────────────────────────────────
-    const { data: competitors, error } = await supabase.rpc('get_nearby_centres', {
-      target_lat: coords.lat,
-      target_lng: coords.lng,
-      radius_m:   dynamicRadiusM,
-    })
-
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
-    }
-
-    // Filter out the target centre itself
-    const filtered = (competitors || []).filter((c: any) =>
-      !c.service_name?.toLowerCase().includes(
-        address.toLowerCase().split(' ')[0] || '__'
-      )
-    )
-
-    // ── 4. Supply analysis ─────────────────────────────────────────────────────
-    const supply = analyseSupply(filtered, licensed_places || 0)
-
-    // ── 5. ABS demand lookup ───────────────────────────────────────────────────
-    // If postcode not supplied (e.g. Supply Map preview by suburb name),
-    // reverse-geocode from the coordinates to get the actual postcode
+    // ── 2. Resolve postcode via reverse-geocode (BUG 3 fix: do this BEFORE spatial query) ──
     let resolvedPostcode = postcode || ''
     if (!resolvedPostcode && GOOGLE_API_KEY) {
       try {
@@ -329,6 +313,35 @@ export async function POST(req: NextRequest) {
         }
       } catch { /* non-fatal — fall through to estimate */ }
     }
+
+    // ── 3. Determine dynamic radius from resolved postcode ────────────────────
+    const postcodeAreaForRadius = POSTCODE_AREA_KM2[resolvedPostcode || postcode || '']
+    const dynamicRadiusKm = getRadiusKm(postcodeAreaForRadius)
+    const dynamicRadiusM  = dynamicRadiusKm * 1000
+
+    // ── 4. Query nearby centres ────────────────────────────────────────────────
+    const { data: competitors, error } = await supabase.rpc('get_nearby_centres', {
+      target_lat: coords.lat,
+      target_lng: coords.lng,
+      radius_m:   dynamicRadiusM,
+    })
+
+    if (error) {
+      console.error('Supabase error:', error)
+      return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
+    }
+
+    // Filter out the target centre itself
+    const filtered = (competitors || []).filter((c: any) =>
+      !c.service_name?.toLowerCase().includes(
+        address.toLowerCase().split(' ')[0] || '__'
+      )
+    )
+
+    // ── 5. Supply analysis ─────────────────────────────────────────────────────
+    const supply = analyseSupply(filtered, licensed_places || 0)
+
+    // ── 6. ABS demand lookup (resolvedPostcode already resolved above) ─────────
 
     const { kids: estimatedKids0to4, source: demandSource, detail: demandDetail, radiusKm: finalRadiusKm } = lookupKids0to4(resolvedPostcode)
     // Use demand lookup's radius (based on resolved postcode) if available, else dynamic from input postcode
@@ -361,12 +374,12 @@ export async function POST(req: NextRequest) {
     // Zone classification uses adjusted mid-point
     const zone = demandZone(adjKidsPerPlaceMid)
 
-    // ── 5. Return ──────────────────────────────────────────────────────────────
+    // ── 7. Return ──────────────────────────────────────────────────────────────
     return NextResponse.json({
       target: {
         lat:             coords.lat,
         lng:             coords.lng,
-        address:         fullAddress,
+        address:         geocodeQuery,
         licensed_places: licensed_places || 0,
       },
       competitors: filtered.map((c: any) => ({
