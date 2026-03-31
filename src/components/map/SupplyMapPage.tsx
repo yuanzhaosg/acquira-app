@@ -156,6 +156,13 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
             </button>
           </div>
           {error && <div style={{ marginTop: 10, fontSize: 13, color: '#ef4444' }}>{error}</div>}
+          {result && (
+            <div style={{ marginTop: 10, fontSize: 11, color: '#475569', textAlign: 'center' }}>
+              {result.stats.search_mode === 'suburb'
+                ? `📍 Suburb view — all LDC centres in postcode ${result.stats.resolved_postcode || result.stats.search_mode_label?.split(' ').pop()}`
+                : `📍 Site view — ${result.stats.radius_km}km catchment from search point`}
+            </div>
+          )}
         </div>
 
         {/* Vacancy signal — user input */}
@@ -247,7 +254,7 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
             {/* Stats grid */}
             <div style={{ display: 'grid', gridTemplateColumns: result.demand.ldc_kids_range ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
               {[
-                { label: 'LDC centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km · long day care only`, color: '#00b4a0' },
+                { label: 'LDC centres', value: result.stats.total_competitors.toString(), sub: result.stats.search_mode_label || `within ${result.stats.radius_km ?? 3}km · long day care only`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: 'catchment total', color: '#fff' },
                 {
                   label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,
@@ -285,6 +292,46 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
                 </div>
               </div>
             )}
+
+            {/* Care for Kids vacancy link */}
+            {result && (() => {
+              const suburb = (result.target?.address || '').split(',')[0]?.trim().toLowerCase().replace(/\s+/g, '-') || 'suburb'
+              const cfkUrl = `https://www.careforkids.com.au/child-care-centre/${suburb}/${result.stats.resolved_postcode || ''}`
+              return (
+                <div style={{
+                  padding: '10px 14px',
+                  background: 'rgba(0,180,160,0.04)',
+                  border: '1px solid rgba(0,180,160,0.15)',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                    💡 <strong style={{ color: '#00b4a0' }}>Check live vacancy data</strong> — Care for Kids shows real-time vacancies for this area
+                  </div>
+                  <a
+                    href={cfkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      background: '#00b4a0',
+                      color: '#fff',
+                      padding: '6px 14px',
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    View on Care for Kids →
+                  </a>
+                </div>
+              )
+            })()}
 
             {/* Full competitor list — no blur */}
             <div style={{ background: '#112236', border: '1px solid #1e3a5f', borderRadius: 10, overflow: 'hidden' }}>
