@@ -171,6 +171,13 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
           {error && (
             <div style={{ marginTop: 12, fontSize: 13, color: '#ef4444' }}>{error}</div>
           )}
+          {result && (
+            <div style={{ marginTop: 8, fontSize: 11, color: '#475569', textAlign: 'center' }}>
+              {result.stats.search_mode === 'suburb'
+                ? `📍 Suburb view — all LDC centres in postcode ${result.stats.resolved_postcode || result.stats.search_mode_label?.split(' ').pop()}`
+                : `📍 Site view — ${result.stats.radius_km}km catchment from search point`}
+            </div>
+          )}
         </div>
 
         {/* Results */}
@@ -217,7 +224,7 @@ function SupplyMapPreview({ onGoToApp, onSignIn, onMapSignIn }: { onGoToApp: () 
             {/* Stats grid — 2-col when LDC data present, else 3-col */}
             <div className="smp-stats-grid" style={{ display: 'grid', gridTemplateColumns: result.demand.adj_kids_per_place ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
               {[
-                { label: 'LDC centres', value: result.stats.total_competitors.toString(), sub: `within ${result.stats.radius_km ?? 3}km · long day care only`, color: '#00b4a0' },
+                { label: 'LDC centres', value: result.stats.total_competitors.toString(), sub: result.stats.search_mode_label || `within ${result.stats.radius_km ?? 3}km · long day care only`, color: '#00b4a0' },
                 { label: 'Licensed places', value: result.demand.total_licensed_places.toLocaleString(), sub: `${result.stats.radius_km ?? 2}–${(result.stats.radius_km ?? 3) + 2}km catchment`, color: '#fff' },
                 {
                   label: `Kids 0–4 (${result.demand.demand_detail?.yearEstimate ?? new Date().getFullYear()} est.)`,

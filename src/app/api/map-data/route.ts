@@ -294,6 +294,12 @@ export async function POST(req: NextRequest) {
     // BUG 2 fix: always prefer inferred state from postcode (override user dropdown)
     const resolvedState = postcode ? inferState(postcode) : (state || '')
 
+    // Detect suburb mode vs site mode
+    // Site mode: input has street number (e.g. "45 Main St, Blacktown")
+    // Suburb mode: input is just suburb name (e.g. "Blacktown NSW") — no street number, no postcode tab
+    const hasStreetNumber = /^\d+\s+\w/.test((address || '').trim())
+    const isSuburbMode = !hasStreetNumber && !postcode
+
     // ── 1. Geocode (skip if lat/lng passed directly from interactive map drag) ──
     let coords: { lat: number; lng: number } | null = null
 
@@ -348,23 +354,66 @@ export async function POST(req: NextRequest) {
     const dynamicRadiusM  = dynamicRadiusKm * 1000
 
     // ── 4. Query nearby centres ────────────────────────────────────────────────
-    const { data: competitors, error } = await supabase.rpc('get_nearby_centres', {
-      target_lat: coords.lat,
-      target_lng: coords.lng,
-      radius_m:   dynamicRadiusM,
-    })
+    let filtered: any[] = []
 
-    if (error) {
-      console.error('Supabase error:', error)
-      return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
+    if (isSuburbMode && resolvedPostcode) {
+      // Suburb mode: query ALL centres in this postcode
+      const { data: competitors, error } = await supabase
+        .from('acecqa_centres')
+        .select('service_id, service_name, suburb, state, postcode, licensed_places, nqs_rating, lat, lng')
+        .eq('postcode', resolvedPostcode)
+        .order('service_name')
+
+      if (error) {
+        console.error('Supabase error (suburb mode):', error)
+        return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
+      }
+
+      // Compute distance_m from geocoded coords for each centre
+      filtered = (competitors || []).map((c: any) => ({
+        id:              c.service_id,
+        name:            c.service_name,
+        suburb:          c.suburb,
+        nqs_rating:      c.nqs_rating,
+        licensed_places: c.licensed_places,
+        distance_m:      c.lat && c.lng
+          ? Math.round(Math.sqrt(
+              Math.pow((c.lat - coords!.lat) * 111000, 2) +
+              Math.pow((c.lng - coords!.lng) * 111000 * Math.cos(coords!.lat * Math.PI / 180), 2)
+            ))
+          : 0,
+        lat: c.lat,
+        lng: c.lng,
+      })).sort((a: any, b: any) => a.distance_m - b.distance_m)
+    } else {
+      // Site mode: radius-based query
+      const { data: competitors, error } = await supabase.rpc('get_nearby_centres', {
+        target_lat: coords.lat,
+        target_lng: coords.lng,
+        radius_m:   dynamicRadiusM,
+      })
+
+      if (error) {
+        console.error('Supabase error:', error)
+        return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
+      }
+
+      // Filter out the target centre itself
+      filtered = (competitors || []).filter((c: any) =>
+        !c.service_name?.toLowerCase().includes(
+          address.toLowerCase().split(' ')[0] || '__'
+        )
+      ).map((c: any) => ({
+        id:              c.service_id,
+        name:            c.service_name,
+        suburb:          c.suburb,
+        nqs_rating:      c.nqs_rating,
+        licensed_places: c.licensed_places,
+        distance_m:      Math.round(c.distance_m),
+        lat:             c.lat,
+        lng:             c.lng,
+      }))
     }
-
-    // Filter out the target centre itself
-    const filtered = (competitors || []).filter((c: any) =>
-      !c.service_name?.toLowerCase().includes(
-        address.toLowerCase().split(' ')[0] || '__'
-      )
-    )
 
     // ── 5. Supply analysis ─────────────────────────────────────────────────────
     const supply = analyseSupply(filtered, licensed_places || 0)
@@ -421,16 +470,7 @@ export async function POST(req: NextRequest) {
         address:         geocodeQuery,
         licensed_places: licensed_places || 0,
       },
-      competitors: filtered.map((c: any) => ({
-        id:              c.service_id,
-        name:            c.service_name,
-        suburb:          c.suburb,
-        nqs_rating:      c.nqs_rating,
-        licensed_places: c.licensed_places,
-        distance_m:      Math.round(c.distance_m),
-        lat:             c.lat,
-        lng:             c.lng,
-      })),
+      competitors: filtered,
       demand: {
         estimated_kids_0to4:   estimatedKids0to4,
         total_licensed_places: supply.totalPlaces,
@@ -471,9 +511,12 @@ export async function POST(req: NextRequest) {
         total_competitors:    filtered.length,
         exceeding_nqs:        supply.exceeding,
         working_towards_nqs:  supply.workingTowards,
-        radius_m:             catchmentRadiusKm * 1000,
-        radius_km:            catchmentRadiusKm,
-        radius_label:         getRadiusLabel(catchmentRadiusKm),
+        radius_m:             isSuburbMode ? Math.round(Math.sqrt((POSTCODE_AREA_KM2[resolvedPostcode || ''] || 50) / Math.PI) * 1000) : catchmentRadiusKm * 1000,
+        radius_km:            isSuburbMode ? parseFloat(Math.sqrt((POSTCODE_AREA_KM2[resolvedPostcode || ''] || 50) / Math.PI).toFixed(1)) : catchmentRadiusKm,
+        radius_label:         isSuburbMode ? 'postcode' : getRadiusLabel(catchmentRadiusKm),
+        search_mode:          isSuburbMode ? 'suburb' : 'site',
+        search_mode_label:    isSuburbMode ? `All LDC in ${resolvedPostcode}` : `${catchmentRadiusKm}km catchment`,
+        resolved_postcode:    resolvedPostcode,
       }
     })
 
