@@ -1048,7 +1048,10 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                   ? ((ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)! / 100)
                   : undefined
               }
-              centreAvgDailyFee={extracted.fees?.daily_fee_blended ?? undefined}
+              centreAvgDailyFee={
+                (currentScored as any).dimensions?.fee_benchmarking?.detail?.centre_daily_fee
+                ?? undefined
+              }
               centreAskingPrice={effectiveAskPrice ?? undefined}
             />
           )
