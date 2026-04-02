@@ -675,10 +675,11 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         overriddenExtracted.key_ratios.revenue_fy25 = overrides.revenue
         // Recalculate ratios if we have the raw costs
         const fy25data = overriddenExtracted.financials?.fy25
+        const newRev = overrides.revenue as number
         if (fy25data?.total_labour_cost != null)
-          fy25data.labour_ratio_pct = parseFloat(((fy25data.total_labour_cost / overrides.revenue) * 100).toFixed(1))
+          fy25data.labour_ratio_pct = parseFloat(((fy25data.total_labour_cost / newRev) * 100).toFixed(1))
         if (fy25data?.rent_pa != null)
-          fy25data.rent_ratio_pct = parseFloat(((fy25data.rent_pa / overrides.revenue) * 100).toFixed(1))
+          fy25data.rent_ratio_pct = parseFloat(((fy25data.rent_pa / newRev) * 100).toFixed(1))
       }
       if (overrides.licensed_places != null) {
         overriddenExtracted.centre.licensed_places = overrides.licensed_places
