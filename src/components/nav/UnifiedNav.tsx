@@ -237,7 +237,7 @@ export default function UnifiedNav({
               )}
               <button style={activeAppTab === 'map' ? linkActive : linkBase} onClick={onMap}>🗺️ Supply Map</button>
               <a href="/councils" style={linkBase} target="_blank" rel="noopener noreferrer">🏛 Planning</a>
-              <a href="/pricing" style={linkBase}>💳 Pricing</a>
+              <a href="/pricing" style={linkBase} target="_blank" rel="noopener noreferrer">💳 Pricing</a>
               <div style={sep} />
               <div style={sep} />
               <UserChip />

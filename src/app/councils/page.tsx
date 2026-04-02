@@ -79,6 +79,17 @@ export default function CouncilsPage() {
   return (
     <div style={{
       background: '#0d1b2a', minHeight: '100vh', color: '#e8edf3',
+      // Back nav handled below
+    }}>
+    <div style={{ padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', gap: 14 }}>
+      <button onClick={() => window.close()} style={{ background: 'none', border: 'none', color: '#00b4a0', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 14, fontWeight: 600, padding: 0 }}>
+        Acquira<span style={{ color: '#fff' }}>.</span>
+      </button>
+      <span style={{ color: 'rgba(255,255,255,0.2)' }}>/</span>
+      <button onClick={() => window.close()} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: 13 }}>← Back to app</button>
+    </div>
+    <div style={{
+      background: 'transparent', minHeight: '100vh', color: '#e8edf3',
       fontFamily: "'DM Sans', sans-serif", fontSize: 14,
     }}>
       <style>{`
@@ -224,6 +235,7 @@ export default function CouncilsPage() {
           (free email alerts for planning applications near any address).
         </div>
       </div>
+    </div>
     </div>
   )
 }

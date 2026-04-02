@@ -1,4 +1,11 @@
-import { supabase } from './supabase'
+// deals.ts is called from API routes (server-side only).
+// Must use service key to bypass RLS — anon key will silently fail on writes.
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!,
+)
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 

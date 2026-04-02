@@ -123,6 +123,16 @@ export default function PricingPage() {
 
   return (
     <div style={containerStyle}>
+      {/* Back nav */}
+      <div style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <button onClick={() => window.close()} style={{ background: 'none', border: 'none', color: '#00b4a0', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, padding: 0 }}>
+          Acquira<span style={{ color: '#fff' }}>.</span>
+        </button>
+        <span style={{ color: 'rgba(255,255,255,0.2)' }}>/</span>
+        <button onClick={() => window.close()} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 13 }}>
+          ← Back to app
+        </button>
+      </div>
       <div style={headerStyle}>
         <div style={{ fontSize: 13, color: '#00b4a0', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 16 }}>
           Pricing
