@@ -753,21 +753,27 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const criticalFlagCount = triggeredFlags.filter(f => f.severity === 'critical').length
     + legacyFlagIds.filter(id => ['occupancy_critical','labour_ratio_critical','ebitda_negative_no_ramp','lease_expired'].includes(id)).length
 
-  const effectiveOccupancy      = (overrides.occupancy      as number) ?? (occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct)
-  const effectiveEbitda          = (overrides.ebitda          as number) ?? (fy25?.ebitda ?? ratios?.ebitda_fy25)
-  const effectiveAskPrice        = (overrides.asking_price    as number) ?? (financials?.asking_price ?? ratios?.asking_price)
-  const effectiveRevenue         = (overrides.revenue         as number) ?? (fy25?.revenue ?? ratios?.revenue_fy25)
-  const effectiveLicensedPlaces  = (overrides.licensed_places as number) ?? centre?.licensed_places
-  const effectiveNqsRating       = (overrides.nqs_rating_str  as string | undefined) ?? centre?.nqs_rating
-  const effectiveLabourCost      = (overrides.labour_cost     as number) ?? fy25?.total_labour_cost
-  const effectiveRentPa          = (overrides.rent_pa         as number) ?? (fy25?.rent_pa ?? ratios?.rent_pa_fy25)
+  // Helper: safely extract a numeric override (returns undefined if not set or not a number)
+  const numOvr = (k: string): number | undefined => {
+    const v = overrides[k]; return typeof v === 'number' ? v : undefined
+  }
+  const effectiveOccupancy      = numOvr('occupancy')       ?? occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct
+  const effectiveEbitda          = numOvr('ebitda')           ?? fy25?.ebitda ?? ratios?.ebitda_fy25
+  const effectiveAskPrice        = numOvr('asking_price')     ?? financials?.asking_price ?? ratios?.asking_price
+  const effectiveRevenue         = numOvr('revenue')          ?? fy25?.revenue ?? ratios?.revenue_fy25
+  const effectiveLicensedPlaces  = numOvr('licensed_places')  ?? centre?.licensed_places
+  const effectiveNqsRating       = (overrides.nqs_rating_str as string | undefined) ?? centre?.nqs_rating
+  const effectiveLabourCost      = numOvr('labour_cost')      ?? fy25?.total_labour_cost
+  const effectiveRentPa          = numOvr('rent_pa')          ?? fy25?.rent_pa ?? ratios?.rent_pa_fy25
   // Derived ratios — recalculate if labour cost or rent overridden
-  const baseRevForRatios = (effectiveRevenue ?? 0)
-  const effectiveLabourRatioPct = overrides.labour_cost != null && baseRevForRatios > 0
-    ? parseFloat(((overrides.labour_cost / baseRevForRatios) * 100).toFixed(1))
+  const baseRevForRatios = effectiveRevenue ?? 0
+  const labourCostNum = numOvr('labour_cost')
+  const rentPaNum     = numOvr('rent_pa')
+  const effectiveLabourRatioPct = labourCostNum != null && baseRevForRatios > 0
+    ? parseFloat(((labourCostNum / baseRevForRatios) * 100).toFixed(1))
     : (fy25?.labour_ratio_pct ?? ratios?.labour_ratio_fy25_pct)
-  const effectiveRentRatioPct = overrides.rent_pa != null && baseRevForRatios > 0
-    ? parseFloat(((overrides.rent_pa / baseRevForRatios) * 100).toFixed(1))
+  const effectiveRentRatioPct = rentPaNum != null && baseRevForRatios > 0
+    ? parseFloat(((rentPaNum / baseRevForRatios) * 100).toFixed(1))
     : (fy25?.rent_ratio_pct ?? ratios?.rent_ratio_fy25_pct)
 
   const metrics = [
