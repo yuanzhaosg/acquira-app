@@ -9,9 +9,10 @@ import type { ExtractedDeal } from '@/types/extracted'
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
 function scoreColor(score: number): string {
-  if (score >= 70) return '#22c55e'
-  if (score >= 55) return '#00b4a0'
-  if (score >= 40) return '#f59e0b'
+  if (score >= 72) return '#22c55e'
+  if (score >= 62) return '#00b4a0'
+  if (score >= 52) return '#f59e0b'
+  if (score >= 42) return '#f97316'
   return '#ef4444'
 }
 
@@ -23,11 +24,11 @@ function dimScoreColor(score: number): string {
 }
 
 function scoreVerdict(score: number): string {
-  if (score >= 75) return 'Strong Buy'
-  if (score >= 65) return 'Attractive'
-  if (score >= 55) return 'Conditional'
-  if (score >= 45) return 'Caution'
-  if (score >= 35) return 'High Risk'
+  if (score >= 72) return 'Strong Buy'
+  if (score >= 62) return 'Attractive'
+  if (score >= 52) return 'Worth Investigating'
+  if (score >= 42) return 'High Scrutiny Required'
+  if (score >= 32) return 'High Risk'
   return 'Avoid'
 }
 
@@ -898,6 +899,10 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           .report-content { padding: 24px 32px !important; }
           .score-ring-wrap { display: none !important; }
           .rescore-bar, .checklist-section, .notes-section, .da-pipeline-section { display: none !important; }
+          /* Score interpretation — always print, page break before */
+          .score-interpretation { page-break-before: always; border: 1px solid #e2e8f0 !important; border-radius: 8px; padding: 20px 24px !important; margin: 0 !important; }
+          .score-interpretation-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          .score-interpretation-bottom { grid-template-columns: 1fr 1fr !important; }
         }
       `}</style>
 
@@ -1551,6 +1556,62 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         </div>
 
       </div>{/* end report-content */}
+
+      {/* ── SCORE INTERPRETATION ── */}
+      <div className="score-interpretation" style={{
+        margin: '0 40px 40px',
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        borderRadius: 10, padding: '24px 28px',
+      }}>
+        <div style={{
+          fontFamily: 'IBM Plex Mono, monospace', fontSize: 11,
+          letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: 'rgba(255,255,255,0.3)', marginBottom: 16,
+        }}>How to Read This Score</div>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 16 }}>
+          Acquira scores are calibrated against the realities of the Australian childcare acquisition market.
+          Due to structural factors — typical EBITDA multiples of 3–6×, competitive inner-metro supply,
+          and owner-operator management risk — <strong style={{ color: 'rgba(255,255,255,0.7)' }}>a score above 72 represents an exceptional deal</strong>.
+          Most quality acquisitions score between 58–72.
+        </p>
+        <div className="score-interpretation-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+          {[
+            { range: '72–100', label: 'Strong Buy', desc: 'Exceptional deal. Strong fundamentals across occupancy, margin, lease, and market. Rare.', color: '#22c55e' },
+            { range: '62–71', label: 'Attractive', desc: 'Quality acquisition with clear upside. Minor risks are manageable or priceable.', color: '#00b4a0' },
+            { range: '52–61', label: 'Worth Investigating', desc: 'Viable deal with identifiable risks. Requires deeper due diligence before proceeding.', color: '#f59e0b' },
+            { range: '42–51', label: 'High Scrutiny', desc: 'Meaningful flags present. Proceed only with strong mitigation plan or price adjustment.', color: '#f97316' },
+            { range: '32–41', label: 'High Risk', desc: 'Significant structural issues. Only suitable for experienced operators at the right price.', color: '#ef4444' },
+            { range: '0–31',  label: 'Avoid', desc: 'Critical flags or fundamentals too weak. Not recommended at current terms.', color: '#dc2626' },
+          ].map(b => (
+            <div key={b.range} style={{
+              background: 'rgba(255,255,255,0.02)', borderRadius: 8,
+              padding: '12px 14px', borderLeft: `3px solid ${b.color}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 16, fontWeight: 700, color: b.color }}>{b.range}</span>
+                <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10, color: b.color, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{b.label}</span>
+              </div>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: 0, lineHeight: 1.5 }}>{b.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className="score-interpretation-bottom" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 1.6 }}>
+          <div>
+            <strong style={{ color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 4 }}>Why scores don’t reach 100</strong>
+            Valuation scores are structurally capped by market pricing (3–6× EBITDA is normal, not a red flag).
+            Demand scores in inner-metro areas reflect real LDC utilisation data — not GapMaps theoretical ratios.
+            Owner-operator dependency, a near-universal feature of small childcare IMs, reduces management scores.
+          </div>
+          <div>
+            <strong style={{ color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 4 }}>Demand data methodology</strong>
+            The Effective Demand Ratio (EDR) is computed from ABS 2021 Census (0–4 population),
+            adjusted for LDC utilisation rates from the Dept of Education (2024 quarter data),
+            and divided by ACECQA licensed places in the catchment.
+            EDR replaces vendor-supplied GapMaps figures, which systematically overstate real demand.
+          </div>
+        </div>
+      </div>
 
       {/* ── FOOTER ── */}
       <footer style={{
