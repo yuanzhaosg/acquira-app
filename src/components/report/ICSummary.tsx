@@ -62,6 +62,8 @@ interface ICSummaryProps {
   actualRevenue?: number
   // Acquira 17-dimension score — used to align recommendation
   acquiraScore?: number
+  // ABS corridor-specific growth factor from demand_context (e.g. 1.04, 1.18)
+  demandGrowthFactor?: number
 }
 
 export default function ICSummary({
@@ -77,6 +79,7 @@ export default function ICSummary({
   actualEbitda,
   actualRevenue,
   acquiraScore,
+  demandGrowthFactor,
 }: ICSummaryProps) {
   const [showSensitivity, setShowSensitivity] = useState(false)
   const [showMethodology, setShowMethodology] = useState(false)
@@ -94,9 +97,10 @@ export default function ICSummary({
     actual_ebitda: actualEbitda,
     actual_revenue: actualRevenue,
     acquira_score: acquiraScore,
+    demand_growth_factor: demandGrowthFactor,
   }), [kids0to4, totalLicensedPlaces, pipelineApprovedPlaces, pipelineLodgedPlaces,
        centreLicensedPlaces, centreCurrentOccupancy, centreAvgDailyFee, centreAskingPrice,
-       isRegional, actualEbitda, actualRevenue, acquiraScore])
+       isRegional, actualEbitda, actualRevenue, acquiraScore, demandGrowthFactor])
 
   const { scenarios, pipeline, recommendation, recommendation_rationale } = result
   const rec = REC_CONFIG[recommendation]
@@ -308,7 +312,7 @@ export default function ICSummary({
         }}>
           <strong style={{ color: 'rgba(255,255,255,0.5)' }}>EBITDA source:</strong> {actualEbitda ? 'Actual IM financials used for base scenario. Upside/downside scaled from IM.' : 'Demand-model estimated (no IM financials available). Treat as indicative.'}<br />
           <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Participation rate:</strong> {fmtPct(result.inputs_used.participation_rate * 100)} ({isRegional ? 'regional' : 'metro'} LDC utilisation — DoE CCS Quarterly March 2024). Not GapMaps CPP.<br />
-          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Demand growth rate:</strong> 3.0%/yr (ABS population growth for {isRegional ? 'regional' : 'metro'} catchments). Used to model pipeline absorption timeline.<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Demand growth rate:</strong> {fmtPct(result.inputs_used.growth_rate * 100, 1)}/yr derived from ABS census growth factor {demandGrowthFactor ? `(${demandGrowthFactor}× over 5yr period)` : '(national fallback)'}. Inner metro typically 0.5–1.5%, growth corridors 3–7%. Used to model pipeline absorption.<br />
           <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Pipeline weighting:</strong> Approved DAs ×1.0 + Lodged ×0.5 (prevents overreacting to early-stage applications).<br />
           <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Revenue model:</strong> Stabilised occupancy × {centreLicensedPlaces} places × ${result.inputs_used.avg_daily_fee}/day × 260 operating days. {actualEbitda ? 'Not used for base — IM financials override.' : ''}<br />
           <strong style={{ color: 'rgba(255,255,255,0.5)' }}>EBITDA margin:</strong> {fmtPct(result.inputs_used.margin * 100)} base, scenario range {isRegional ? '15–24%' : '18–27%'}. {actualEbitda ? 'Overridden by IM data for base.' : ''}<br />

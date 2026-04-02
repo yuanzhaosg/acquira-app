@@ -1067,6 +1067,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               actualEbitda={actualEbitda}
               actualRevenue={actualRevenue}
               acquiraScore={canonicalScore}
+              demandGrowthFactor={dc.growth_factor ?? undefined}
             />
           )
         })()}

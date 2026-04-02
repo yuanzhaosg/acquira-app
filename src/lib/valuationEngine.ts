@@ -35,6 +35,9 @@ export interface ValuationInputs {
   participation_rate_override?: number
   margin_override?: number
   growth_rate_override?: number
+  // From demand_context.growth_factor (ABS corridor-specific, e.g. 1.18 outer VIC)
+  // Pass as a factor (e.g. 1.04), engine converts to rate (0.04)
+  demand_growth_factor?: number
   // Actual IM data — anchors base scenario when available
   actual_ebitda?: number
   actual_revenue?: number
@@ -258,7 +261,20 @@ function computeScenario(
 
 export function calculateICValuation(inputs: ValuationInputs): ICValuationResult {
   const isRegional = inputs.is_regional ?? false
-  const growthRate = inputs.growth_rate_override ?? 0.03
+  // Use corridor-specific ABS growth factor from demand_context if available
+  // demand_context.growth_factor is a multiplier (e.g. 1.04 = 4%/yr, 1.18 = 18% over census period ~5yr)
+  // Convert 5yr census factor to annual: (factor^(1/5)) - 1
+  // Inner metro VIC (1.04) → 0.8%/yr | Growth corridor (1.18) → 3.4%/yr
+  let growthRate: number
+  if (inputs.growth_rate_override != null) {
+    growthRate = inputs.growth_rate_override
+  } else if (inputs.demand_growth_factor != null && inputs.demand_growth_factor > 1) {
+    // Convert census-period factor to annual compound rate
+    growthRate = parseFloat((Math.pow(inputs.demand_growth_factor, 1 / 5) - 1).toFixed(4))
+  } else {
+    // Fallback: ABS national average for 0-4 cohort
+    growthRate = inputs.is_regional ? 0.010 : 0.008
+  }
   const participation = inputs.participation_rate_override
     ?? (isRegional ? PARTICIPATION.regional.mid : PARTICIPATION.metro.mid)
   const defaultFee = isRegional ? DEFAULT_FEE_REGIONAL : DEFAULT_FEE_METRO
