@@ -203,7 +203,7 @@ export default function ICSummary({
           {
             label: 'Annual demand growth',
             value: `+${pipeline.annual_demand_growth} kids/yr`,
-            sub: '3% catchment growth rate',
+            sub: `${fmtPct(result.inputs_used.growth_rate * 100, 1)}/yr ABS catchment growth`,
             color: '#e8edf3',
           },
           {
