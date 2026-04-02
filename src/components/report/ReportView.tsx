@@ -122,6 +122,7 @@ function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
   return (
     <div
       onClick={onClick}
+      className="dim-row-wrap"
       style={{
         borderRadius: 8, padding: '12px 16px', cursor: 'pointer',
         background: isActive ? 'rgba(255,255,255,0.04)' : 'transparent',
@@ -140,7 +141,7 @@ function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
             </div>
           )}
         </div>
-        <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
+        <div className="dim-score-bar" style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
           <div style={{
             height: '100%', borderRadius: 3,
             width: `${(score / 10) * 100}%`,
@@ -153,8 +154,8 @@ function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
         </div>
       </div>
 
-      {isActive && (
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      {/* Always visible in print via .dim-detail-panel CSS class */}
+      <div className="dim-detail-panel" style={{ display: isActive ? 'block' : 'none', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           {dim.summary && (
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12, lineHeight: 1.6 }}>
               {dim.summary}
@@ -212,8 +213,7 @@ function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
               ✓ Pipeline intel included in scoring
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -876,10 +876,19 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         }
         @media print {
           body { background: #fff !important; color: #000 !important; }
-          .report-header, .report-header-right button, nav { display: none !important; }
+          .report-header, .report-header-right button, nav, .no-print { display: none !important; }
           .dim-grid { grid-template-columns: 1fr 1fr !important; }
           * { background: transparent !important; color: #000 !important; border-color: #ccc !important; box-shadow: none !important; }
           a { color: #000 !important; }
+          /* Force all dimension detail panels open in print */
+          .dim-detail-panel { display: block !important; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc; }
+          .dim-summary-text { display: block !important; font-size: 11px; color: #333; line-height: 1.6; margin-bottom: 8px; }
+          .dim-score-bar { display: none !important; }
+          .dim-row-wrap { border: 1px solid #e2e8f0 !important; border-radius: 6px; padding: 10px 12px !important; margin-bottom: 8px; break-inside: avoid; }
+          .report-hero { padding: 24px 32px !important; }
+          .report-content { padding: 24px 32px !important; }
+          .score-ring-wrap { display: none !important; }
+          .rescore-bar, .checklist-section, .notes-section, .da-pipeline-section { display: none !important; }
         }
       `}</style>
 
@@ -1018,7 +1027,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 
         {/* RESCORE BAR */}
         {hasOverrides && (
-          <div style={{
+          <div className="no-print" style={{
             background: 'rgba(0,180,160,0.08)', border: '1px solid rgba(0,180,160,0.2)',
             borderRadius: 8, padding: '12px 16px', marginBottom: 40,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'
@@ -1389,7 +1398,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         )}
 
         {/* ── DECISION CHECKLIST ── */}
-        <div style={{ marginBottom: 32 }}>
+        <div className="no-print" style={{ marginBottom: 32 }}>
           <button
             onClick={() => setChecklistOpen(o => !o)}
             style={{
@@ -1457,7 +1466,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         </div>
 
         {/* ── NOTES & TAGS ── */}
-        <div style={{ marginBottom: 40 }}>
+        <div className="no-print" style={{ marginBottom: 40 }}>
           <button
             onClick={() => setNotesOpen(o => !o)}
             style={{
