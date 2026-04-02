@@ -105,12 +105,13 @@ function ScoreRing({ score }: { score: number }) {
 
 // ── DIMENSION ROW ─────────────────────────────────────────────────────────────
 
-function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
+function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed, tx }: {
   id: string
   dim: any
   isActive: boolean
   onClick: () => void
   pipelineIntelUsed?: boolean
+  tx: (key: string, original: string | null | undefined) => string
 }) {
   const score = dimScore(dim)
   const color = dimScoreColor(score)
@@ -1484,6 +1485,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                     isActive={activeDim === id}
                     onClick={() => setActiveDim(activeDim === id ? null : id)}
                     pipelineIntelUsed={id === 'market_position' && !!(currentScored as any).pipeline_intel_used}
+                    tx={tx}
                   />
                 ))}
               </div>
@@ -1501,7 +1503,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                   <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)' }}>Other</span>
                 </div>
                 {ungrouped.map(([id, dim]) => (
-                  <DimensionRow key={id} id={id} dim={dim} isActive={activeDim === id} onClick={() => setActiveDim(activeDim === id ? null : id)} pipelineIntelUsed={false} />
+                  <DimensionRow key={id} id={id} dim={dim} isActive={activeDim === id} onClick={() => setActiveDim(activeDim === id ? null : id)} pipelineIntelUsed={false} tx={tx} />
                 ))}
               </div>
             )
