@@ -163,6 +163,21 @@ const SAMPLE_SCORED = {
     confidence_note: 'IM provided full 3-year P&L, lease abstract, NQS certificate, occupancy weekly data, and staff qualification breakdown. High confidence in all material metrics.',
   },
   pipeline_intel_used: true,
+  next_steps: {
+    verdict_plain: 'Bayside ELC is a quality passive asset at the right price — but at 6.67× EBITDA the asking multiple is stretched for an owner-operated centre with no management layer below the director. The business is well-run (54% labour, 22.7% EBITDA margin) but you are paying a premium for performance that is entirely dependent on one person staying post-settlement. Push for a 6-month transition period in the contract.',
+    ask_broker_for: [
+      'Executed lease agreement confirming 4% fixed CPI rent review — the IM states this but no lease document was provided in the data room',
+      'Current staff roster and payroll summary to confirm 54% labour ratio and identify any agency usage — single FY25 P&L provided, no payroll detail',
+      'Month-by-month occupancy for the last 12 months — only 4-week and 13-week averages provided, need to see seasonal pattern',
+      'Director employment contract or succession plan — owner-operator dependency is the primary transition risk at this price',
+    ],
+    due_diligence_priorities: [
+      'Commission independent market rent assessment — rent at 10.5% of revenue looks low but confirm against comparable Brighton leases',
+      'Verify waitlist depth in person — 18 children claimed but no waitlist documentation was provided',
+      'Check ACECQA compliance register for service approval SE-VIC-12847 — NQS last assessed Jan 2024 (14 months ago), next assessment timing unknown',
+    ],
+    deal_structuring_notes: 'Consider a 6-month director retention clause with monthly earnout payments contingent on occupancy staying above 82%. At 6.67× EBITDA, the price assumes continuity — protect yourself if it does not.',
+  },
   effective_demand_ratio: 0.59,
   demand_zone: 'balanced',
   demand_context: {

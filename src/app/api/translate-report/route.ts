@@ -62,6 +62,19 @@ export async function POST(req: NextRequest) {
       toTranslate['ic_rationale'] = scored.ic_recommendation_rationale
     }
 
+    // Next steps
+    const ns = (scored as any).next_steps
+    if (ns) {
+      if (ns.verdict_plain) toTranslate['next_steps_verdict'] = ns.verdict_plain
+      if (ns.deal_structuring_notes) toTranslate['next_steps_structuring'] = ns.deal_structuring_notes
+      ;(ns.ask_broker_for ?? []).forEach((item: string, i: number) => {
+        toTranslate[`next_steps_broker_${i}`] = item
+      })
+      ;(ns.due_diligence_priorities ?? []).forEach((item: string, i: number) => {
+        toTranslate[`next_steps_dd_${i}`] = item
+      })
+    }
+
     if (Object.keys(toTranslate).length === 0) {
       return NextResponse.json({ translations: {} })
     }

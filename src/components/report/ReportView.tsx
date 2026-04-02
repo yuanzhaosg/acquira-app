@@ -1640,6 +1640,81 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           </div>
         )}
 
+        {/* ── NEXT STEPS ── */}
+        {(() => {
+          const ns = (currentScored as any).next_steps
+          if (!ns) return null
+          return (
+            <div style={{ marginBottom: 40 }}>
+              <SectionTitle>Acquira’s Verdict &amp; Next Steps</SectionTitle>
+
+              {/* Plain verdict */}
+              {ns.verdict_plain && (
+                <div style={{
+                  background: '#152336', border: `1px solid ${mainColor}44`,
+                  borderLeft: `3px solid ${mainColor}`,
+                  borderRadius: 8, padding: '16px 20px', marginBottom: 20,
+                  fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.75,
+                }}>
+                  {tx('next_steps_verdict', ns.verdict_plain)}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: ns.deal_structuring_notes ? 16 : 0 }}>
+                {/* Ask broker for */}
+                {ns.ask_broker_for?.length > 0 && (
+                  <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                      📂 Ask the Broker For
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {ns.ask_broker_for.map((item: string, i: number) => (
+                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                          <span style={{ color: '#f59e0b', fontSize: 13, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+                          <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', lineHeight: 1.55 }}>
+                            {tx(`next_steps_broker_${i}`, item)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* DD priorities */}
+                {ns.due_diligence_priorities?.length > 0 && (
+                  <div style={{ background: 'rgba(0,180,160,0.06)', border: '1px solid rgba(0,180,160,0.2)', borderRadius: 8, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#00b4a0', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+                      🔍 Due Diligence Priorities
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {ns.due_diligence_priorities.map((item: string, i: number) => (
+                        <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                          <span style={{ color: '#00b4a0', fontSize: 13, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+                          <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)', lineHeight: 1.55 }}>
+                            {tx(`next_steps_dd_${i}`, item)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Deal structuring */}
+              {ns.deal_structuring_notes && (
+                <div style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: 8, padding: '12px 16px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#a78bfa', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 10 }}>
+                    💼 Deal Structuring
+                  </span>
+                  <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
+                    {tx('next_steps_structuring', ns.deal_structuring_notes)}
+                  </span>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* ── DECISION CHECKLIST ── */}
         <div className="no-print" style={{ marginBottom: 32 }}>
           <button
