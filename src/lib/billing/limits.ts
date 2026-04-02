@@ -81,13 +81,12 @@ export interface DealLimitResult {
 export async function canCreateDeal(userId: string): Promise<DealLimitResult> {
   let sub = await getUserSubscription(userId)
 
-  // No subscription → block
+  // No subscription → allow with free tier (5 deals, no reset)
   if (!sub || !sub.status || sub.status !== 'active') {
     return {
-      allowed: false,
-      reason: 'No active subscription. Please subscribe to create deals.',
+      allowed: true,
       dealsUsed: 0,
-      dealsMax: 0,
+      dealsMax: 5,
     }
   }
 

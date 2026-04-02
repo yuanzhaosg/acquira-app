@@ -425,8 +425,12 @@ export default function Home() {
                   const data = await res.json()
                   savedId = data.id ?? null
                 } else {
-                  const err = await res.json()
-                  console.error('save-deal failed:', err)
+                  const err = await res.json().catch(() => ({}))
+                  console.error('save-deal failed:', res.status, err)
+                  // Surface paywall errors so user knows what happened
+                  if (res.status === 402) {
+                    console.warn('Deal limit reached:', err.reason)
+                  }
                 }
               }
             } catch (e) {
