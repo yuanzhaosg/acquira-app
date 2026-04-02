@@ -1,5 +1,6 @@
 'use client'
 import CompetitiveMap from '@/components/map/CompetitiveMap'
+import ICSummary from '@/components/report/ICSummary'
 import { useState, useEffect } from 'react'
 import type {
   ScoredDeal, DimensionId, Conditional, DealBreakerFlag,
@@ -1024,6 +1025,34 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 
       {/* ── MAIN CONTENT ── */}
       <div className="report-content" style={{ padding: '40px', maxWidth: 1200 }}>
+
+        {/* IC VALUATION SUMMARY */}
+        {(() => {
+          const dc = (currentScored as any).demand_context
+          if (!dc || !centre?.licensed_places) return null
+          const pi = (currentScored as any).market_context
+          const approvedPlaces = pi?.approved_pipeline_places ?? 0
+          // lodged not stored in market_context currently — use pipeline_intel if available
+          const piIntel = (currentScored as any).pipeline_intel
+          const lodgedPlaces = piIntel?.lodgedDAs ? piIntel.lodgedDAs * 75 : 0
+          return (
+            <ICSummary
+              kids0to4={dc.estimated_kids_0_to_4 ?? 0}
+              totalLicensedPlaces={dc.total_licensed_places ?? 0}
+              isRegional={dc.is_regional ?? false}
+              pipelineApprovedPlaces={approvedPlaces}
+              pipelineLodgedPlaces={lodgedPlaces}
+              centreLicensedPlaces={centre.licensed_places}
+              centreCurrentOccupancy={
+                (ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)
+                  ? ((ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)! / 100)
+                  : undefined
+              }
+              centreAvgDailyFee={extracted.fees?.daily_fee_blended ?? undefined}
+              centreAskingPrice={effectiveAskPrice ?? undefined}
+            />
+          )
+        })()}
 
         {/* KEY METRICS */}
         <SectionTitle>Key Metrics</SectionTitle>
