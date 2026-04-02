@@ -56,6 +56,8 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
   const [updatingStatus, setUpdatingStatus]     = useState<string | null>(null);
   const [filterTab, setFilterTab]               = useState<FilterTab>('All');
   const [compareIds, setCompareIds]             = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId]             = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId]   = useState<string | null>(null);
 
   const fetchDeals = useCallback(async () => {
     if (!session) { setDeals([]); setLoading(false); return; }
@@ -93,6 +95,26 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
       setDeals(prev => prev.map(d => d.id === dealId ? { ...d, status: newStatus } : d));
     } catch {}
     setUpdatingStatus(null);
+  };
+
+  const handleDelete = async (e: React.MouseEvent, dealId: string) => {
+    e.stopPropagation();
+    if (confirmDeleteId !== dealId) {
+      setConfirmDeleteId(dealId);
+      setTimeout(() => setConfirmDeleteId(null), 3000); // auto-cancel after 3s
+      return;
+    }
+    setDeletingId(dealId);
+    setConfirmDeleteId(null);
+    try {
+      const token = session?.access_token;
+      await fetch(`/api/deals/${dealId}/status`, {
+        method: 'DELETE',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      setDeals(prev => prev.filter(d => d.id !== dealId));
+    } catch {}
+    setDeletingId(null);
   };
 
   const toggleCompare = (id: string) => {
@@ -300,7 +322,7 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
                 )}
               </div>
 
-              {/* Status dropdown + date row */}
+              {/* Status dropdown + date + delete row */}
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }} onClick={e => e.stopPropagation()}>
                 <select
                   className="deal-status-select"
@@ -324,6 +346,19 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace" }}>
                   {deal.created_at ? new Date(deal.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "2-digit" }) : ""}
                 </span>
+                <button
+                  onClick={e => handleDelete(e, deal.id)}
+                  disabled={deletingId === deal.id}
+                  style={{
+                    marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+                    padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    color: confirmDeleteId === deal.id ? '#ef4444' : 'rgba(255,255,255,0.2)',
+                    background: confirmDeleteId === deal.id ? 'rgba(239,68,68,0.1)' : 'transparent',
+                    transition: 'all 0.15s',
+                  } as React.CSSProperties}
+                >
+                  {deletingId === deal.id ? '…' : confirmDeleteId === deal.id ? 'Confirm delete' : '✕ Remove'}
+                </button>
               </div>
             </div>
           );

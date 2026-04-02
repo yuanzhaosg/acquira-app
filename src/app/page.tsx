@@ -404,21 +404,35 @@ export default function Home() {
             const scored    = sc as ScoredDeal
             setExtracted(extracted)
             setScored(scored)
+            // Save to pipeline before navigating to report
+            let savedId: string | null = null
             try {
-              const { data: { session } } = await supabase.auth.getSession()
-              const res = await fetch('/api/save-deal', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-                },
-                body: JSON.stringify({ extracted, scored, overrides: {} }),
-              })
-              const data = await res.json()
-              setDealId(data.id ?? null)
+              // Always refresh session to get latest token
+              const { data: { session: freshSession } } = await supabase.auth.getSession()
+              if (!freshSession?.access_token) {
+                // Not logged in — show report anyway, but skip save
+                console.warn('save-deal: no session, skipping save')
+              } else {
+                const res = await fetch('/api/save-deal', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${freshSession.access_token}`,
+                  },
+                  body: JSON.stringify({ extracted, scored, overrides: {} }),
+                })
+                if (res.ok) {
+                  const data = await res.json()
+                  savedId = data.id ?? null
+                } else {
+                  const err = await res.json()
+                  console.error('save-deal failed:', err)
+                }
+              }
             } catch (e) {
-              console.error('save-deal failed:', e)
+              console.error('save-deal error:', e)
             }
+            setDealId(savedId)
             setView('report')
           }}
         />
