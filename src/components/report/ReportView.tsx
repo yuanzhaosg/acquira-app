@@ -295,9 +295,10 @@ function DetailBlock({ id, detail }: { id: string; detail: any }) {
 
 // ── EDITABLE METRIC CARD ──────────────────────────────────────────────────────
 
-function EditableMetricCard({ label, value, note, color = '#e8edf3', editable, onSave, overridden }: {
+function EditableMetricCard({ label, value, note, color = '#e8edf3', editable, onSave, overridden, isSelect, selectOptions }: {
   label: string; value: string; note?: string; color?: string
   editable?: boolean; onSave?: (val: string) => void; overridden?: boolean
+  isSelect?: boolean; selectOptions?: string[]
 }) {
   const [editing, setEditing] = useState(false)
   const [input, setInput] = useState('')
@@ -306,6 +307,11 @@ function EditableMetricCard({ label, value, note, color = '#e8edf3', editable, o
     if (input.trim() && onSave) onSave(input.trim())
     setEditing(false)
     setInput('')
+  }
+
+  const handleSelectSave = (val: string) => {
+    if (onSave) onSave(val)
+    setEditing(false)
   }
 
   return (
@@ -336,6 +342,24 @@ function EditableMetricCard({ label, value, note, color = '#e8edf3', editable, o
       </div>
 
       {editing ? (
+        isSelect && selectOptions ? (
+          // Dropdown for select fields (e.g. NQS Rating)
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+            {selectOptions.map(opt => (
+              <button key={opt} onClick={() => handleSelectSave(opt)} style={{
+                background: opt === value || opt === value + ' NQS' ? 'rgba(0,180,160,0.15)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${opt === value || opt === value + ' NQS' ? 'rgba(0,180,160,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: 6, padding: '7px 12px', color: '#e8edf3',
+                fontSize: 12, fontWeight: 500, cursor: 'pointer', textAlign: 'left',
+                fontFamily: 'IBM Plex Sans, sans-serif',
+              }}>{opt}</button>
+            ))}
+            <button onClick={() => setEditing(false)} style={{
+              background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)',
+              fontSize: 11, cursor: 'pointer', padding: '2px 0', textAlign: 'left',
+            }}>Cancel</button>
+          </div>
+        ) : (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
           <input
             autoFocus value={input}
@@ -358,6 +382,7 @@ function EditableMetricCard({ label, value, note, color = '#e8edf3', editable, o
             padding: '6px 10px', color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer'
           }}>✕</button>
         </div>
+        )
       ) : (
         <>
           <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 26, fontWeight: 700, color, lineHeight: 1, marginBottom: 4 }}>
@@ -619,6 +644,11 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   useEffect(() => { setCurrentScored(scored) }, [scored])
 
   const handleOverride = (field: string, rawVal: string) => {
+    // NQS rating is a string — store as-is
+    if (field === 'nqs_rating_str') {
+      setOverrides(prev => ({ ...prev, [field]: rawVal as any }))
+      return
+    }
     const num = parseFloat(rawVal.replace(/[$,%\s,]/g, ''))
     if (isNaN(num)) return
     setOverrides(prev => ({ ...prev, [field]: num }))
@@ -639,6 +669,23 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       if (overrides.ebitda != null) {
         if (overriddenExtracted.financials.fy25) overriddenExtracted.financials.fy25.ebitda = overrides.ebitda
         overriddenExtracted.key_ratios.ebitda_fy25 = overrides.ebitda
+      }
+      if (overrides.revenue != null) {
+        if (overriddenExtracted.financials.fy25) overriddenExtracted.financials.fy25.revenue = overrides.revenue
+        overriddenExtracted.key_ratios.revenue_fy25 = overrides.revenue
+        // Recalculate ratios if we have the raw costs
+        const fy25data = overriddenExtracted.financials?.fy25
+        if (fy25data?.total_labour_cost != null)
+          fy25data.labour_ratio_pct = parseFloat(((fy25data.total_labour_cost / overrides.revenue) * 100).toFixed(1))
+        if (fy25data?.rent_pa != null)
+          fy25data.rent_ratio_pct = parseFloat(((fy25data.rent_pa / overrides.revenue) * 100).toFixed(1))
+      }
+      if (overrides.licensed_places != null) {
+        overriddenExtracted.centre.licensed_places = overrides.licensed_places
+        overriddenExtracted.key_ratios.licensed_places = overrides.licensed_places
+      }
+      if (overrides.nqs_rating_str != null) {
+        overriddenExtracted.centre.nqs_rating = overrides.nqs_rating_str
       }
       const res = await fetch('/api/rescore', {
         method: 'POST',
@@ -686,16 +733,19 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const criticalFlagCount = triggeredFlags.filter(f => f.severity === 'critical').length
     + legacyFlagIds.filter(id => ['occupancy_critical','labour_ratio_critical','ebitda_negative_no_ramp','lease_expired'].includes(id)).length
 
-  const effectiveOccupancy = overrides.occupancy ?? (occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct)
-  const effectiveEbitda    = overrides.ebitda ?? (fy25?.ebitda ?? ratios?.ebitda_fy25)
-  const effectiveAskPrice  = overrides.asking_price ?? (financials?.asking_price ?? ratios?.asking_price)
+  const effectiveOccupancy      = overrides.occupancy       ?? (occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct)
+  const effectiveEbitda          = overrides.ebitda           ?? (fy25?.ebitda ?? ratios?.ebitda_fy25)
+  const effectiveAskPrice        = overrides.asking_price     ?? (financials?.asking_price ?? ratios?.asking_price)
+  const effectiveRevenue         = overrides.revenue          ?? (fy25?.revenue ?? ratios?.revenue_fy25)
+  const effectiveLicensedPlaces  = overrides.licensed_places  ?? centre?.licensed_places
+  const effectiveNqsRating       = (overrides.nqs_rating_str  ?? centre?.nqs_rating) as string | null | undefined
 
   const metrics = [
     {
       label: 'Revenue (FY25)',
-      value: fmtM(fy25?.revenue ?? ratios?.revenue_fy25),
+      value: fmtM(effectiveRevenue),
       note: financials?.revenue_trend ? `Trend: ${financials.revenue_trend}` : undefined,
-      color: '#00b4a0', editable: false,
+      color: '#00b4a0', editable: true, field: 'revenue',
     },
     {
       label: 'EBITDA (FY25)',
@@ -727,9 +777,9 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
     },
     {
       label: 'Licensed Places',
-      value: fmt(centre?.licensed_places),
+      value: fmt(effectiveLicensedPlaces),
       note: centre?.state ? `${centre.state} service` : undefined,
-      color: '#e8edf3', editable: false,
+      color: '#e8edf3', editable: true, field: 'licensed_places',
     },
     {
       label: 'Asking Price',
@@ -740,12 +790,13 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
     },
     {
       label: 'NQS Rating',
-      value: centre?.nqs_rating?.replace(' NQS', '') ?? '—',
+      value: (effectiveNqsRating ?? '—')?.replace(' NQS', ''),
       note: centre?.nqs_date ?? undefined,
-      color: centre?.nqs_rating === 'Exceeding NQS' ? '#22c55e'
-        : centre?.nqs_rating === 'Meeting NQS' ? '#00b4a0'
-        : centre?.nqs_rating ? '#f59e0b' : 'rgba(255,255,255,0.3)',
-      editable: false,
+      color: effectiveNqsRating === 'Exceeding NQS' ? '#22c55e'
+        : effectiveNqsRating === 'Meeting NQS' ? '#00b4a0'
+        : effectiveNqsRating ? '#f59e0b' : 'rgba(255,255,255,0.3)',
+      editable: true, field: 'nqs_rating_str', isSelect: true,
+      selectOptions: ['Exceeding NQS', 'Meeting NQS', 'Working Towards NQS', 'Significant Improvement Required'],
     },
   ]
 
@@ -932,6 +983,8 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               editable={m.editable}
               overridden={m.field ? overrides[m.field as string] != null : false}
               onSave={m.field ? (val) => handleOverride(m.field!, val) : undefined}
+              isSelect={(m as any).isSelect}
+              selectOptions={(m as any).selectOptions}
             />
           ))}
         </div>
@@ -947,10 +1000,16 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               {Object.keys(overrides).map(k => (
                 <span key={k} style={{ marginRight: 16 }}>
                   <span style={{ color: 'rgba(255,255,255,0.35)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11 }}>
-                    {k.replace(/_/g, ' ').toUpperCase()}
+                    {k.replace(/_str$/, '').replace(/_/g, ' ').toUpperCase()}
                   </span>
                   {' '}<span style={{ color: '#00b4a0', fontWeight: 600 }}>
-                    {k === 'asking_price' || k === 'ebitda' ? fmtM(overrides[k]) : `${overrides[k]}%`}
+                    {k === 'nqs_rating_str'
+                      ? String(overrides[k]).replace(' NQS', '')
+                      : k === 'asking_price' || k === 'ebitda' || k === 'revenue'
+                      ? fmtM(overrides[k] as number)
+                      : k === 'licensed_places'
+                      ? String(overrides[k])
+                      : `${overrides[k]}%`}
                   </span>
                 </span>
               ))}
