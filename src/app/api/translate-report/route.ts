@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-const MODEL = 'claude-haiku-4-20250514'
+const MODEL = 'claude-sonnet-4-20250514'  // haiku not available; sonnet is fast enough for translation
 export const maxDuration = 60
 
 /**

@@ -336,6 +336,7 @@ export default function Home() {
         initialOverrides={savedOverrides}
         onBack={() => setView('list')}
         onNew={() => setView('upload')}
+        onMap={() => setView('map')}
       />
     )
   }

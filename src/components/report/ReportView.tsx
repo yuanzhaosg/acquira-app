@@ -480,10 +480,11 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'teal' |
 
 // ── MAIN REPORT VIEW ──────────────────────────────────────────────────────────
 
-export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew, sampleMode, initialOverrides }: {
+export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew, sampleMode, initialOverrides, onMap }: {
   extracted: ExtractedDeal; scored: ScoredDeal; dealId?: string | null
   saving?: boolean; onBack?: () => void; onNew?: () => void; sampleMode?: boolean
   initialOverrides?: Record<string, number | string>
+  onMap?: () => void
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
@@ -954,84 +955,76 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         @media print {
           /* ── PAGE SETUP ── */
           @page { margin: 16mm 18mm; size: A4; }
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+
           .print-only-header { display: flex !important; }
-          html, body { background: #fff !important; color: #1a2b3c !important;
+
+          html, body {
+            background: #fff !important;
+            color: #1a2b3c !important;
             font-family: 'IBM Plex Sans', 'Inter', 'Segoe UI', Arial, sans-serif !important;
-            font-size: 10pt !important; line-height: 1.5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-          /* ── HIDE INTERACTIVE ELEMENTS ── */
-          .report-header, nav, .no-print, .score-ring-wrap,
-          .dim-score-bar, button, input, select, textarea { display: none !important; }
-
-          /* ── LAYOUT ── */
-          .report-hero { padding: 20px 0 16px !important; border-bottom: 2px solid #00b4a0 !important;
-            background: #fff !important; display: block !important; }
-          .report-content { padding: 0 !important; max-width: 100% !important; }
-          .report-metrics { grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
-
-          /* ── TYPOGRAPHY ── */
-          h1, h2, h3 { color: #0d1b2a !important; font-family: 'Space Grotesk', 'Segoe UI', Arial, sans-serif !important; }
-          p, li, td, th, span, div { color: #1a2b3c !important; }
-
-          /* ── KEEP BRAND COLOURS ── */
-          /* Score colours */
-          [style*="color: #22c55e"], [style*="color:#22c55e"] { color: #16a34a !important; }
-          [style*="color: #00b4a0"], [style*="color:#00b4a0"] { color: #007a6e !important; }
-          [style*="color: #f59e0b"], [style*="color:#f59e0b"] { color: #b45309 !important; }
-          [style*="color: #ef4444"], [style*="color:#ef4444"] { color: #dc2626 !important; }
-
-          /* ── CARDS ── */
-          [style*="background: #152336"], [style*="background:#152336"],
-          [style*="background: #112236"], [style*="background:#112236"],
-          [style*="background: rgba(255,255,255,0.02)"],
-          [style*="background: rgba(255,255,255,0.03)"],
-          [style*="background: rgba(255,255,255,0.04)"] { background: #f8fafc !important; }
-          [style*="background: #0d1b2a"], [style*="background:#0d1b2a"] { background: #fff !important; }
-
-          /* ── BORDERS ── */
-          [style*="border: 1px solid rgba(255,255,255,0.07)"],
-          [style*="border: 1px solid rgba(255,255,255,0.08)"] { border: 1px solid #e2e8f0 !important; }
-
-          /* ── SECTION TITLES ── */
-          [style*="textTransform: uppercase"][style*="letterSpacing"] {
-            color: #64748b !important; border-bottom-color: #e2e8f0 !important;
+            font-size: 10pt !important;
+            line-height: 1.5 !important;
           }
 
-          /* ── METRICS CARDS ── */
-          .report-metrics > div { background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
-            border-radius: 6px !important; padding: 10px !important; break-inside: avoid; }
+          /* ── NUCLEAR BACKGROUND RESET ──
+             React renders inline styles without spaces (background:#152336)
+             so attribute selectors can't reliably match.
+             Instead: reset ALL backgrounds to white, then re-apply light cards via class. */
+          * {
+            background-color: transparent !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          html, body, #__next, main { background-color: #fff !important; }
+
+          /* ── COLOUR PRESERVATION ──
+             Re-apply score/brand colours via explicit classes added to elements */
+          .print-score-green  { color: #16a34a !important; }
+          .print-score-teal   { color: #007a6e !important; }
+          .print-score-amber  { color: #b45309 !important; }
+          .print-score-red    { color: #dc2626 !important; }
+          .print-card         { background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 6px; padding: 10px 12px; }
+          .print-card-white   { background-color: #fff !important; border: 1px solid #e2e8f0 !important; }
+          .print-flag-red     { background-color: #fef2f2 !important; border-color: #fca5a5 !important; }
+          .print-flag-amber   { background-color: #fffbeb !important; border-color: #fcd34d !important; }
+          .print-flag-green   { background-color: #f0fdf4 !important; border-color: #86efac !important; }
+
+          /* Typography */
+          h1, h2, h3 { color: #0d1b2a !important; font-family: 'Space Grotesk','Segoe UI',Arial,sans-serif !important; }
+          p, span, div, td, th, li { color: #1a2b3c !important; }
+          a { color: #007a6e !important; text-decoration: none; }
+
+          /* ── HIDE INTERACTIVE ── */
+          .report-header, nav, .no-print, .score-ring-wrap, .dim-score-bar { display: none !important; }
+
+          /* ── LAYOUT ── */
+          .report-hero   { padding: 16px 0 12px !important; display: block !important; border-bottom: 2px solid #00b4a0 !important; }
+          .report-content { padding: 0 !important; max-width: 100% !important; }
+          .report-metrics { grid-template-columns: repeat(4,1fr) !important; gap: 8px !important; }
 
           /* ── DIMENSION ROWS ── */
-          .dim-row-wrap { background: #fff !important; border: 1px solid #e2e8f0 !important;
-            border-radius: 6px !important; padding: 10px 12px !important;
-            margin-bottom: 6px !important; break-inside: avoid; }
-          .dim-detail-panel { display: block !important; margin-top: 8px; padding-top: 8px;
-            border-top: 1px solid #e2e8f0 !important; }
+          .dim-row-wrap  { background-color: #fff !important; border: 1px solid #e2e8f0 !important;
+            border-radius: 6px !important; padding: 10px 12px !important; margin-bottom: 6px !important; break-inside: avoid; }
+          .dim-detail-panel { display: block !important; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0 !important; }
 
           /* ── IC SUMMARY ── */
-          .ic-scenario-col { background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
-            border-radius: 6px !important; break-inside: avoid; }
-          .ic-pipeline-strip > div { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
-
-          /* ── FLAGS ── */
-          [style*="rgba(239,68,68,0.08)"] { background: #fef2f2 !important; border-color: #fca5a5 !important; }
-          [style*="rgba(245,158,11,0.08)"] { background: #fffbeb !important; border-color: #fcd34d !important; }
-          [style*="rgba(34,197,94,0.08)"]  { background: #f0fdf4 !important; border-color: #86efac !important; }
+          .ic-scenario-col  { background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important; border-radius: 6px !important; break-inside: avoid; }
+          .ic-pipeline-strip > div { background-color: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
 
           /* ── SCORE INTERPRETATION ── */
-          .score-interpretation { page-break-before: always; background: #f8fafc !important;
-            border: 1px solid #e2e8f0 !important; border-radius: 8px !important;
-            padding: 20px 24px !important; margin: 0 !important; }
-          .score-interpretation-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          .score-interpretation { page-break-before: always; background-color: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important; border-radius: 8px !important; padding: 20px 24px !important; margin: 0 !important; }
+          .score-interpretation-grid  { grid-template-columns: repeat(3,1fr) !important; }
           .score-interpretation-bottom { grid-template-columns: 1fr 1fr !important; }
 
           /* ── PAGE BREAKS ── */
-          .report-hero, .score-interpretation { page-break-after: avoid; }
           .dim-row-wrap, .ic-scenario-col { break-inside: avoid; }
 
           /* ── FOOTER ── */
-          footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important;
-            font-size: 8pt !important; padding: 8px 0 !important; }
+          footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important; font-size: 8pt !important; padding: 8px 0 !important; }
         }
       `}</style>
 
@@ -1061,16 +1054,30 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         padding: '0 32px', height: 56,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button onClick={onBack} style={{
             background: 'none', border: 'none', cursor: 'pointer', padding: 0,
             fontFamily: 'Space Grotesk, sans-serif', fontSize: 17, color: '#00b4a0', fontWeight: 700
           }}>Acquira</button>
-          <span style={{ color: 'rgba(255,255,255,0.12)', fontSize: 18 }}>／</span>
-          <button onClick={onBack} style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'IBM Plex Sans, sans-serif'
-          }}>← Pipeline</button>
+          <span style={{ color: 'rgba(255,255,255,0.12)', fontSize: 18 }}>/</span>
+          {[{
+            label: '← Pipeline', action: onBack,
+          }, {
+            label: '⬆ New Report', action: onNew,
+          }, {
+            label: '🗺️ Supply Map', action: onMap,
+          }, {
+            label: '💳 Pricing', action: () => window.open('/pricing', '_blank'),
+          }].map(({ label, action }) => action ? (
+            <button key={label} onClick={action} style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
+              fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: 'DM Sans, sans-serif',
+              borderRadius: 5, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#fff'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.45)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
+            >{label}</button>
+          ) : null)}
         </div>
         <div className="report-header-right" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {centre?.state && <Badge color="teal">{centre.state}</Badge>}
@@ -1082,11 +1089,6 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, color: 'rgba(255,255,255,0.2)' }}>
             v{currentScored.scoring_version} · {new Date().toLocaleDateString('en-AU')}
           </span>
-          <button onClick={onNew} style={{
-            background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
-            borderRadius: 6, padding: '6px 14px', color: '#00b4a0',
-            fontSize: 12, cursor: 'pointer', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 600
-          }}>+ New Deal</button>
           <button
             onClick={handleTranslate}
             disabled={translating}

@@ -63,10 +63,11 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
 
       <UnifiedNav
         mode="app"
-        activeAppTab="upload"
+        activeAppTab="map"
         onLogoClick={onLogoClick}
         onUpload={onUpload}
         onPipeline={onPipeline}
+        onMap={() => {}}  // already on map
         onHome={onLogoClick}
         user={user}
       />
