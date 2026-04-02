@@ -350,7 +350,7 @@ export default function DealList({ onOpen, onNew, onCompare }: DealListProps) {
                   onClick={e => handleDelete(e, deal.id)}
                   disabled={deletingId === deal.id}
                   style={{
-                    marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+                    marginLeft: 'auto', border: 'none', cursor: 'pointer',
                     padding: '2px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     color: confirmDeleteId === deal.id ? '#ef4444' : 'rgba(255,255,255,0.2)',
                     background: confirmDeleteId === deal.id ? 'rgba(239,68,68,0.1)' : 'transparent',
