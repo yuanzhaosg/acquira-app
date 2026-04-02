@@ -50,6 +50,9 @@ interface MapData {
     zone: 'undersupplied' | 'balanced' | 'oversupplied'
     data_source?: string
     census_year?: number
+    adj_kids_per_place?: { low: number; mid: number; high: number }
+    ldc_util_rate?: { low: number; high: number; mid: number; is_regional: boolean }
+    demand_trend?: { trend: string; label: string; gf: number; note: string }
   }
   stats: {
     total_competitors: number
@@ -576,7 +579,16 @@ export default function CompetitiveMap({
                   : mapData.demand.data_source ?? 'Postcode estimate',
               },
               { label: `Licensed places (${mapData.stats.radius_km ?? 3}km)`, value: mapData.demand.total_licensed_places.toLocaleString(), subtitle: `${mapData.stats.total_competitors} existing centre${mapData.stats.total_competitors !== 1 ? 's' : ''}` },
-              { label: 'Kids per place', value: mapData.demand.kids_per_place.toFixed(1), subtitle: `${ZONE_COLORS[mapData.demand.zone].label} market`, color: zoneStyle?.color },
+              {
+                label: 'Adj. kids per place',
+                value: mapData.demand.adj_kids_per_place
+                  ? mapData.demand.adj_kids_per_place.mid.toFixed(2)
+                  : mapData.demand.kids_per_place.toFixed(1),
+                subtitle: mapData.demand.adj_kids_per_place
+                  ? `LDC-adjusted · ${ZONE_COLORS[mapData.demand.zone].label}`
+                  : `raw · ${ZONE_COLORS[mapData.demand.zone].label}`,
+                color: zoneStyle?.color,
+              },
               { label: 'Pipeline places', value: approvedPlaces > 0 ? `+${approvedPlaces}` : '—', subtitle: approvedPlaces > 0 ? `${approvedCount} approved DA${approvedCount !== 1 ? 's' : ''}` : 'No DAs entered', color: approvedPlaces > 0 ? '#ef4444' : undefined },
             ].map((stat, i) => (
               <div key={stat.label} className="cmap-demand-cell" style={{ padding: '10px 14px', borderRight: i < 3 ? '1px solid #e2e8f0' : undefined }}>
@@ -705,8 +717,8 @@ export default function CompetitiveMap({
         {/* Methodology disclaimer */}
         <div style={{ padding: '8px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa' }}>
           <p style={{ margin: 0, fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>
-            <strong style={{ color: '#64748b' }}>Kids per place</strong> = ABS 2021 Census 0–4 population (catchment-adjusted, growth-indexed) ÷ ACECQA licensed places within radius.
-            Zones calibrated to national LDC occupancy data (~79%, ACECQA) and ABS Preschool Education Australia 2024.
+            <strong style={{ color: '#64748b' }}>Adjusted kids per place</strong> = ABS 2021 Census 0–4 population (catchment-adjusted, growth-indexed) × LDC utilisation rate (40–55% metro / 35–45% regional, DoE 2024) ÷ ACECQA licensed places within radius.
+            Zones: &gt;1.0 Undersupplied · 0.5–1.0 Balanced · &lt;0.5 Oversupplied (LDC-adjusted). Raw ratio shown for reference.
             Indicative only — not a substitute for site-specific due diligence.
           </p>
         </div>

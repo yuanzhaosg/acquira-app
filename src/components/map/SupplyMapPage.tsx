@@ -259,8 +259,8 @@ export default function SupplyMapPage({ user, onLogoClick, onUpload, onPipeline 
             {/* Methodology */}
             <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.02)', border: '1px solid #1e3a5f', borderRadius: 8 }}>
               <p style={{ margin: 0, fontSize: 11, color: '#334155', lineHeight: 1.6 }}>
-                <strong style={{ color: '#475569' }}>Methodology:</strong> Kids per place = ABS 2021 Census 0–4 population (catchment-area adjusted, growth-indexed to {new Date().getFullYear()}) ÷ ACECQA licensed places within dynamic radius.
-                Zones: &gt;2.0 Undersupplied · 1.0–2.0 Balanced · &lt;1.0 Oversupplied. Indicative only — not a substitute for site-specific due diligence.
+                <strong style={{ color: '#475569' }}>Methodology:</strong> Adjusted kids per place = ABS 2021 Census 0–4 population (catchment-adjusted, growth-indexed to {new Date().getFullYear()}) × LDC utilisation rate (40–55% metro / 35–45% regional, Dept of Education 2024) ÷ ACECQA licensed places within dynamic radius.
+                Zones: &gt;1.0 Undersupplied · 0.5–1.0 Balanced · &lt;0.5 Oversupplied (LDC-adjusted). Raw ratio shown for reference only. Indicative — not a substitute for site-specific due diligence.
               </p>
             </div>
           </div>

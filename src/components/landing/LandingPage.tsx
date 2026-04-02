@@ -416,7 +416,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, onMapSi
             fontSize: 17, lineHeight: 1.7, color: 'rgba(255,255,255,0.6)',
             maxWidth: 480, marginBottom: 40,
           }}>
-            Upload any Information Memorandum. Get a scored acquisition report with competitive mapping, DA pipeline risk, demand analysis across 17 dimensions, and deal-breaker flags — in under 60 seconds.
+            Upload any Information Memorandum. Get a scored acquisition report with real demand intelligence — Effective Demand Ratio from ABS data, not GapMaps — competitive mapping, DA pipeline risk, and deal-breaker flags. In under 60 seconds.
           </p>
 
           <div className="land-fade d3" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 48 }}>
@@ -428,7 +428,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, onMapSi
             {[
               { num: '10x', label: 'faster due diligence' },
               { num: '17', label: 'scoring dimensions' },
-              { num: '$0', label: 'to get started' },
+              { num: 'Real EDR', label: 'ABS demand · not estimates' },
             ].map((s) => (
               <div key={s.label}>
                 <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, fontWeight: 900, color: '#fff', lineHeight: 1 }}>
@@ -693,14 +693,14 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, onMapSi
                 Purpose-built intelligence for childcare acquisitions.
               </h3>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: 520 }}>
-                AI + local market intelligence. State-aware scoring across 17 dimensions, live competitor data from 2,131 mapped VIC centres, demographic catchments, and deal-breaker flags. Structured acquisition analysis in 60 seconds — not 40 hours.
+                AI + real demand data. State-aware scoring across 17 dimensions — including a true Effective Demand Ratio (EDR) computed from ABS Census data and DoE utilisation rates, not GapMaps guesses. Live ACECQA competitor supply, deal-breaker flags, and DA pipeline risk. Structured acquisition analysis in 60 seconds.
               </p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 200 }}>
               {[
                 { stat: '60s', label: 'from IM to full report' },
                 { stat: '17', label: 'scoring dimensions' },
-                { stat: '2,131', label: 'VIC centres mapped' },
+                { stat: 'Real EDR', label: 'ABS demand · not GapMaps' },
               ].map(s => (
                 <div key={s.label} style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
                   <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 900, color: 'var(--teal)', lineHeight: 1, minWidth: 60 }}>{s.stat}</div>
@@ -724,7 +724,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, onMapSi
             {[
               { num: '01', icon: '📄', title: 'Upload Your IM', text: 'Drop in a PDF or Word IM from any broker. Supports multi-file uploads for batch analysis.' },
               { num: '02', icon: '🧠', title: 'AI Parses & Scores', text: 'Extracts financials, occupancy, lease terms, staff metrics — then scores across 17 dimensions with state-aware context.' },
-              { num: '03', icon: '🗺️', title: 'Competitive Map', text: 'Existing centres, approved DAs, and lodged applications all plotted. See future supply risk before it hits — demand-to-supply ratios and demographic catchments included.' },
+              { num: '03', icon: '🗺️', title: 'Demand + Supply Map', text: 'Real EDR computed from ABS 2021 Census + DoE utilisation data — not raw GapMaps CPP. Existing centres, approved DAs, and DA pipeline all plotted. See supply risk before it hits.' },
               { num: '04', icon: '⚠️', title: 'Red Flags Surfaced', text: 'Automatically flags occupancy inflation, labour cost pressure, lease risk, regulatory issues, and pipeline threats.' },
               { num: '05', icon: '📑', title: 'Export Report', text: 'Download a board-ready PDF report with scoring summary, competitive analysis, and upside opportunity assessment.' },
             ].map((step, i, arr) => (

@@ -972,6 +972,79 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           </div>
         )}
 
+        {/* DEMAND INTELLIGENCE PANEL */}
+        {(currentScored as any).effective_demand_ratio != null && (() => {
+          const edr  = (currentScored as any).effective_demand_ratio as number
+          const zone = (currentScored as any).demand_zone as string
+          const dc   = (currentScored as any).demand_context as any
+          const mc   = (currentScored as any).market_context as any
+          const zoneColor = zone === 'undersupplied' ? '#22c55e' : zone === 'balanced' ? '#f59e0b' : '#ef4444'
+          const zoneLabel = zone === 'undersupplied' ? 'Undersupplied' : zone === 'balanced' ? 'Balanced' : 'Oversupplied'
+          const confColor = dc?.confidence === 'high' ? '#22c55e' : dc?.confidence === 'medium' ? '#f59e0b' : '#ef4444'
+          return (
+            <div style={{ marginBottom: 40 }}>
+              <SectionTitle>Demand Intelligence</SectionTitle>
+              <div style={{ background: '#152336', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '20px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+                  <div>
+                    <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Effective Demand Ratio</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                      <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 36, fontWeight: 800, color: zoneColor, lineHeight: 1 }}>{edr.toFixed(2)}</span>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>LDC kids per place</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 4, background: `${zoneColor}18`, color: zoneColor, border: `1px solid ${zoneColor}40` }}>{zoneLabel.toUpperCase()}</span>
+                    <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10, padding: '2px 8px', borderRadius: 4, background: `${confColor}12`, color: confColor, border: `1px solid ${confColor}30` }}>Confidence: {dc?.confidence?.toUpperCase() ?? 'UNKNOWN'}</span>
+                  </div>
+                  {dc?.demand_trend && (
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20,
+                      background: dc.demand_trend === 'growing' ? 'rgba(34,197,94,0.1)' : dc.demand_trend === 'declining' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                      color: dc.demand_trend === 'growing' ? '#22c55e' : dc.demand_trend === 'declining' ? '#ef4444' : '#f59e0b',
+                    }}>
+                      {dc.demand_trend === 'growing' ? '📈 Growing cohort' : dc.demand_trend === 'declining' ? '📉 Declining cohort' : '➡️ Flat cohort'}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+                  {[
+                    { label: 'Kids 0–4 (catchment)', value: dc?.estimated_kids_0_to_4?.toLocaleString() ?? '—', sub: `ABS 2021 · ${dc?.radius_km ?? 3}km radius` },
+                    { label: 'LDC kids (mid est.)', value: dc?.ldc_kids_range?.mid?.toLocaleString() ?? '—', sub: `${Math.round((dc?.ldc_util_rate?.mid ?? 0.475) * 100)}% utilisation · DoE 2024` },
+                    { label: 'Licensed places', value: dc?.total_licensed_places?.toLocaleString() ?? '—', sub: 'ACECQA · catchment total' },
+                    { label: 'Market score', value: mc ? `${mc.score}/10` : '—', sub: mc ? `${mc.competitor_count} competitors · ${mc.risk_bucket}` : 'from scoring model', color: mc ? dimScoreColor(mc.score) : undefined },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '12px 14px' }}>
+                      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{s.label}</div>
+                      <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, color: (s as any).color ?? '#e8edf3', lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{s.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'rgba(255,255,255,0.3)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <span style={{ color: '#22c55e', fontWeight: 600 }}>&gt;1.0 Undersupplied</span>
+                  <span>·</span>
+                  <span style={{ color: '#f59e0b', fontWeight: 600 }}>0.5–1.0 Balanced</span>
+                  <span>·</span>
+                  <span style={{ color: '#ef4444', fontWeight: 600 }}>&lt;0.5 Oversupplied</span>
+                  <span style={{ marginLeft: 'auto', fontStyle: 'italic' }}>LDC-adjusted · ABS 2021 + DoE 2024 · deterministic, not LLM-estimated</span>
+                </div>
+                {mc && mc.pipeline_ratio_subject > 0 && (
+                  <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6,
+                    background: mc.pipeline_ratio_subject > 0.5 ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)',
+                    border: `1px solid ${mc.pipeline_ratio_subject > 0.5 ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)'}`,
+                    fontSize: 12, color: 'rgba(255,255,255,0.5)',
+                  }}>
+                    <span style={{ fontWeight: 700, color: mc.pipeline_ratio_subject > 0.5 ? '#ef4444' : '#f59e0b' }}>
+                      {mc.pipeline_ratio_subject > 0.5 ? '⚠ HIGH' : '⚡ MEDIUM'} pipeline pressure
+                    </span>
+                    {' '}— approved DA places = {(mc.pipeline_ratio_subject * 100).toFixed(0)}% of this centre’s capacity
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* COMPETITIVE MAP */}
         {extracted.centre?.address && (
           <div style={{ marginBottom: 40 }}>

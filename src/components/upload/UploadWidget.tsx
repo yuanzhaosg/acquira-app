@@ -384,6 +384,19 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
             }}>
               Choose files
             </div>
+            <div style={{
+              marginTop: 20, display: 'flex', gap: 10, justifyContent: 'center',
+              flexWrap: 'wrap', fontSize: 11,
+            }}>
+              {['17-dimension score', 'ABS demand data', 'Real EDR · not GapMaps', 'ACECQA supply check'].map(tag => (
+                <span key={tag} style={{
+                  padding: '2px 10px', borderRadius: 20,
+                  background: 'rgba(0,180,160,0.07)',
+                  border: '1px solid rgba(0,180,160,0.2)',
+                  color: '#00b4a0', fontFamily: 'IBM Plex Mono, monospace',
+                }}>{tag}</span>
+              ))}
+            </div>
           </label>
         )}
 

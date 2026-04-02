@@ -163,6 +163,22 @@ const SAMPLE_SCORED = {
     confidence_note: 'IM provided full 3-year P&L, lease abstract, NQS certificate, occupancy weekly data, and staff qualification breakdown. High confidence in all material metrics.',
   },
   pipeline_intel_used: true,
+  effective_demand_ratio: 0.59,
+  demand_zone: 'balanced',
+  demand_context: {
+    postcode: '3186', radius_km: 2, radius_label: 'dense urban', is_regional: false,
+    estimated_kids_0_to_4: 909, total_licensed_places: 737, raw_kids_per_place: 1.23,
+    ldc_util_rate: { low: 0.40, high: 0.55, mid: 0.475, is_regional: false },
+    ldc_kids_range: { low: 364, mid: 432, high: 500 },
+    adj_kids_per_place: { low: 0.49, mid: 0.59, high: 0.68 },
+    zone: 'balanced', demand_trend: 'flat', growth_factor: 1.04, confidence: 'high', abs_hit: true,
+  },
+  market_context: {
+    score: 5.8, edr_mid: 0.59, zone: 'balanced',
+    demand_score: 4.0, competition_score: 5.0, pipeline_score: 3.0,
+    comp_multiplier: 0.75, pipeline_ratio_subject: 2.06, pipeline_ratio_market: 0.22,
+    competitor_count: 4, approved_pipeline_places: 165, risk_bucket: 'soft', confidence: 'high',
+  },
   pipeline_intel: {
     approvedDAs: 2,
     lodgedDAs: 1,
