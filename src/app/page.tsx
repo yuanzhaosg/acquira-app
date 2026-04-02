@@ -393,7 +393,6 @@ export default function Home() {
         onLogoClick={() => setView('landing')}
         onUpload={() => setView('upload')}
         onPipeline={() => setView('list')}
-          onMap={() => setView('map')}
       />
     )
   }
