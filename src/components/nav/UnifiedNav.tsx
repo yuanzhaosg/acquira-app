@@ -8,11 +8,12 @@ type NavMode = 'landing' | 'app' | 'report'
 
 interface UnifiedNavProps {
   mode: NavMode
-  activeAppTab?: 'upload' | 'list' | 'report'
+  activeAppTab?: 'upload' | 'list' | 'report' | 'map'
   onLogoClick: () => void
   onUpload?: () => void
   onPipeline?: () => void
   onReport?: () => void
+  onMap?: () => void
   onHome?: () => void
   centreLabel?: string
   user?: User | null
@@ -29,7 +30,7 @@ interface BillingStatus {
 
 export default function UnifiedNav({
   mode, activeAppTab, onLogoClick, onUpload, onPipeline,
-  onReport, onHome, centreLabel, user, onSignIn,
+  onReport, onMap, onHome, centreLabel, user, onSignIn,
 }: UnifiedNavProps) {
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -234,11 +235,10 @@ export default function UnifiedNav({
                   📊 Report
                 </button>
               )}
-              <a href="/councils" style={linkBase} target="_blank" rel="noopener noreferrer">
-                🏛 Planning Research
-              </a>
+              <button style={activeAppTab === 'map' ? linkActive : linkBase} onClick={onMap}>🗺️ Supply Map</button>
+              <a href="/councils" style={linkBase} target="_blank" rel="noopener noreferrer">🏛 Planning</a>
+              <a href="/pricing" style={linkBase}>💳 Pricing</a>
               <div style={sep} />
-              <button style={btnGhost} onClick={onHome}>← Home</button>
               <div style={sep} />
               <UserChip />
             </>

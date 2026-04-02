@@ -486,6 +486,14 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
+
+  // Sync overrides when a deal is re-opened from pipeline (initialOverrides changes)
+  useEffect(() => {
+    if (initialOverrides && Object.keys(initialOverrides).length > 0) {
+      setOverrides(initialOverrides)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealId])  // re-sync when the deal being viewed changes
   const [currentScored, setCurrentScored] = useState<ScoredDeal>(scored)
   const [rescoring, setRescoring]       = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)

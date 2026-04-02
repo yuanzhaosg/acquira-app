@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import LandingPage from '@/components/landing/LandingPage'
 import UnifiedNav from '@/components/nav/UnifiedNav'
 import UploadWidget from '@/components/upload/UploadWidget'
@@ -218,14 +218,42 @@ type View = 'landing' | 'upload' | 'report' | 'list' | 'sample' | 'compare' | 'm
 export default function Home() {
   const { user, loading } = useAuth()
 
-  const [view, setView]           = useState<View>('landing')
+  // Persist last view + dealId in sessionStorage so refresh restores position
+  const [view, setViewRaw]        = useState<View>(() => {
+    if (typeof window === 'undefined') return 'landing'
+    return (sessionStorage.getItem('acquira_view') as View) ?? 'landing'
+  })
+  const setView = (v: View) => {
+    if (typeof window !== 'undefined') sessionStorage.setItem('acquira_view', v)
+    setViewRaw(v)
+  }
   const [showAuth, setShowAuth]   = useState(false)
   const [signupReason, setSignupReason] = useState<'upload' | 'map'>('upload')
   const [extracted, setExtracted] = useState<ExtractedDeal | null>(null)
   const [scored, setScored]       = useState<ScoredDeal | null>(null)
-  const [dealId, setDealId]       = useState<string | null>(null)
+  const [dealId, setDealId]       = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return sessionStorage.getItem('acquira_deal_id') ?? null
+  })
   const [savedOverrides, setSavedOverrides] = useState<Record<string, number | string>>({})
   const [compareDeals, setCompareDeals] = useState<{ id: string; centre_name: string | null; total_score: number | null; scored: unknown }[]>([])
+
+  // On mount: if view was 'report' and we have a dealId, reload the deal
+  useEffect(() => {
+    const savedView = sessionStorage.getItem('acquira_view') as View
+    const savedDealId = sessionStorage.getItem('acquira_deal_id')
+    if ((savedView === 'report' || savedView === 'list') && savedDealId && user) {
+      getDeal(savedDealId).then(deal => {
+        if (deal) {
+          setExtracted(deal.extracted as ExtractedDeal)
+          setScored(deal.scored as ScoredDeal)
+          setSavedOverrides((deal.overrides as Record<string, number | string>) ?? {})
+          // stay on 'report' or navigate to list
+        }
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   function handleUploadIntent() {
     if (user) {
@@ -321,6 +349,7 @@ export default function Home() {
           onLogoClick={() => setView('landing')}
           onUpload={() => setView('upload')}
           onPipeline={() => setView('list')}
+          onMap={() => setView('map')}
           onHome={() => setView('landing')}
           user={user}
         />
@@ -331,6 +360,7 @@ export default function Home() {
               setExtracted(deal.extracted as ExtractedDeal)
               setScored(deal.scored as ScoredDeal)
               setDealId(id)
+              if (typeof window !== 'undefined') sessionStorage.setItem('acquira_deal_id', id)
               setSavedOverrides((deal.overrides as Record<string, number | string>) ?? {})
               setView('report')
             }
@@ -363,6 +393,7 @@ export default function Home() {
         onLogoClick={() => setView('landing')}
         onUpload={() => setView('upload')}
         onPipeline={() => setView('list')}
+          onMap={() => setView('map')}
       />
     )
   }
@@ -378,6 +409,7 @@ export default function Home() {
         onLogoClick={() => setView('landing')}
         onUpload={() => setView('upload')}
         onPipeline={() => setView('list')}
+          onMap={() => setView('map')}
         onHome={() => setView('landing')}
         user={user}
       />
@@ -440,6 +472,7 @@ export default function Home() {
               console.error('save-deal error:', e)
             }
             setDealId(savedId)
+            if (savedId && typeof window !== 'undefined') sessionStorage.setItem('acquira_deal_id', savedId)
             setView('report')
           }}
         />
