@@ -206,6 +206,12 @@ The JSON must conform to this exact schema (use null for unknown values, never o
     "category": "passive_hold" | "turnaround" | "distressed" | "pass",
     "one_liner": string,
     "recommended_buyer_profile": string
+  },
+  "next_steps": {
+    "verdict_plain": string,
+    "ask_broker_for": [string],
+    "due_diligence_priorities": [string],
+    "deal_structuring_notes": string | null
   }
 }
 
@@ -222,6 +228,16 @@ Deal-breaker flag IDs to evaluate (set triggered: true/false based on data):
   capex_high                → significant capex/renovation liability detected
   ccs_exposure_high         → high proportion of families on maximum CCS subsidy
   valuation_premium         → asking price > 4× stabilised EBITDA on a turnaround asset
+
+NEXT STEPS — generate for every deal:
+
+next_steps.verdict_plain: 2–3 plain-English sentences naming the centre, suburb, and the single most important factor. Be blunt. Reference actual numbers.
+
+next_steps.ask_broker_for: 3–5 specific documents or data points to request before proceeding. Base on missing fields and unverified claims. Name the exact document/clause/number needed.
+
+next_steps.due_diligence_priorities: 2–3 specific buyer investigation actions focused on the highest-risk dimensions.
+
+next_steps.deal_structuring_notes: Deal structure suggestion if risks can be mitigated (earnout, retention clause, price adjustment). null if not applicable.
 
 Dimension weights (for scoring reference — do NOT include in output, server applies them):
 ${Object.entries(DIMENSION_WEIGHTS).map(([k, v]) => `  ${k}: ${v}`).join('\n')}
