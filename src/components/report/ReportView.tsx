@@ -687,6 +687,23 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       if (overrides.nqs_rating_str != null) {
         overriddenExtracted.centre.nqs_rating = overrides.nqs_rating_str
       }
+      if (overrides.labour_cost != null) {
+        if (overriddenExtracted.financials.fy25) {
+          overriddenExtracted.financials.fy25.total_labour_cost = overrides.labour_cost
+          const rev = overriddenExtracted.financials.fy25.revenue ?? 0
+          if (rev > 0) overriddenExtracted.financials.fy25.labour_ratio_pct = parseFloat(((overrides.labour_cost / rev) * 100).toFixed(1))
+        }
+        overriddenExtracted.key_ratios.labour_ratio_fy25_pct = overriddenExtracted.financials?.fy25?.labour_ratio_pct
+      }
+      if (overrides.rent_pa != null) {
+        if (overriddenExtracted.financials.fy25) {
+          overriddenExtracted.financials.fy25.rent_pa = overrides.rent_pa
+          const rev = overriddenExtracted.financials.fy25.revenue ?? 0
+          if (rev > 0) overriddenExtracted.financials.fy25.rent_ratio_pct = parseFloat(((overrides.rent_pa / rev) * 100).toFixed(1))
+        }
+        overriddenExtracted.key_ratios.rent_ratio_fy25_pct = overriddenExtracted.financials?.fy25?.rent_ratio_pct
+        overriddenExtracted.key_ratios.rent_pa_fy25 = overrides.rent_pa
+      }
       const res = await fetch('/api/rescore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -739,6 +756,16 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const effectiveRevenue         = overrides.revenue          ?? (fy25?.revenue ?? ratios?.revenue_fy25)
   const effectiveLicensedPlaces  = overrides.licensed_places  ?? centre?.licensed_places
   const effectiveNqsRating       = (overrides.nqs_rating_str  ?? centre?.nqs_rating) as string | null | undefined
+  const effectiveLabourCost      = overrides.labour_cost      ?? fy25?.total_labour_cost
+  const effectiveRentPa          = overrides.rent_pa          ?? (fy25?.rent_pa ?? ratios?.rent_pa_fy25)
+  // Derived ratios — recalculate if labour cost or rent overridden
+  const baseRevForRatios = (effectiveRevenue ?? 0)
+  const effectiveLabourRatioPct = overrides.labour_cost != null && baseRevForRatios > 0
+    ? parseFloat(((overrides.labour_cost / baseRevForRatios) * 100).toFixed(1))
+    : (fy25?.labour_ratio_pct ?? ratios?.labour_ratio_fy25_pct)
+  const effectiveRentRatioPct = overrides.rent_pa != null && baseRevForRatios > 0
+    ? parseFloat(((overrides.rent_pa / baseRevForRatios) * 100).toFixed(1))
+    : (fy25?.rent_ratio_pct ?? ratios?.rent_ratio_fy25_pct)
 
   const metrics = [
     {
@@ -762,18 +789,18 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       editable: true, field: 'occupancy',
     },
     {
-      label: 'Labour Ratio',
-      value: fmt(fy25?.labour_ratio_pct ?? ratios?.labour_ratio_fy25_pct, '', '%', 1),
-      note: 'Target: 55–65%',
-      color: (fy25?.labour_ratio_pct ?? 0) <= 65 ? '#00b4a0' : (fy25?.labour_ratio_pct ?? 0) <= 75 ? '#f59e0b' : '#ef4444',
-      editable: false,
+      label: 'Labour Cost (FY25)',
+      value: effectiveLabourCost != null ? fmtM(effectiveLabourCost) : '—',
+      note: effectiveLabourRatioPct != null ? `${effectiveLabourRatioPct}% of revenue · target 55–65%` : 'Enter to calculate ratio',
+      color: (effectiveLabourRatioPct ?? 0) <= 65 ? '#00b4a0' : (effectiveLabourRatioPct ?? 0) <= 75 ? '#f59e0b' : '#ef4444',
+      editable: true, field: 'labour_cost',
     },
     {
-      label: 'Rent / Revenue',
-      value: fmt(fy25?.rent_ratio_pct ?? ratios?.rent_ratio_fy25_pct, '', '%', 1),
-      note: 'Target: <20%',
-      color: (fy25?.rent_ratio_pct ?? 0) <= 20 ? '#00b4a0' : (fy25?.rent_ratio_pct ?? 0) <= 25 ? '#f59e0b' : '#ef4444',
-      editable: false,
+      label: 'Rent pa (FY25)',
+      value: effectiveRentPa != null ? fmtM(effectiveRentPa) : '—',
+      note: effectiveRentRatioPct != null ? `${effectiveRentRatioPct}% of revenue · target <20%` : 'Enter to calculate ratio',
+      color: (effectiveRentRatioPct ?? 0) <= 20 ? '#00b4a0' : (effectiveRentRatioPct ?? 0) <= 25 ? '#f59e0b' : '#ef4444',
+      editable: true, field: 'rent_pa',
     },
     {
       label: 'Licensed Places',
@@ -1005,7 +1032,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                   {' '}<span style={{ color: '#00b4a0', fontWeight: 600 }}>
                     {k === 'nqs_rating_str'
                       ? String(overrides[k]).replace(' NQS', '')
-                      : k === 'asking_price' || k === 'ebitda' || k === 'revenue'
+                      : ['asking_price','ebitda','revenue','labour_cost','rent_pa'].includes(k)
                       ? fmtM(overrides[k] as number)
                       : k === 'licensed_places'
                       ? String(overrides[k])
