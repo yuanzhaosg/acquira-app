@@ -160,7 +160,7 @@ function DimensionRow({ id, dim, isActive, onClick, pipelineIntelUsed }: {
       <div className="dim-detail-panel" style={{ display: isActive ? 'block' : 'none', marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           {dim.summary && (
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 12, lineHeight: 1.6 }}>
-              {dim.summary}
+              {tx(`dim_${id}_summary`, dim.summary)}
             </p>
           )}
 
@@ -498,6 +498,38 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const [rescoring, setRescoring]       = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)
   const [resaved, setResaved]           = useState(false)
+
+  // Chinese translation
+  const [translating, setTranslating]   = useState(false)
+  const [translateError, setTranslateError] = useState<string | null>(null)
+  const [translations, setTranslations] = useState<Record<string, string> | null>(null)
+  const isChinese = translations !== null
+
+  const handleTranslate = async () => {
+    if (isChinese) { setTranslations(null); return }  // toggle back to English
+    setTranslating(true)
+    setTranslateError(null)
+    try {
+      const res = await fetch('/api/translate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scored: currentScored }),
+      })
+      if (!res.ok) throw new Error('Translation failed')
+      const { translations: t } = await res.json()
+      setTranslations(t)
+    } catch (e) {
+      setTranslateError(e instanceof Error ? e.message : 'Translation failed')
+    } finally {
+      setTranslating(false)
+    }
+  }
+
+  // Helper: get translated text or fall back to original
+  const tx = (key: string, original: string | null | undefined): string => {
+    if (!original) return ''
+    return (isChinese && translations?.[key]) ? translations[key] : (original ?? '')
+  }
 
   // Decision Checklist state
   type ChecklistAnswer = 'yes' | 'no' | 'unsure' | null
@@ -864,6 +896,21 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       fontFamily: 'IBM Plex Sans, sans-serif',
       minHeight: '100vh', fontSize: 14, lineHeight: 1.6
     }}>
+      {isChinese && (
+        <div style={{
+          background: 'rgba(220,38,38,0.08)', borderBottom: '1px solid rgba(220,38,38,0.2)',
+          padding: '8px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+          fontFamily: 'DM Sans, sans-serif', fontSize: 12,
+        }}>
+          <span style={{ color: '#f87171', fontWeight: 600 }}>🇨🇳 简体中文版</span>
+          <span style={{ color: 'rgba(255,255,255,0.4)' }}>数字、指标名称及地名保留英文原文 &middot; Numbers and proper nouns retained in English</span>
+          <button onClick={() => setTranslations(null)} style={{
+            background: 'none', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4,
+            padding: '2px 10px', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer',
+          }}>切换回英文 English</button>
+        </div>
+      )}
+
       {sampleMode && (
         <div style={{
           background: 'rgba(0,180,160,0.1)', borderBottom: '1px solid rgba(0,180,160,0.25)',
@@ -1040,6 +1087,25 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             fontSize: 12, cursor: 'pointer', fontFamily: 'IBM Plex Sans, sans-serif', fontWeight: 600
           }}>+ New Deal</button>
           <button
+            onClick={handleTranslate}
+            disabled={translating}
+            title={isChinese ? 'Switch back to English' : 'Translate report to Simplified Chinese'}
+            style={{
+              background: isChinese ? 'rgba(220,38,38,0.12)' : 'rgba(255,255,255,0.07)',
+              border: `1px solid ${isChinese ? 'rgba(220,38,38,0.3)' : 'rgba(255,255,255,0.12)'}`,
+              borderRadius: 6, padding: '6px 14px',
+              color: isChinese ? '#f87171' : 'rgba(255,255,255,0.7)',
+              fontSize: 12, cursor: translating ? 'wait' : 'pointer',
+              fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+              opacity: translating ? 0.7 : 1,
+            }}
+          >
+            {translating ? '翻译中…' : isChinese ? '🇺🇸 English' : '🇨🇳 中文'}
+          </button>
+          {translateError && (
+            <span style={{ fontSize: 11, color: '#ef4444' }}>{translateError}</span>
+          )}
+          <button
             onClick={() => window.print()}
             style={{
               background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
@@ -1080,7 +1146,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             <VerdictBadge category={currentScored.verdict?.category} />
             {currentScored.verdict?.one_liner && (
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>
-                {currentScored.verdict.one_liner}
+                {tx('verdict_one_liner', currentScored.verdict.one_liner)}
               </span>
             )}
           </div>
@@ -1321,7 +1387,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
                   key={flag.id}
                   severity={flag.severity === 'critical' ? 'critical' : 'warning'}
                   title={flag.label}
-                  description={flag.reason || flag.id.replace(/_/g, ' ')}
+                  description={tx(`flag_${triggeredFlags.indexOf(flag)}_reason`, flag.reason) || flag.id.replace(/_/g, ' ')}
                   delay={i * 0.05}
                 />
               ))}
@@ -1477,7 +1543,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               </div>
               {currentScored.audit_trail.confidence_note && (
                 <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>
-                  {currentScored.audit_trail.confidence_note}
+                  {tx('audit_confidence_note', currentScored.audit_trail.confidence_note)}
                 </div>
               )}
             </div>
@@ -1535,7 +1601,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           fontSize: 14, color: 'rgba(255,255,255,0.6)',
           lineHeight: 1.75, marginBottom: 16
         }}>
-          {currentScored.verdict?.one_liner || currentScored.analyst_summary || '—'}
+          {tx('verdict_one_liner', currentScored.verdict?.one_liner) || tx('analyst_summary', currentScored.analyst_summary) || '—'}
         </div>
         {currentScored.verdict?.recommended_buyer_profile && (
           <div style={{
@@ -1546,7 +1612,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
             <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: '#00b4a0', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 8 }}>
               Ideal Buyer
             </span>
-            {currentScored.verdict.recommended_buyer_profile}
+            {tx('verdict_buyer_profile', currentScored.verdict.recommended_buyer_profile)}
           </div>
         )}
 
