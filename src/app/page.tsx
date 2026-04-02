@@ -238,18 +238,22 @@ export default function Home() {
   const [savedOverrides, setSavedOverrides] = useState<Record<string, number | string>>({})
   const [compareDeals, setCompareDeals] = useState<{ id: string; centre_name: string | null; total_score: number | null; scored: unknown }[]>([])
 
-  // On mount: if view was 'report' and we have a dealId, reload the deal
+  // On mount: if view was 'report' and we have a dealId, reload the deal + its overrides
   useEffect(() => {
+    if (!user) return
     const savedView = sessionStorage.getItem('acquira_view') as View
     const savedDealId = sessionStorage.getItem('acquira_deal_id')
-    if ((savedView === 'report' || savedView === 'list') && savedDealId && user) {
+    if (savedDealId && (savedView === 'report' || savedView === 'list')) {
       getDeal(savedDealId).then(deal => {
-        if (deal) {
-          setExtracted(deal.extracted as ExtractedDeal)
-          setScored(deal.scored as ScoredDeal)
-          setSavedOverrides((deal.overrides as Record<string, number | string>) ?? {})
-          // stay on 'report' or navigate to list
-        }
+        if (!deal) return
+        setExtracted(deal.extracted as ExtractedDeal)
+        setScored(deal.scored as ScoredDeal)
+        setDealId(savedDealId)
+        // Overrides: use saved DB overrides (may include user's entries)
+        const dbOverrides = (deal.overrides as Record<string, number | string>) ?? {}
+        setSavedOverrides(dbOverrides)
+        // If view was report, stay on report
+        if (savedView === 'report') setViewRaw('report')
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

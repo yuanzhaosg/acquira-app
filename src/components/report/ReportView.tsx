@@ -489,13 +489,12 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const [activeDim, setActiveDim]       = useState<string | null>(null)
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
 
-  // Sync overrides when a deal is re-opened from pipeline (initialOverrides changes)
+  // Sync overrides when a deal is loaded (initialOverrides arrives after async getDeal)
+  // Runs on dealId change AND when initialOverrides reference changes
   useEffect(() => {
-    if (initialOverrides && Object.keys(initialOverrides).length > 0) {
-      setOverrides(initialOverrides)
-    }
+    setOverrides(initialOverrides ?? {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dealId])  // re-sync when the deal being viewed changes
+  }, [dealId, initialOverrides])
   const [currentScored, setCurrentScored] = useState<ScoredDeal>(scored)
   const [rescoring, setRescoring]       = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)
@@ -688,15 +687,33 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 
   useEffect(() => { setCurrentScored(scored) }, [scored])
 
+  const saveOverridesToDB = async (newOverrides: Record<string, number | string>) => {
+    if (!dealId) return
+    try {
+      await fetch('/api/update-deal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: dealId, scored: currentScored, overrides: newOverrides })
+      })
+    } catch (e) {
+      console.error('saveOverridesToDB error:', e)
+    }
+  }
+
   const handleOverride = (field: string, rawVal: string) => {
     // NQS rating is a string — store as-is
+    let newVal: string | number
     if (field === 'nqs_rating_str') {
-      setOverrides(prev => ({ ...prev, [field]: rawVal }))
-      return
+      newVal = rawVal
+    } else {
+      const num = parseFloat(rawVal.replace(/[$,%\s,]/g, ''))
+      if (isNaN(num)) return
+      newVal = num
     }
-    const num = parseFloat(rawVal.replace(/[$,%\s,]/g, ''))
-    if (isNaN(num)) return
-    setOverrides(prev => ({ ...prev, [field]: num }))
+    const newOverrides = { ...overrides, [field]: newVal }
+    setOverrides(newOverrides)
+    // Save immediately — don’t wait for rescore
+    saveOverridesToDB(newOverrides)
   }
 
   const handleRescore = async () => {
