@@ -109,7 +109,7 @@ export default function ICSummary({
   const ScenarioCol = ({ s }: { s: ScenarioOutput }) => {
     const labelColor = s.label === 'Upside' ? '#22c55e' : s.label === 'Base' ? '#00b4a0' : '#f59e0b'
     return (
-      <div style={{
+      <div className="ic-scenario-col" style={{
         flex: 1, padding: '14px 16px',
         background: s.label === 'Base' ? 'rgba(0,180,160,0.06)' : 'rgba(255,255,255,0.02)',
         borderRadius: 8,
@@ -183,7 +183,7 @@ export default function ICSummary({
       </div>
 
       {/* Pipeline + absorption strip */}
-      <div style={{
+      <div className="ic-pipeline-strip" style={{
         display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 10, marginBottom: 20,
       }}>

@@ -904,26 +904,106 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           .checklist-btn     { min-height: 44px !important; padding: 8px 14px !important; font-size: 13px !important; }
         }
         @media print {
-          body { background: #fff !important; color: #000 !important; }
-          .report-header, .report-header-right button, nav, .no-print { display: none !important; }
-          .dim-grid { grid-template-columns: 1fr 1fr !important; }
-          * { background: transparent !important; color: #000 !important; border-color: #ccc !important; box-shadow: none !important; }
-          a { color: #000 !important; }
-          /* Force all dimension detail panels open in print */
-          .dim-detail-panel { display: block !important; margin-top: 10px; padding-top: 10px; border-top: 1px solid #ccc; }
-          .dim-summary-text { display: block !important; font-size: 11px; color: #333; line-height: 1.6; margin-bottom: 8px; }
-          .dim-score-bar { display: none !important; }
-          .dim-row-wrap { border: 1px solid #e2e8f0 !important; border-radius: 6px; padding: 10px 12px !important; margin-bottom: 8px; break-inside: avoid; }
-          .report-hero { padding: 24px 32px !important; }
-          .report-content { padding: 24px 32px !important; }
-          .score-ring-wrap { display: none !important; }
-          .rescore-bar, .checklist-section, .notes-section, .da-pipeline-section { display: none !important; }
-          /* Score interpretation — always print, page break before */
-          .score-interpretation { page-break-before: always; border: 1px solid #e2e8f0 !important; border-radius: 8px; padding: 20px 24px !important; margin: 0 !important; }
+          /* ── PAGE SETUP ── */
+          @page { margin: 16mm 18mm; size: A4; }
+          .print-only-header { display: flex !important; }
+          html, body { background: #fff !important; color: #1a2b3c !important;
+            font-family: 'IBM Plex Sans', 'Inter', 'Segoe UI', Arial, sans-serif !important;
+            font-size: 10pt !important; line-height: 1.5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+          /* ── HIDE INTERACTIVE ELEMENTS ── */
+          .report-header, nav, .no-print, .score-ring-wrap,
+          .dim-score-bar, button, input, select, textarea { display: none !important; }
+
+          /* ── LAYOUT ── */
+          .report-hero { padding: 20px 0 16px !important; border-bottom: 2px solid #00b4a0 !important;
+            background: #fff !important; display: block !important; }
+          .report-content { padding: 0 !important; max-width: 100% !important; }
+          .report-metrics { grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+
+          /* ── TYPOGRAPHY ── */
+          h1, h2, h3 { color: #0d1b2a !important; font-family: 'Space Grotesk', 'Segoe UI', Arial, sans-serif !important; }
+          p, li, td, th, span, div { color: #1a2b3c !important; }
+
+          /* ── KEEP BRAND COLOURS ── */
+          /* Score colours */
+          [style*="color: #22c55e"], [style*="color:#22c55e"] { color: #16a34a !important; }
+          [style*="color: #00b4a0"], [style*="color:#00b4a0"] { color: #007a6e !important; }
+          [style*="color: #f59e0b"], [style*="color:#f59e0b"] { color: #b45309 !important; }
+          [style*="color: #ef4444"], [style*="color:#ef4444"] { color: #dc2626 !important; }
+
+          /* ── CARDS ── */
+          [style*="background: #152336"], [style*="background:#152336"],
+          [style*="background: #112236"], [style*="background:#112236"],
+          [style*="background: rgba(255,255,255,0.02)"],
+          [style*="background: rgba(255,255,255,0.03)"],
+          [style*="background: rgba(255,255,255,0.04)"] { background: #f8fafc !important; }
+          [style*="background: #0d1b2a"], [style*="background:#0d1b2a"] { background: #fff !important; }
+
+          /* ── BORDERS ── */
+          [style*="border: 1px solid rgba(255,255,255,0.07)"],
+          [style*="border: 1px solid rgba(255,255,255,0.08)"] { border: 1px solid #e2e8f0 !important; }
+
+          /* ── SECTION TITLES ── */
+          [style*="textTransform: uppercase"][style*="letterSpacing"] {
+            color: #64748b !important; border-bottom-color: #e2e8f0 !important;
+          }
+
+          /* ── METRICS CARDS ── */
+          .report-metrics > div { background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
+            border-radius: 6px !important; padding: 10px !important; break-inside: avoid; }
+
+          /* ── DIMENSION ROWS ── */
+          .dim-row-wrap { background: #fff !important; border: 1px solid #e2e8f0 !important;
+            border-radius: 6px !important; padding: 10px 12px !important;
+            margin-bottom: 6px !important; break-inside: avoid; }
+          .dim-detail-panel { display: block !important; margin-top: 8px; padding-top: 8px;
+            border-top: 1px solid #e2e8f0 !important; }
+
+          /* ── IC SUMMARY ── */
+          .ic-scenario-col { background: #f8fafc !important; border: 1px solid #e2e8f0 !important;
+            border-radius: 6px !important; break-inside: avoid; }
+          .ic-pipeline-strip > div { background: #f8fafc !important; border: 1px solid #e2e8f0 !important; }
+
+          /* ── FLAGS ── */
+          [style*="rgba(239,68,68,0.08)"] { background: #fef2f2 !important; border-color: #fca5a5 !important; }
+          [style*="rgba(245,158,11,0.08)"] { background: #fffbeb !important; border-color: #fcd34d !important; }
+          [style*="rgba(34,197,94,0.08)"]  { background: #f0fdf4 !important; border-color: #86efac !important; }
+
+          /* ── SCORE INTERPRETATION ── */
+          .score-interpretation { page-break-before: always; background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important; border-radius: 8px !important;
+            padding: 20px 24px !important; margin: 0 !important; }
           .score-interpretation-grid { grid-template-columns: repeat(3, 1fr) !important; }
           .score-interpretation-bottom { grid-template-columns: 1fr 1fr !important; }
+
+          /* ── PAGE BREAKS ── */
+          .report-hero, .score-interpretation { page-break-after: avoid; }
+          .dim-row-wrap, .ic-scenario-col { break-inside: avoid; }
+
+          /* ── FOOTER ── */
+          footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important;
+            font-size: 8pt !important; padding: 8px 0 !important; }
         }
       `}</style>
+
+      {/* ── PRINT-ONLY HEADER ── */}
+      <div style={{
+        display: 'none',  // hidden on screen, shown in print via CSS
+        padding: '12px 0 10px',
+        borderBottom: '2px solid #00b4a0',
+        marginBottom: 4,
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }} className="print-only-header">
+        <div style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, fontWeight: 800, color: '#0d1b2a' }}>
+          Acquira<span style={{ color: '#00b4a0' }}>.</span>
+          <span style={{ fontSize: 11, fontWeight: 400, color: '#64748b', marginLeft: 10, fontFamily: 'IBM Plex Mono, monospace' }}>ACQUISITION INTELLIGENCE</span>
+        </div>
+        <div style={{ fontSize: 10, color: '#94a3b8', fontFamily: 'IBM Plex Mono, monospace' }}>
+          Generated {new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </div>
+      </div>
 
       {/* ── STICKY HEADER ── */}
       <header className="report-header" style={{
