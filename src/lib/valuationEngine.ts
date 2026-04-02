@@ -177,21 +177,37 @@ function computeScenario(
 ): ScenarioOutput {
   const effectiveKids = inputs.kids_0_to_4 * participationRate
 
-  // Base occupancy: current supply only
-  const baseOcc = clamp(effectiveKids / inputs.total_licensed_places, 0.30, 0.98)
+  // Base occupancy: use actual IM occupancy when available, else demand model
+  const modelledBaseOcc = clamp(effectiveKids / inputs.total_licensed_places, 0.30, 0.98)
+  const actualOcc = inputs.centre_current_occupancy  // from IM / override (0–1)
 
-  // Future supply: existing + risk-adjusted pipeline
-  const futureSupply = inputs.total_licensed_places + pipeline.risk_adjusted_places
+  // Base scenario pins to actual IM occupancy
+  // Upside: IM occ + 5pp (or model if no IM)
+  // Downside: IM occ - 10pp, further stressed by pipeline
+  const scenarioBaseOcc = actualOcc != null ? actualOcc : modelledBaseOcc
+  const scenarioUpsideOcc = actualOcc != null
+    ? clamp(actualOcc + 0.05, 0, 0.98)
+    : clamp(modelledBaseOcc + 0.05, 0, 0.98)
+  const scenarioDownsideOcc = actualOcc != null
+    ? clamp(actualOcc - 0.10, 0.30, 0.98)
+    : clamp(modelledBaseOcc - 0.10, 0.30, 0.98)
 
-  // Stabilised occupancy: after pipeline absorbed
-  // Downside stresses pipeline by adding 30% more approved supply
+  const baseOcc = label === 'Base' ? scenarioBaseOcc
+    : label === 'Upside' ? scenarioUpsideOcc
+    : scenarioDownsideOcc
+
+  // Pipeline pressure: reduces stabilised occupancy further
+  // Base: pipeline at face value | Downside: +30% pipeline stress
   const pipelineMultiplier = label === 'Downside' ? 1.30 : 1.0
   const stressedFutureSupply = inputs.total_licensed_places
     + pipeline.risk_adjusted_places * pipelineMultiplier
-  const futureOccRaw = stressedFutureSupply > 0
-    ? effectiveKids / stressedFutureSupply
-    : 0.70
-  const stabilisedOcc = clamp(futureOccRaw, 0.55, 0.98)
+
+  // Stabilised occ = base occ adjusted for pipeline supply shock
+  // If pipeline adds X% new supply, occupancy compresses proportionally
+  const supplyGrowthFactor = stressedFutureSupply > 0 && inputs.total_licensed_places > 0
+    ? inputs.total_licensed_places / stressedFutureSupply
+    : 1.0
+  const stabilisedOcc = clamp(baseOcc * supplyGrowthFactor, 0.45, 0.98)
 
   // Revenue: stabilised occupancy × places × fee × operating days
   // Note: no separate utilisation multiplier — stabilised_occ already IS utilisation
@@ -243,8 +259,8 @@ function computeScenario(
     avg_daily_fee: avgDailyFee,
     margin,
     effective_kids: Math.round(effectiveKids),
-    base_occupancy: parseFloat((baseOcc * 100).toFixed(1)),
-    stabilised_occupancy: parseFloat((stabilisedOcc * 100).toFixed(1)),
+    base_occupancy: parseFloat((scenarioBaseOcc * 100).toFixed(1)),  // actual IM occ (or model fallback)
+    stabilised_occupancy: parseFloat((stabilisedOcc * 100).toFixed(1)),  // after pipeline pressure
     annual_revenue: Math.round(annualRevenue),
     ebitda: Math.round(ebitda),
     ebitda_margin_pct: ebitdaMarginPct,

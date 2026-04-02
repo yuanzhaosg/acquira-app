@@ -122,7 +122,10 @@ export default function ICSummary({
         }}>{s.label}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            { label: 'Occupancy', value: fmtPct(s.stabilised_occupancy) },
+            {
+              label: 'Occupancy (current → stabilised)',
+              value: `${fmtPct(s.base_occupancy)} → ${fmtPct(s.stabilised_occupancy)}`,
+            },
             { label: 'Revenue', value: fmtM(s.annual_revenue) },
             { label: 'EBITDA', value: fmtM(s.ebitda), sub: fmtPct(s.ebitda_margin_pct) + ' margin' },
             { label: 'Valuation', value: `${fmtM(s.valuation_low)}–${fmtM(s.valuation_high)}`, sub: `${s.valuation_multiple}× EBITDA` },
