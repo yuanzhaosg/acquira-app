@@ -482,7 +482,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   saving?: boolean; onBack?: () => void; onNew?: () => void; sampleMode?: boolean
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
-  const [overrides, setOverrides]       = useState<Record<string, number>>({})
+  const [overrides, setOverrides]       = useState<Record<string, number | string>>({})
   const [currentScored, setCurrentScored] = useState<ScoredDeal>(scored)
   const [rescoring, setRescoring]       = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)
@@ -646,7 +646,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const handleOverride = (field: string, rawVal: string) => {
     // NQS rating is a string — store as-is
     if (field === 'nqs_rating_str') {
-      setOverrides(prev => ({ ...prev, [field]: rawVal as any }))
+      setOverrides(prev => ({ ...prev, [field]: rawVal }))
       return
     }
     const num = parseFloat(rawVal.replace(/[$,%\s,]/g, ''))
@@ -685,24 +685,26 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         overriddenExtracted.key_ratios.licensed_places = overrides.licensed_places
       }
       if (overrides.nqs_rating_str != null) {
-        overriddenExtracted.centre.nqs_rating = overrides.nqs_rating_str
+        overriddenExtracted.centre.nqs_rating = overrides.nqs_rating_str as string
       }
       if (overrides.labour_cost != null) {
+        const lc = overrides.labour_cost as number
         if (overriddenExtracted.financials.fy25) {
-          overriddenExtracted.financials.fy25.total_labour_cost = overrides.labour_cost
+          overriddenExtracted.financials.fy25.total_labour_cost = lc
           const rev = overriddenExtracted.financials.fy25.revenue ?? 0
-          if (rev > 0) overriddenExtracted.financials.fy25.labour_ratio_pct = parseFloat(((overrides.labour_cost / rev) * 100).toFixed(1))
+          if (rev > 0) overriddenExtracted.financials.fy25.labour_ratio_pct = parseFloat(((lc / rev) * 100).toFixed(1))
         }
         overriddenExtracted.key_ratios.labour_ratio_fy25_pct = overriddenExtracted.financials?.fy25?.labour_ratio_pct
       }
       if (overrides.rent_pa != null) {
+        const rp = overrides.rent_pa as number
         if (overriddenExtracted.financials.fy25) {
-          overriddenExtracted.financials.fy25.rent_pa = overrides.rent_pa
+          overriddenExtracted.financials.fy25.rent_pa = rp
           const rev = overriddenExtracted.financials.fy25.revenue ?? 0
-          if (rev > 0) overriddenExtracted.financials.fy25.rent_ratio_pct = parseFloat(((overrides.rent_pa / rev) * 100).toFixed(1))
+          if (rev > 0) overriddenExtracted.financials.fy25.rent_ratio_pct = parseFloat(((rp / rev) * 100).toFixed(1))
         }
         overriddenExtracted.key_ratios.rent_ratio_fy25_pct = overriddenExtracted.financials?.fy25?.rent_ratio_pct
-        overriddenExtracted.key_ratios.rent_pa_fy25 = overrides.rent_pa
+        overriddenExtracted.key_ratios.rent_pa_fy25 = rp
       }
       const res = await fetch('/api/rescore', {
         method: 'POST',
@@ -750,14 +752,14 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const criticalFlagCount = triggeredFlags.filter(f => f.severity === 'critical').length
     + legacyFlagIds.filter(id => ['occupancy_critical','labour_ratio_critical','ebitda_negative_no_ramp','lease_expired'].includes(id)).length
 
-  const effectiveOccupancy      = overrides.occupancy       ?? (occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct)
-  const effectiveEbitda          = overrides.ebitda           ?? (fy25?.ebitda ?? ratios?.ebitda_fy25)
-  const effectiveAskPrice        = overrides.asking_price     ?? (financials?.asking_price ?? ratios?.asking_price)
-  const effectiveRevenue         = overrides.revenue          ?? (fy25?.revenue ?? ratios?.revenue_fy25)
-  const effectiveLicensedPlaces  = overrides.licensed_places  ?? centre?.licensed_places
-  const effectiveNqsRating       = (overrides.nqs_rating_str  ?? centre?.nqs_rating) as string | null | undefined
-  const effectiveLabourCost      = overrides.labour_cost      ?? fy25?.total_labour_cost
-  const effectiveRentPa          = overrides.rent_pa          ?? (fy25?.rent_pa ?? ratios?.rent_pa_fy25)
+  const effectiveOccupancy      = (overrides.occupancy      as number) ?? (occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct)
+  const effectiveEbitda          = (overrides.ebitda          as number) ?? (fy25?.ebitda ?? ratios?.ebitda_fy25)
+  const effectiveAskPrice        = (overrides.asking_price    as number) ?? (financials?.asking_price ?? ratios?.asking_price)
+  const effectiveRevenue         = (overrides.revenue         as number) ?? (fy25?.revenue ?? ratios?.revenue_fy25)
+  const effectiveLicensedPlaces  = (overrides.licensed_places as number) ?? centre?.licensed_places
+  const effectiveNqsRating       = (overrides.nqs_rating_str  as string | undefined) ?? centre?.nqs_rating
+  const effectiveLabourCost      = (overrides.labour_cost     as number) ?? fy25?.total_labour_cost
+  const effectiveRentPa          = (overrides.rent_pa         as number) ?? (fy25?.rent_pa ?? ratios?.rent_pa_fy25)
   // Derived ratios — recalculate if labour cost or rent overridden
   const baseRevForRatios = (effectiveRevenue ?? 0)
   const effectiveLabourRatioPct = overrides.labour_cost != null && baseRevForRatios > 0
