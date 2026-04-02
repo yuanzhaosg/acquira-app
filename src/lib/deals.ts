@@ -1,10 +1,17 @@
-// deals.ts is called from API routes (server-side only).
-// Must use service key to bypass RLS — anon key will silently fail on writes.
+// deals.ts: reads use anon key (safe client-side), writes use service key (server-side API routes only)
 import { createClient } from '@supabase/supabase-js'
 
+// Read client — anon key, safe to use client-side and server-side
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
+
+// Write client — service key, bypasses RLS. ONLY used in server-side API routes.
+// Never import writeSupabase in client components.
+const writeSupabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 )
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
@@ -96,7 +103,7 @@ export async function saveDeal(
   const canonicalScore   = resolveScore(scored)
   const { hasCritical, count: criticalCount } = countCriticalFlags(scored)
 
-  const { data, error } = await supabase
+  const { data, error } = await writeSupabase
     .from('deals')
     .insert({
       centre_name:    centre?.name ?? scored.centre_name ?? null,
@@ -149,7 +156,7 @@ export async function updateDealScore(
   const canonicalScore = resolveScore(scored)
   const { hasCritical, count: criticalCount } = countCriticalFlags(scored)
 
-  const { error } = await supabase
+  const { error } = await writeSupabase
     .from('deals')
     .update({
       total_score:      canonicalScore,
@@ -196,7 +203,7 @@ export async function getDeal(id: string): Promise<DealRecord | null> {
 // ─── deleteDeal ───────────────────────────────────────────────────────────────
 
 export async function deleteDeal(id: string): Promise<boolean> {
-  const { error } = await supabase.from('deals').delete().eq('id', id)
+  const { error } = await writeSupabase.from('deals').delete().eq('id', id)
   if (error) { console.error('deleteDeal error:', error); return false }
   return true
 }
