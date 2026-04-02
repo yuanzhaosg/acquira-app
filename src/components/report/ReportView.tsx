@@ -1091,7 +1091,6 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           if (edr == null) return null
           const zone = sc.demand_zone ?? dc?.zone ?? 'balanced'
           const mc   = sc.market_context as any
-          return (
           const zoneColor = zone === 'undersupplied' ? '#22c55e' : zone === 'balanced' ? '#f59e0b' : '#ef4444'
           const zoneLabel = zone === 'undersupplied' ? 'Undersupplied' : zone === 'balanced' ? 'Balanced' : 'Oversupplied'
           const confColor = dc?.confidence === 'high' ? '#22c55e' : dc?.confidence === 'medium' ? '#f59e0b' : '#ef4444'
@@ -1157,7 +1156,6 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               </div>
             </div>
           )
-        })()
         })()}
 
         {/* COMPETITIVE MAP */}
