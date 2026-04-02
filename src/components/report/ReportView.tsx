@@ -718,6 +718,15 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       if (!res.ok) throw new Error(await res.text())
       const newScored: ScoredDeal = await res.json()
       newScored.scoring_timestamp = new Date().toISOString()
+      // Preserve demand intelligence fields — rescore API returns raw LLM output
+      // which strips these server-computed fields. Re-attach from previous state.
+      const prev = currentScored as any
+      if (prev.demand_context)        (newScored as any).demand_context        = prev.demand_context
+      if (prev.market_context)        (newScored as any).market_context        = prev.market_context
+      if (prev.effective_demand_ratio != null) (newScored as any).effective_demand_ratio = prev.effective_demand_ratio
+      if (prev.demand_zone)           (newScored as any).demand_zone           = prev.demand_zone
+      if (prev.pipeline_intel)        (newScored as any).pipeline_intel        = prev.pipeline_intel
+      if (prev.pipeline_intel_used)   (newScored as any).pipeline_intel_used   = prev.pipeline_intel_used
       setCurrentScored(newScored)
       if (dealId) {
         await fetch('/api/update-deal', {
@@ -1030,11 +1039,20 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         {(() => {
           const dc = (currentScored as any).demand_context
           if (!dc || !centre?.licensed_places) return null
-          const pi = (currentScored as any).market_context
-          const approvedPlaces = pi?.approved_pipeline_places ?? 0
-          // lodged not stored in market_context currently — use pipeline_intel if available
+          const mc = (currentScored as any).market_context
+          const approvedPlaces = mc?.approved_pipeline_places ?? 0
           const piIntel = (currentScored as any).pipeline_intel
           const lodgedPlaces = piIntel?.lodgedDAs ? piIntel.lodgedDAs * 75 : 0
+          // Use actual IM daily fee if available, else fall back to fee_benchmarking detail
+          const actualFee =
+            (currentScored as any).dimensions?.fee_benchmarking?.detail?.centre_daily_fee
+            ?? undefined
+          // Pass actual IM EBITDA so IC engine can anchor base scenario
+          const actualEbitda = effectiveEbitda ?? undefined
+          const actualRevenue = effectiveRevenue ?? undefined
+          const actualOccupancy = (ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)
+            ? ((ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)! / 100)
+            : undefined
           return (
             <ICSummary
               kids0to4={dc.estimated_kids_0_to_4 ?? 0}
@@ -1043,16 +1061,12 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               pipelineApprovedPlaces={approvedPlaces}
               pipelineLodgedPlaces={lodgedPlaces}
               centreLicensedPlaces={centre.licensed_places}
-              centreCurrentOccupancy={
-                (ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)
-                  ? ((ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)! / 100)
-                  : undefined
-              }
-              centreAvgDailyFee={
-                (currentScored as any).dimensions?.fee_benchmarking?.detail?.centre_daily_fee
-                ?? undefined
-              }
+              centreCurrentOccupancy={actualOccupancy}
+              centreAvgDailyFee={actualFee}
               centreAskingPrice={effectiveAskPrice ?? undefined}
+              actualEbitda={actualEbitda}
+              actualRevenue={actualRevenue}
+              acquiraScore={canonicalScore}
             />
           )
         })()}

@@ -57,6 +57,11 @@ interface ICSummaryProps {
   centreCurrentOccupancy?: number   // 0–1
   centreAvgDailyFee?: number
   centreAskingPrice?: number
+  // Actual IM financials — anchors base scenario when available
+  actualEbitda?: number
+  actualRevenue?: number
+  // Acquira 17-dimension score — used to align recommendation
+  acquiraScore?: number
 }
 
 export default function ICSummary({
@@ -69,6 +74,9 @@ export default function ICSummary({
   centreCurrentOccupancy,
   centreAvgDailyFee,
   centreAskingPrice,
+  actualEbitda,
+  actualRevenue,
+  acquiraScore,
 }: ICSummaryProps) {
   const [showSensitivity, setShowSensitivity] = useState(false)
   const [showMethodology, setShowMethodology] = useState(false)
@@ -83,8 +91,12 @@ export default function ICSummary({
     centre_avg_daily_fee: centreAvgDailyFee,
     centre_asking_price: centreAskingPrice,
     is_regional: isRegional,
+    actual_ebitda: actualEbitda,
+    actual_revenue: actualRevenue,
+    acquira_score: acquiraScore,
   }), [kids0to4, totalLicensedPlaces, pipelineApprovedPlaces, pipelineLodgedPlaces,
-       centreLicensedPlaces, centreCurrentOccupancy, centreAvgDailyFee, centreAskingPrice, isRegional])
+       centreLicensedPlaces, centreCurrentOccupancy, centreAvgDailyFee, centreAskingPrice,
+       isRegional, actualEbitda, actualRevenue, acquiraScore])
 
   const { scenarios, pipeline, recommendation, recommendation_rationale } = result
   const rec = REC_CONFIG[recommendation]
@@ -188,10 +200,12 @@ export default function ICSummary({
             color: '#e8edf3',
           },
           {
-            label: 'Base EBITDA',
-            value: fmtM(scenarios.base.ebitda),
-            sub: `${fmtPct(scenarios.base.ebitda_margin_pct)} margin`,
-            color: '#00b4a0',
+            label: actualEbitda ? 'EBITDA (IM)' : 'EBITDA (modelled)',
+            value: fmtM(actualEbitda ?? scenarios.base.ebitda),
+            sub: actualEbitda
+              ? `${fmtPct(actualRevenue ? (actualEbitda/actualRevenue*100) : scenarios.base.ebitda_margin_pct, 1)}% margin · from IM`
+              : `${fmtPct(scenarios.base.ebitda_margin_pct)} margin · demand model est.`,
+            color: actualEbitda ? '#22c55e' : '#00b4a0',
           },
         ].map(s => (
           <div key={s.label} style={{ background: '#152336', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '12px 14px' }}>
@@ -292,13 +306,15 @@ export default function ICSummary({
           padding: '10px 14px', background: 'rgba(255,255,255,0.02)',
           borderRadius: 6, marginTop: 6,
         }}>
-          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Participation rate:</strong> {fmtPct(result.inputs_used.participation_rate * 100)} ({isRegional ? 'regional' : 'metro'} LDC utilisation, DoE CCS March 2024).<br />
-          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Pipeline weighting:</strong> Approved DAs ×1.0 + Lodged ×0.5 = risk-adjusted supply.<br />
-          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Revenue:</strong> Stabilised occupancy × {centreLicensedPlaces} places × ${result.inputs_used.avg_daily_fee}/day × 260 operating days.<br />
-          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>EBITDA margin:</strong> {fmtPct(result.inputs_used.margin * 100)} (base). Scenario range: {isRegional ? '15–24%' : '18–27%'}.<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>EBITDA source:</strong> {actualEbitda ? 'Actual IM financials used for base scenario. Upside/downside scaled from IM.' : 'Demand-model estimated (no IM financials available). Treat as indicative.'}<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Participation rate:</strong> {fmtPct(result.inputs_used.participation_rate * 100)} ({isRegional ? 'regional' : 'metro'} LDC utilisation — DoE CCS Quarterly March 2024). Not GapMaps CPP.<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Demand growth rate:</strong> 3.0%/yr (ABS population growth for {isRegional ? 'regional' : 'metro'} catchments). Used to model pipeline absorption timeline.<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Pipeline weighting:</strong> Approved DAs ×1.0 + Lodged ×0.5 (prevents overreacting to early-stage applications).<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Revenue model:</strong> Stabilised occupancy × {centreLicensedPlaces} places × ${result.inputs_used.avg_daily_fee}/day × 260 operating days. {actualEbitda ? 'Not used for base — IM financials override.' : ''}<br />
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>EBITDA margin:</strong> {fmtPct(result.inputs_used.margin * 100)} base, scenario range {isRegional ? '15–24%' : '18–27%'}. {actualEbitda ? 'Overridden by IM data for base.' : ''}<br />
           <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Multiples:</strong> 5.0–7.2× calibrated to CBRE/JLL/Burgess Rawson Australian transactions 2022–2024.<br />
-          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Return:</strong> Unlevered 5yr cash-on-cash vs asking price. No debt assumed.<br />
-          <em>Indicative only. Not financial advice. Verify all assumptions against current market data.</em>
+          <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Return:</strong> Unlevered 5yr cash-on-cash vs asking price. No debt assumed. Actual levered returns will differ.<br />
+          <em>Indicative only. Not financial advice. Verify all assumptions against current market data before transacting.</em>
         </div>
       )}
     </div>

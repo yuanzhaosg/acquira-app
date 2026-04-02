@@ -16,12 +16,12 @@ const DIMENSION_WEIGHTS: Record<string, number> = {
   profitability_cashflow:  0.15,
   lease_economics:         0.08,
   regulatory_quality:      0.05,
-  market_position:         0.07,
-  management_systems:      0.06,
+  market_position:         0.10,  // matches main.py v2.3
+  management_systems:      0.04,
   valuation_structure:     0.08,
-  upside_levers:           0.05,
+  upside_levers:           0.00,  // zeroed to fund market_position
   // ── Sprint 3 additions ──────────────────────────────────────────────────────
-  ccs_risk:                0.03,
+  ccs_risk:                0.07,  // matches main.py v2.3
   lease_tail:              0.03,
   capex_liability:         0.02,
   staff_qualification_mix: 0.02,

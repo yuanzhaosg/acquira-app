@@ -35,6 +35,11 @@ export interface ValuationInputs {
   participation_rate_override?: number
   margin_override?: number
   growth_rate_override?: number
+  // Actual IM data — anchors base scenario when available
+  actual_ebitda?: number
+  actual_revenue?: number
+  // Acquira 17-dimension score — used to align recommendation
+  acquira_score?: number
 }
 
 export interface ScenarioOutput {
@@ -187,9 +192,25 @@ function computeScenario(
 
   // Revenue: stabilised occupancy × places × fee × operating days
   // Note: no separate utilisation multiplier — stabilised_occ already IS utilisation
-  const annualRevenue = stabilisedOcc * inputs.centre_licensed_places * avgDailyFee * OPERATING_DAYS
+  const modelledRevenue = stabilisedOcc * inputs.centre_licensed_places * avgDailyFee * OPERATING_DAYS
 
-  const ebitda = annualRevenue * margin
+  // Anchor base scenario to actual IM data when available
+  // Upside/downside scale from actual using scenario multipliers
+  let annualRevenue: number
+  let ebitda: number
+  if (inputs.actual_ebitda && inputs.actual_revenue && label === 'Base') {
+    annualRevenue = inputs.actual_revenue
+    ebitda = inputs.actual_ebitda
+  } else if (inputs.actual_ebitda && label === 'Upside') {
+    annualRevenue = modelledRevenue
+    ebitda = inputs.actual_ebitda * (1 + (margin - (inputs.margin_override ?? margin)) + 0.04)
+  } else if (inputs.actual_ebitda && label === 'Downside') {
+    annualRevenue = modelledRevenue
+    ebitda = inputs.actual_ebitda * 0.75  // 25% EBITDA compression in downside
+  } else {
+    annualRevenue = modelledRevenue
+    ebitda = annualRevenue * margin
+  }
   const ebitdaMarginPct = parseFloat((margin * 100).toFixed(1))
 
   const multiples = getMultiple(stabilisedOcc, pipeline.years_to_absorb)
@@ -310,26 +331,45 @@ export function calculateICValuation(inputs: ValuationInputs): ICValuationResult
   let recommendation: ICValuationResult['recommendation']
   let rationale: string
 
-  const baseOcc  = base.stabilised_occupancy
   const absYears = pipeline.years_to_absorb
-  const edrOk    = base.effective_kids > 0 && inputs.total_licensed_places > 0
-    ? (base.effective_kids / inputs.total_licensed_places) >= 0.50
-    : true
+  const baseOcc  = base.stabilised_occupancy
+  const score    = inputs.acquira_score
+  const fv = (n: number) => n >= 1_000_000 ? `$${(n/1_000_000).toFixed(1)}m` : `$${(n/1_000).toFixed(0)}k`
 
-  if (baseOcc >= 80 && absYears < 3 && edrOk) {
-    recommendation = 'proceed'
-    rationale = `Strong fundamentals: ${baseOcc}% stabilised occupancy, pipeline absorbs in ${absYears}yr. `
-      + `Base valuation $${(base.valuation_point / 1_000_000).toFixed(1)}m at ${base.valuation_multiple}× EBITDA.`
-  } else if (baseOcc >= 70 || absYears < 4) {
-    recommendation = 'proceed_with_caution'
-    rationale = `Viable but risk-aware: ${baseOcc}% stabilised occupancy. `
-      + (absYears >= 3 ? `Pipeline takes ${absYears}yr to absorb — occupancy compression likely in near term. ` : '')
-      + `Downside valuation $${(downside.valuation_low / 1_000_000).toFixed(1)}m — ensure price reflects risk.`
+  // Recommendation aligned with Acquira 17-dim score when available
+  if (score != null) {
+    if (score >= 62 && absYears < 4) {
+      recommendation = 'proceed'
+      rationale = `Acquira score ${score.toFixed(0)}/100 (Attractive+). `
+        + `Pipeline absorbs in ${absYears < 99 ? absYears + 'yr' : 'unknown time'}. `
+        + `Base valuation ${fv(base.valuation_point)} at ${base.valuation_multiple}× EBITDA.`
+    } else if (score >= 52 || absYears < 5) {
+      recommendation = 'proceed_with_caution'
+      rationale = `Acquira score ${score.toFixed(0)}/100 (Worth Investigating). `
+        + (absYears >= 3 && absYears < 99 ? `Pipeline takes ${absYears}yr to absorb. ` : '')
+        + `Downside valuation ${fv(downside.valuation_low)} — ensure price reflects risk.`
+    } else {
+      recommendation = 'do_not_proceed'
+      rationale = `Acquira score ${score.toFixed(0)}/100 (High Scrutiny or below). `
+        + `Downside EBITDA ${fv(downside.ebitda)} with ${absYears < 99 ? absYears + 'yr' : 'extended'} pipeline absorption.`
+    }
   } else {
-    recommendation = 'do_not_proceed'
-    rationale = `Weak fundamentals at current pricing: ${baseOcc}% stabilised occupancy `
-      + `with ${absYears}yr pipeline absorption. `
-      + `Downside EBITDA $${(downside.ebitda / 1_000).toFixed(0)}K — insufficient margin of safety.`
+    // Fallback: demand model only (no Acquira score)
+    if (baseOcc >= 80 && absYears < 3) {
+      recommendation = 'proceed'
+      rationale = `Demand model: ${baseOcc}% stabilised occupancy, pipeline absorbs in ${absYears}yr. `
+        + `Base valuation ${fv(base.valuation_point)} at ${base.valuation_multiple}× EBITDA.`
+    } else if (baseOcc >= 70 || absYears < 4) {
+      recommendation = 'proceed_with_caution'
+      rationale = `Viable but risk-aware: ${baseOcc}% modelled occupancy. `
+        + (absYears >= 3 && absYears < 99 ? `Pipeline takes ${absYears}yr to absorb. ` : '')
+        + `Downside valuation ${fv(downside.valuation_low)} — ensure price reflects risk.`
+    } else {
+      recommendation = 'do_not_proceed'
+      rationale = `Weak demand model: ${baseOcc}% stabilised occupancy `
+        + `with ${absYears < 99 ? absYears + 'yr' : 'extended'} pipeline absorption. `
+        + `Downside EBITDA ${fv(downside.ebitda)} — insufficient margin of safety.`
+    }
   }
 
   return {
