@@ -478,12 +478,13 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'teal' |
 
 // ── MAIN REPORT VIEW ──────────────────────────────────────────────────────────
 
-export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew, sampleMode }: {
+export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew, sampleMode, initialOverrides }: {
   extracted: ExtractedDeal; scored: ScoredDeal; dealId?: string | null
   saving?: boolean; onBack?: () => void; onNew?: () => void; sampleMode?: boolean
+  initialOverrides?: Record<string, number | string>
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
-  const [overrides, setOverrides]       = useState<Record<string, number | string>>({})
+  const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
   const [currentScored, setCurrentScored] = useState<ScoredDeal>(scored)
   const [rescoring, setRescoring]       = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)
@@ -1082,11 +1083,15 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         )}
 
         {/* DEMAND INTELLIGENCE PANEL */}
-        {(currentScored as any).effective_demand_ratio != null && (() => {
-          const edr  = (currentScored as any).effective_demand_ratio as number
-          const zone = (currentScored as any).demand_zone as string
-          const dc   = (currentScored as any).demand_context as any
-          const mc   = (currentScored as any).market_context as any
+        {(() => {
+          // Support both direct fields and nested demand_context
+          const sc = currentScored as any
+          const dc = sc.demand_context ?? null
+          const edr = sc.effective_demand_ratio ?? dc?.adj_kids_per_place?.mid ?? null
+          if (edr == null) return null
+          const zone = sc.demand_zone ?? dc?.zone ?? 'balanced'
+          const mc   = sc.market_context as any
+          return (
           const zoneColor = zone === 'undersupplied' ? '#22c55e' : zone === 'balanced' ? '#f59e0b' : '#ef4444'
           const zoneLabel = zone === 'undersupplied' ? 'Undersupplied' : zone === 'balanced' ? 'Balanced' : 'Oversupplied'
           const confColor = dc?.confidence === 'high' ? '#22c55e' : dc?.confidence === 'medium' ? '#f59e0b' : '#ef4444'
@@ -1152,6 +1157,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               </div>
             </div>
           )
+        })()
         })()}
 
         {/* COMPETITIVE MAP */}

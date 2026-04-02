@@ -224,6 +224,7 @@ export default function Home() {
   const [extracted, setExtracted] = useState<ExtractedDeal | null>(null)
   const [scored, setScored]       = useState<ScoredDeal | null>(null)
   const [dealId, setDealId]       = useState<string | null>(null)
+  const [savedOverrides, setSavedOverrides] = useState<Record<string, number | string>>({})
   const [compareDeals, setCompareDeals] = useState<{ id: string; centre_name: string | null; total_score: number | null; scored: unknown }[]>([])
 
   function handleUploadIntent() {
@@ -304,6 +305,7 @@ export default function Home() {
         extracted={extracted}
         scored={scored}
         dealId={dealId}
+        initialOverrides={savedOverrides}
         onBack={() => setView('list')}
         onNew={() => setView('upload')}
       />
@@ -329,6 +331,7 @@ export default function Home() {
               setExtracted(deal.extracted as ExtractedDeal)
               setScored(deal.scored as ScoredDeal)
               setDealId(id)
+              setSavedOverrides((deal.overrides as Record<string, number | string>) ?? {})
               setView('report')
             }
           }}

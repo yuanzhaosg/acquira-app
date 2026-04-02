@@ -38,7 +38,7 @@ export interface DealRecord {
 
   extracted: ExtractedDeal
   scored: ScoredDeal
-  overrides: Record<string, number>
+  overrides: Record<string, number | string>
   source_file: string | null
   data_quality: string | null
   notes: string | null
@@ -79,7 +79,7 @@ function countCriticalFlags(scored: ScoredDeal): { hasCritical: boolean; count: 
 export async function saveDeal(
   extracted: ExtractedDeal,
   scored: ScoredDeal,
-  overrides: Record<string, number> = {}
+  overrides: Record<string, number | string> = {}
 ): Promise<{ id: string } | null> {
   const centre   = extracted.centre
   const fy25     = extracted.financials?.fy25
@@ -137,7 +137,7 @@ export async function saveDeal(
 export async function updateDealScore(
   id: string,
   scored: ScoredDeal,
-  overrides: Record<string, number>
+  overrides: Record<string, number | string>
 ): Promise<boolean> {
   const canonicalScore = resolveScore(scored)
   const { hasCritical, count: criticalCount } = countCriticalFlags(scored)
