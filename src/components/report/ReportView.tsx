@@ -1065,7 +1065,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 
       {/* ── STICKY HEADER ── */}
       <header className="report-header" style={{
-        position: 'sticky', top: 0, zIndex: 100,
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998,
         background: 'rgba(13,27,42,0.96)', backdropFilter: 'blur(12px)',
         borderBottom: '1px solid rgba(255,255,255,0.07)',
         padding: '0 32px', height: 56,
@@ -1137,6 +1137,9 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           </button>
         </div>
       </header>
+
+      {/* Spacer for fixed header */}
+      <div style={{ height: 56 }} aria-hidden />
 
       {/* ── HERO ── */}
       <section className="report-hero" style={{

@@ -56,7 +56,7 @@ export default function UnifiedNav({
   }, [menuOpen])
 
   const navStyle: React.CSSProperties = {
-    position: 'sticky', top: 0, zIndex: 300,
+    position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '0 32px', height: 54,
     background: 'rgba(13,27,42,0.98)', backdropFilter: 'blur(16px)',
@@ -190,6 +190,8 @@ export default function UnifiedNav({
 
   return (
     <>
+      {/* Spacer so fixed nav doesn't overlap page content */}
+      <div style={{ height: 54, flexShrink: 0 }} aria-hidden />
       <nav style={navStyle}>
         <button style={logoStyle} onClick={onLogoClick}>
           <div style={logoIcon}>🏫</div>

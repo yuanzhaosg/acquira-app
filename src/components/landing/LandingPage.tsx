@@ -372,7 +372,7 @@ export default function LandingPage({ onGoToApp, onViewSample, onSignIn, onMapSi
         gridTemplateColumns: '1fr 1fr',
         alignItems: 'center',
         gap: 0,
-        padding: '120px 48px 80px',
+        padding: '72px 48px 80px',
         position: 'relative',
         overflow: 'hidden',
       }} className="hero-grid">
