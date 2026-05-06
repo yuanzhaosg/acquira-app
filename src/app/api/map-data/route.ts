@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 )
 
-const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY!
+const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 // Dynamic radius based on postcode density
 // Dense urban (<20 km²) → 2km, suburban (20-80 km²) → 3km, outer/regional (>80 km²) → 5km
 function getRadiusKm(postcodeAreaKm2: number | undefined): number {
@@ -20,7 +20,16 @@ function getRadiusLabel(radiusKm: number): string {
   if (radiusKm === 3) return 'suburban'
   return 'outer/regional'
 }
-const DEFAULT_RADIUS_M = 3000
+interface NearbyCentreRow {
+  service_id?: string
+  service_name?: string
+  suburb?: string
+  nqs_rating?: string
+  licensed_places?: number | null
+  distance_m?: number | null
+  lat?: number | null
+  lng?: number | null
+}
 
 // ── ABS 2021 Census: Kids aged 0–4 by postcode (VIC) ──────────────────────────
 // Source: ABS Census 2021 G04A, POA geography, Age_yr_0_4_P
@@ -34,6 +43,7 @@ const POSTCODE_AREA_KM2: Record<string, number> = {"3000": 2.48, "3002": 1.86, "
 
 // ── Geocode address ────────────────────────────────────────────────────────────
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  if (!GOOGLE_API_KEY) return null
   const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address + ', Australia')}&key=${GOOGLE_API_KEY}`
   const res  = await fetch(url)
   const data = await res.json()
@@ -45,7 +55,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
 }
 
 // ── Supply analysis ────────────────────────────────────────────────────────────
-function analyseSupply(competitors: any[], targetPlaces: number) {
+function analyseSupply(competitors: NearbyCentreRow[], targetPlaces: number) {
   const totalPlaces    = competitors.reduce((sum, c) => sum + (c.licensed_places || 0), 0) + targetPlaces
   const exceeding      = competitors.filter(c => c.nqs_rating === 'Exceeding NQS').length
   const workingTowards = competitors.filter(c => c.nqs_rating === 'Working Towards NQS').length
@@ -202,6 +212,13 @@ export async function POST(req: NextRequest) {
     if (!address && lat_override === undefined) {
       return NextResponse.json({ error: 'Address or coordinates required' }, { status: 400 })
     }
+    if (!GOOGLE_API_KEY && (lat_override === undefined || lng_override === undefined)) {
+      console.warn('map-data unavailable: GOOGLE_MAPS_API_KEY or NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not configured')
+      return NextResponse.json(
+        { error: 'Map geocoding is not configured', code: 'missing_server_map_token' },
+        { status: 503 },
+      )
+    }
 
     // ── 1. Geocode (skip if lat/lng passed directly from interactive map drag) ──
     let coords: { lat: number; lng: number } | null = null
@@ -214,7 +231,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (!coords) {
-      return NextResponse.json({ error: 'Could not geocode address' }, { status: 400 })
+      console.warn('map-data geocode failed:', { address: fullAddress })
+      return NextResponse.json({ error: 'Could not geocode address', code: 'geocode_failed' }, { status: 400 })
+    }
+    if (!Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) {
+      console.warn('map-data invalid coordinates:', { coords, address: fullAddress })
+      return NextResponse.json({ error: 'Invalid coordinates returned for address', code: 'invalid_coordinates' }, { status: 400 })
     }
 
     // ── 2. Determine dynamic radius from postcode area ────────────────────────
@@ -235,7 +257,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Filter out the target centre itself
-    const filtered = (competitors || []).filter((c: any) =>
+    const filtered = ((competitors ?? []) as NearbyCentreRow[]).filter(c =>
       !c.service_name?.toLowerCase().includes(
         address.toLowerCase().split(' ')[0] || '__'
       )
@@ -285,13 +307,13 @@ export async function POST(req: NextRequest) {
         address:         fullAddress,
         licensed_places: licensed_places || 0,
       },
-      competitors: filtered.map((c: any) => ({
+      competitors: filtered.map(c => ({
         id:              c.service_id,
         name:            c.service_name,
         suburb:          c.suburb,
         nqs_rating:      c.nqs_rating,
         licensed_places: c.licensed_places,
-        distance_m:      Math.round(c.distance_m),
+        distance_m:      Math.round(c.distance_m ?? 0),
         lat:             c.lat,
         lng:             c.lng,
       })),

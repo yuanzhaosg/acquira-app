@@ -13,6 +13,8 @@ import { useAuth, supabase } from '@/lib/useAuth'
 import { getDeal } from '@/lib/deals'
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
+import type { DealWorkflow } from '@/types/workflow'
+import type { RetainedSourceFile } from '@/types/runs'
 
 // ── Sample deal for unauthenticated preview ────────────────────────────────────
 const SAMPLE_EXTRACTED = {
@@ -246,6 +248,7 @@ export default function Home() {
   const [signupReason, setSignupReason] = useState<'upload' | 'map'>('upload')
   const [extracted, setExtracted] = useState<ExtractedDeal | null>(null)
   const [scored, setScored]       = useState<ScoredDeal | null>(null)
+  const [workflow, setWorkflow]   = useState<DealWorkflow | null>(null)
   const [dealId, setDealId]       = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
     return sessionStorage.getItem('acquira_deal_id') ?? null
@@ -263,6 +266,7 @@ export default function Home() {
         if (!deal) return
         setExtracted(deal.extracted as ExtractedDeal)
         setScored(deal.scored as ScoredDeal)
+        setWorkflow((deal.workflow as DealWorkflow | null) ?? null)
         setDealId(savedDealId)
         // Overrides: use saved DB overrides (may include user's entries)
         const dbOverrides = (deal.overrides as Record<string, number | string>) ?? {}
@@ -304,6 +308,16 @@ export default function Home() {
     }
   }
 
+  async function refreshCurrentDeal() {
+    if (!dealId) return
+    const deal = await getDeal(dealId)
+    if (!deal) return
+    setExtracted(deal.extracted as ExtractedDeal)
+    setScored(deal.scored as ScoredDeal)
+    setWorkflow((deal.workflow as DealWorkflow | null) ?? null)
+    setSavedOverrides((deal.overrides as Record<string, number | string>) ?? {})
+  }
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: '#0d1b2a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -320,6 +334,7 @@ export default function Home() {
         <ReportView
           extracted={SAMPLE_EXTRACTED as unknown as ExtractedDeal}
           scored={SAMPLE_SCORED as unknown as ScoredDeal}
+          workflow={null}
           dealId={null}
           onBack={() => setView('landing')}
           onNew={handleUploadIntent}
@@ -351,11 +366,13 @@ export default function Home() {
       <ReportView
         extracted={extracted}
         scored={scored}
+        workflow={workflow}
         dealId={dealId}
         initialOverrides={savedOverrides}
         onBack={() => setView('list')}
         onNew={() => setView('upload')}
         onMap={() => setView('map')}
+        onPromoted={refreshCurrentDeal}
       />
     )
   }
@@ -379,6 +396,7 @@ export default function Home() {
             if (deal) {
               setExtracted(deal.extracted as ExtractedDeal)
               setScored(deal.scored as ScoredDeal)
+              setWorkflow((deal.workflow as DealWorkflow | null) ?? null)
               setDealId(id)
               if (typeof window !== 'undefined') sessionStorage.setItem('acquira_deal_id', id)
               setSavedOverrides((deal.overrides as Record<string, number | string>) ?? {})
@@ -453,11 +471,14 @@ export default function Home() {
         </div>
 
         <UploadWidget
-          onResult={async (ext, sc) => {
+          onResult={async (ext, sc, wf, retained) => {
             const extracted = ext as ExtractedDeal
             const scored    = sc as ScoredDeal
+            const workflow  = (wf as DealWorkflow | undefined) ?? null
+            const retainedSourceFiles = (retained ?? []) as RetainedSourceFile[]
             setExtracted(extracted)
             setScored(scored)
+            setWorkflow(workflow)
             // Save to pipeline before navigating to report
             let savedId: string | null = null
             try {
@@ -473,7 +494,7 @@ export default function Home() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${freshSession.access_token}`,
                   },
-                  body: JSON.stringify({ extracted, scored, overrides: {} }),
+                  body: JSON.stringify({ extracted, scored, workflow, overrides: {}, retained_source_files: retainedSourceFiles }),
                 })
                 if (res.ok) {
                   const data = await res.json()

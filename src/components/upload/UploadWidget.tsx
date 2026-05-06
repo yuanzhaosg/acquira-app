@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import type { RetainedSourceFile } from '@/types/runs'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,8 +24,20 @@ interface PipelineIntel {
   notes: string
 }
 
+type PipelineProjectStatus = 'lodged' | 'approved' | 'under_construction' | 'opened' | 'refused' | 'withdrawn' | 'unknown'
+
+interface PipelineProjectDraft {
+  id: string
+  name: string
+  address: string
+  status: PipelineProjectStatus
+  proposed_places: string
+  source_url: string
+  notes: string
+}
+
 interface UploadWidgetProps {
-  onResult: (extracted: unknown, scored: unknown) => void
+  onResult: (extracted: unknown, scored: unknown, workflow?: unknown, retainedSourceFiles?: RetainedSourceFile[]) => void
 }
 
 interface ProgressStep {
@@ -47,6 +60,21 @@ type Stage =
   | { kind: 'processing'; filenames: string[]; elapsed: number; progress: ProgressStep | null }
   | { kind: 'error'; message: string; filenames?: string[] }
 
+interface PipelineCompleteEvent {
+  extracted?: unknown
+  scored?: unknown
+  workflow?: unknown
+  retained_source_files?: RetainedSourceFile[]
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function errorMessage(value: unknown, fallback: string): string {
+  return value instanceof Error ? value.message : fallback
+}
+
 const PIPELINE_STEPS = [
   { step: 1, label: 'Extract documents' },
   { step: 2, label: 'Extract metrics' },
@@ -64,6 +92,14 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function parseProposedPlaces(value: string): number | undefined {
+  const cleaned = value.trim().replace(/,/g, '')
+  if (!cleaned) return undefined
+  if (!/^\d+$/.test(cleaned)) return undefined
+  const parsed = Number(cleaned)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined
+}
+
 export default function UploadWidget({ onResult }: UploadWidgetProps) {
   const [stage, setStage]       = useState<Stage>({ kind: 'idle' })
   const [dragging, setDragging] = useState(false)
@@ -72,6 +108,15 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
     approved_das: 0,
     lodged_applications: 0,
     permit_sites: 0,
+    notes: '',
+  })
+  const [pipelineProjects, setPipelineProjects] = useState<PipelineProjectDraft[]>([])
+  const [projectDraft, setProjectDraft] = useState<Omit<PipelineProjectDraft, 'id'>>({
+    name: '',
+    address: '',
+    status: 'approved',
+    proposed_places: '',
+    source_url: '',
     notes: '',
   })
 
@@ -171,7 +216,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
     setStage({ kind: 'ready', filenames, storagePaths })
   }, [])
 
-  const generate = useCallback(async (storagePaths: string[], filenames: string[], intel: PipelineIntel) => {
+  const generate = useCallback(async (storagePaths: string[], filenames: string[], intel: PipelineIntel, projects: PipelineProjectDraft[]) => {
     const startTime = Date.now()
     setStage({ kind: 'processing', filenames, elapsed: 0, progress: null })
 
@@ -191,6 +236,25 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
       permit_sites: intel.permit_sites,
       notes: intel.notes || undefined,
     } : undefined
+    const pipelineProjectsPayload = projects
+      .map(project => {
+        const proposedPlaces = parseProposedPlaces(project.proposed_places)
+        const name = project.name.trim()
+        const address = project.address.trim()
+        const sourceUrl = project.source_url.trim()
+        const notes = project.notes.trim()
+        return {
+          id: project.id,
+          name: name || undefined,
+          address: address || undefined,
+          status: project.status,
+          proposed_places: proposedPlaces,
+          source_url: sourceUrl || undefined,
+          notes: notes || undefined,
+          confidence: sourceUrl ? 'medium' : 'low',
+        }
+      })
+      .filter(project => project.name || project.address || project.source_url || project.notes || project.proposed_places != null)
 
     try {
       const res = await fetch('/api/pipeline', {
@@ -202,6 +266,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
           storagePath: storagePaths[0],   // legacy compat
           filename: filenames.join(', '), // legacy compat
           pipelineIntel: pipelineIntelPayload,
+          pipelineProjects: pipelineProjectsPayload.length ? pipelineProjectsPayload : undefined,
         }),
       })
 
@@ -230,7 +295,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
           if (!eventMatch || !dataMatch) continue
 
           const eventType = eventMatch[1].trim()
-          let data: any
+          let data: unknown
           try { data = JSON.parse(dataMatch[1]) } catch { continue }
 
           if (eventType === 'progress') {
@@ -240,12 +305,14 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
                 : prev
             )
           } else if (eventType === 'complete') {
+            const completeData = data as PipelineCompleteEvent
             clearInterval(elapsedInterval)
-            onResult(data.extracted, data.scored)
+            onResult(completeData.extracted, completeData.scored, completeData.workflow, completeData.retained_source_files)
             return
           } else if (eventType === 'error') {
+            const errorData = asRecord(data)
             clearInterval(elapsedInterval)
-            setStage({ kind: 'error', message: data.message || 'Pipeline failed', filenames })
+            setStage({ kind: 'error', message: typeof errorData.message === 'string' ? errorData.message : 'Pipeline failed', filenames })
             return
           }
         }
@@ -254,11 +321,27 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
       clearInterval(elapsedInterval)
       setStage({ kind: 'error', message: 'Pipeline ended unexpectedly', filenames })
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearInterval(elapsedInterval)
-      setStage({ kind: 'error', message: err.message || 'Network error', filenames })
+      setStage({ kind: 'error', message: errorMessage(err, 'Network error'), filenames })
     }
   }, [onResult])
+
+  function addPipelineProject() {
+    if (!projectDraft.name.trim() && !projectDraft.address.trim()) return
+    setPipelineProjects(prev => [
+      ...prev,
+      { ...projectDraft, proposed_places: parseProposedPlaces(projectDraft.proposed_places)?.toString() ?? '', id: `manual_${Date.now()}_${prev.length + 1}` },
+    ])
+    setProjectDraft({
+      name: '',
+      address: '',
+      status: 'approved',
+      proposed_places: '',
+      source_url: '',
+      notes: '',
+    })
+  }
 
   const handleFiles = useCallback((fileList: FileList | null) => {
     if (!fileList?.length) return
@@ -318,6 +401,18 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
 
   // For many files, show a condensed summary rather than 30 individual bars
   const SHOW_INDIVIDUAL_BARS = 8
+  const projectInputStyle = {
+    width: '100%',
+    background: 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 6,
+    color: '#e8edf3',
+    fontSize: 12,
+    padding: '8px 10px',
+    fontFamily: "'DM Sans', sans-serif",
+    minHeight: 38,
+    boxSizing: 'border-box' as const,
+  }
 
   return (
     <>
@@ -337,6 +432,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
           .upload-title { font-size: 16px !important; }
           .upload-cta   { width: 100%; display: block; text-align: center; }
           .pipeline-grid { grid-template-columns: 1fr !important; }
+          .pipeline-project-grid { grid-template-columns: 1fr !important; }
           .da-input     { min-height: 44px !important; font-size: 16px !important; }
           .upload-row   { flex-direction: column !important; }
           .upload-row input, .upload-row select { width: 100% !important; }
@@ -558,6 +654,113 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
                       }}
                     />
                   </div>
+                  <div style={{
+                    borderTop: '1px solid rgba(255,255,255,0.08)',
+                    paddingTop: 14, marginTop: 14, display: 'grid', gap: 10,
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'DM Mono', monospace" }}>Structured DA projects</div>
+                        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.42)', marginTop: 3 }}>
+                          Add known projects so pipeline supply becomes durable evidence.
+                        </div>
+                      </div>
+                      {pipelineProjects.length > 0 && (
+                        <span style={{ fontSize: 11, color: '#00b4a0', fontFamily: "'DM Mono', monospace" }}>
+                          {pipelineProjects.length} added
+                        </span>
+                      )}
+                    </div>
+                    <div className="pipeline-project-grid" style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.1fr 0.8fr 0.7fr', gap: 8 }}>
+                      <input
+                        value={projectDraft.name}
+                        onChange={e => setProjectDraft(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Project name"
+                        style={projectInputStyle}
+                      />
+                      <input
+                        value={projectDraft.address}
+                        onChange={e => setProjectDraft(prev => ({ ...prev, address: e.target.value }))}
+                        placeholder="Address"
+                        style={projectInputStyle}
+                      />
+                      <select
+                        value={projectDraft.status}
+                        onChange={e => setProjectDraft(prev => ({ ...prev, status: e.target.value as PipelineProjectStatus }))}
+                        style={projectInputStyle}
+                      >
+                        <option value="approved">Approved</option>
+                        <option value="under_construction">Under construction</option>
+                        <option value="lodged">Lodged</option>
+                        <option value="opened">Opened</option>
+                        <option value="refused">Refused</option>
+                        <option value="withdrawn">Withdrawn</option>
+                        <option value="unknown">Unknown</option>
+                      </select>
+                      <input
+                        value={projectDraft.proposed_places}
+                        onChange={e => setProjectDraft(prev => ({ ...prev, proposed_places: e.target.value }))}
+                        placeholder="Places"
+                        type="number"
+                        min={0}
+                        style={projectInputStyle}
+                      />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8 }}>
+                      <input
+                        value={projectDraft.source_url}
+                        onChange={e => setProjectDraft(prev => ({ ...prev, source_url: e.target.value }))}
+                        placeholder="Source URL"
+                        style={projectInputStyle}
+                      />
+                      <input
+                        value={projectDraft.notes}
+                        onChange={e => setProjectDraft(prev => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Notes"
+                        style={projectInputStyle}
+                      />
+                      <button
+                        type="button"
+                        onClick={addPipelineProject}
+                        style={{
+                          background: 'rgba(0,180,160,0.12)', border: '1px solid rgba(0,180,160,0.28)',
+                          color: '#00b4a0', borderRadius: 6, padding: '0 14px', fontSize: 12,
+                          fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+                          minHeight: 38, whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Add project
+                      </button>
+                    </div>
+                    {pipelineProjects.length > 0 && (
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        {pipelineProjects.map(project => (
+                          <div key={project.id} style={{
+                            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center',
+                            background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)',
+                            borderRadius: 6, padding: '8px 10px',
+                          }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 12, color: '#e8edf3', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {project.name || project.address || 'Pipeline project'}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.36)', marginTop: 2 }}>
+                                {project.status.replace(/_/g, ' ')} · {project.proposed_places || 'unknown'} places
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setPipelineProjects(prev => prev.filter(p => p.id !== project.id))}
+                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12 }}
+                              aria-label={`Remove ${project.name || project.address || 'pipeline project'}`}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 12 }}>
                     <a
                       href="https://www.planningalerts.org.au"
@@ -582,7 +785,7 @@ export default function UploadWidget({ onResult }: UploadWidgetProps) {
 
             {/* Generate button */}
             <button
-              onClick={() => generate(s.storagePaths, s.filenames, pipelineIntel)}
+              onClick={() => generate(s.storagePaths, s.filenames, pipelineIntel, pipelineProjects)}
               style={{
                 width: '100%', background: '#00b4a0', border: 'none',
                 borderRadius: 8, padding: '14px 24px', color: '#0d1b2a',

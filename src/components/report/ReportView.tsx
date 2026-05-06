@@ -1,11 +1,26 @@
 'use client'
 import CompetitiveMap from '@/components/map/CompetitiveMap'
 import ICSummary from '@/components/report/ICSummary'
+import FactsReviewPanel from '@/components/report/FactsReviewPanel'
+import ValuationGatePanel from '@/components/report/ValuationGatePanel'
+import DiligenceChecklist from '@/components/report/DiligenceChecklist'
+import ExtractionWarnings from '@/components/report/ExtractionWarnings'
+import ICMemoView from '@/components/report/ICMemoView'
+import EvidenceDrawer from '@/components/report/EvidenceDrawer'
+import ICPackExport from '@/components/report/ICPackExport'
+import MarketAuditPanel from '@/components/report/MarketAuditPanel'
+import DiligenceWorkspace from '@/components/diligence/DiligenceWorkspace'
+import RunHistoryDrawer from '@/components/report/RunHistoryDrawer'
+import RunVersionBanner from '@/components/report/RunVersionBanner'
+import RunSnapshotView from '@/components/report/RunSnapshotView'
 import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/useAuth'
 import type {
   ScoredDeal, DimensionId, Conditional, DealBreakerFlag,
 } from '@/types/scored'
 import type { ExtractedDeal } from '@/types/extracted'
+import type { DealWorkflow, WorkflowFact } from '@/types/workflow'
+import type { UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -480,14 +495,17 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'teal' |
 
 // ── MAIN REPORT VIEW ──────────────────────────────────────────────────────────
 
-export default function ReportView({ extracted, scored, dealId, saving, onBack, onNew, sampleMode, initialOverrides, onMap }: {
+export default function ReportView({ extracted, scored, workflow, dealId, saving, onBack, onNew, sampleMode, initialOverrides, onMap, onPromoted }: {
   extracted: ExtractedDeal; scored: ScoredDeal; dealId?: string | null
+  workflow?: DealWorkflow | null
   saving?: boolean; onBack?: () => void; onNew?: () => void; sampleMode?: boolean
   initialOverrides?: Record<string, number | string>
   onMap?: () => void
+  onPromoted?: () => void
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
+  const [evidenceFact, setEvidenceFact] = useState<WorkflowFact | null>(null)
 
   // Sync overrides when a deal is loaded (initialOverrides arrives after async getDeal)
   // Runs on dealId change AND when initialOverrides reference changes
@@ -499,6 +517,12 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const [rescoring, setRescoring]       = useState(false)
   const [rescoreError, setRescoreError] = useState<string | null>(null)
   const [resaved, setResaved]           = useState(false)
+  const [currentRunSummary, setCurrentRunSummary] = useState<UnderwritingRunSummary | null>(null)
+  const [currentRunSnapshot, setCurrentRunSnapshot] = useState<UnderwritingRun | null>(null)
+  const [runMetadataLoaded, setRunMetadataLoaded] = useState(false)
+  const [staleRunDocumentCount, setStaleRunDocumentCount] = useState(0)
+  const [viewedRunSnapshot, setViewedRunSnapshot] = useState<{ run: UnderwritingRun; summary: UnderwritingRunSummary; currentRun?: UnderwritingRunSummary | null } | null>(null)
+  const [promotingViewedRun, setPromotingViewedRun] = useState(false)
 
   // Chinese translation
   const [translating, setTranslating]   = useState(false)
@@ -687,6 +711,106 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 
   useEffect(() => { setCurrentScored(scored) }, [scored])
 
+  useEffect(() => {
+    let cancelled = false
+    async function loadCurrentRunMetadata() {
+      if (!dealId) {
+        setCurrentRunSummary(null)
+        setCurrentRunSnapshot(null)
+        setStaleRunDocumentCount(0)
+        setRunMetadataLoaded(true)
+        return
+      }
+      setRunMetadataLoaded(false)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          if (!cancelled) setRunMetadataLoaded(true)
+          return
+        }
+        const runRes = await fetch(`/api/deals/${dealId}/runs`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        const runBody = await runRes.json().catch(() => ({}))
+        if (!runRes.ok || cancelled) return
+        const runs = Array.isArray(runBody.runs) ? runBody.runs as UnderwritingRunSummary[] : []
+        const currentRun = runs.find(run => run.is_current) ?? runs[0] ?? null
+        setCurrentRunSummary(currentRun)
+
+        if (currentRun) {
+          const detailRes = await fetch(`/api/deals/${dealId}/runs/${currentRun.id}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          const detailBody = await detailRes.json().catch(() => ({}))
+          if (!cancelled && detailRes.ok) {
+            setCurrentRunSnapshot(detailBody.run as UnderwritingRun)
+          }
+
+          const docsRes = await fetch(`/api/deals/${dealId}/diligence/documents`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          })
+          const docsBody = await docsRes.json().catch(() => ({}))
+          if (!cancelled && docsRes.ok && currentRun.completed_at) {
+            const completedAt = new Date(currentRun.completed_at).getTime()
+            const documents = Array.isArray(docsBody.documents) ? docsBody.documents as Array<{ created_at?: string | null }> : []
+            setStaleRunDocumentCount(documents.filter(doc => {
+              if (!doc.created_at || !Number.isFinite(completedAt)) return false
+              return new Date(doc.created_at).getTime() > completedAt
+            }).length)
+          } else if (!cancelled) {
+            setStaleRunDocumentCount(0)
+          }
+        } else {
+          setCurrentRunSnapshot(null)
+          setStaleRunDocumentCount(0)
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentRunSummary(null)
+          setCurrentRunSnapshot(null)
+          setStaleRunDocumentCount(0)
+        }
+      } finally {
+        if (!cancelled) setRunMetadataLoaded(true)
+      }
+    }
+    loadCurrentRunMetadata()
+    return () => { cancelled = true }
+  }, [dealId])
+
+  async function promoteSnapshotRun(summary: UnderwritingRunSummary) {
+    if (!dealId) return
+    setPromotingViewedRun(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Sign in again to promote the run.')
+      const res = await fetch(`/api/deals/${dealId}/runs/${summary.id}/promote`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'Failed to promote run')
+      setViewedRunSnapshot(null)
+      onPromoted?.()
+      if (!onPromoted && typeof window !== 'undefined') window.location.reload()
+    } finally {
+      setPromotingViewedRun(false)
+    }
+  }
+
+  if (viewedRunSnapshot) {
+    return (
+      <RunSnapshotView
+        run={viewedRunSnapshot.run}
+        summary={viewedRunSnapshot.summary}
+        currentRun={viewedRunSnapshot.currentRun ?? currentRunSummary}
+        onReturnToCurrent={() => setViewedRunSnapshot(null)}
+        onPromote={promoteSnapshotRun}
+        promoting={promotingViewedRun}
+      />
+    )
+  }
+
   const saveOverridesToDB = async (newOverrides: Record<string, number | string>) => {
     if (!dealId) return
     try {
@@ -828,7 +952,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   const numOvr = (k: string): number | undefined => {
     const v = overrides[k]; return typeof v === 'number' ? v : undefined
   }
-  const effectiveOccupancy      = numOvr('occupancy')       ?? occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct
+  const effectiveOccupancy      = numOvr('occupancy')       ?? occupancy?.current_month_pct ?? occupancy?.latest_week_pct ?? occupancy?.avg_4wk_pct
   const effectiveEbitda          = numOvr('ebitda')           ?? fy25?.ebitda ?? ratios?.ebitda_fy25
   const effectiveAskPrice        = numOvr('asking_price')     ?? financials?.asking_price ?? ratios?.asking_price
   const effectiveRevenue         = numOvr('revenue')          ?? fy25?.revenue ?? ratios?.revenue_fy25
@@ -908,9 +1032,11 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
   ]
 
   const dimEntries = Object.entries(currentScored.dimensions)
+  const mapPipelineProjects = (workflow?.pipeline_projects ?? currentScored.pipeline_projects ?? [])
+    .filter(project => Boolean(project.address?.trim()))
 
   return (
-    <div style={{
+    <div className="has-ic-pack" style={{
       background: '#0d1b2a', color: '#e8edf3',
       fontFamily: 'IBM Plex Sans, sans-serif',
       minHeight: '100vh', fontSize: 14, lineHeight: 1.6
@@ -951,6 +1077,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0d1b2a; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .ic-pack-export { display: none; }
 
         /* ── Mobile responsiveness ── */
         @media (max-width: 768px) {
@@ -972,6 +1099,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         @media print {
           /* ── PAGE SETUP ── */
           @page { margin: 16mm 18mm; size: A4; }
+          @page :first { margin: 14mm 18mm 16mm; }
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
 
@@ -1008,6 +1136,7 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           .print-flag-red     { background-color: #fef2f2 !important; border-color: #fca5a5 !important; }
           .print-flag-amber   { background-color: #fffbeb !important; border-color: #fcd34d !important; }
           .print-flag-green   { background-color: #f0fdf4 !important; border-color: #86efac !important; }
+          .ic-pack-export     { display: block !important; }
 
           /* Typography */
           h1, h2, h3 { color: #0d1b2a !important; font-family: 'Space Grotesk','Segoe UI',Arial,sans-serif !important; }
@@ -1016,11 +1145,258 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
 
           /* ── HIDE INTERACTIVE ── */
           .report-header, nav, .no-print, .score-ring-wrap, .dim-score-bar { display: none !important; }
+          .has-ic-pack .print-only-header,
+          .has-ic-pack .report-hero,
+          .has-ic-pack .report-content,
+          .has-ic-pack .score-interpretation,
+          .has-ic-pack > footer:not(.ic-pack-footer) {
+            display: none !important;
+          }
 
           /* ── LAYOUT ── */
           .report-hero   { padding: 16px 0 12px !important; display: block !important; border-bottom: 2px solid #00b4a0 !important; }
           .report-content { padding: 0 !important; max-width: 100% !important; }
           .report-metrics { grid-template-columns: repeat(4,1fr) !important; gap: 8px !important; }
+          .ic-pack-export {
+            color: #172033 !important;
+            font-family: 'IBM Plex Sans', 'Inter', 'Segoe UI', Arial, sans-serif !important;
+            font-size: 9.6pt !important;
+            line-height: 1.45 !important;
+          }
+          .ic-pack-cover {
+            min-height: 170mm;
+            display: grid !important;
+            grid-template-rows: 1fr auto;
+            border-bottom: 4px solid #0f766e !important;
+            padding: 12mm 0 14mm !important;
+            page-break-after: always;
+            break-after: page;
+            break-inside: avoid;
+          }
+          .ic-pack-brand {
+            color: #0f766e !important;
+            font: 700 10pt 'IBM Plex Mono', monospace !important;
+            letter-spacing: 0.12em !important;
+            text-transform: uppercase !important;
+            margin-bottom: 18mm !important;
+          }
+          .ic-pack-cover h1 {
+            font-size: 32pt !important;
+            line-height: 1.05 !important;
+            margin: 0 0 7mm !important;
+            max-width: 150mm !important;
+          }
+          .ic-pack-cover p {
+            color: #475569 !important;
+            font-size: 12pt !important;
+            max-width: 130mm !important;
+          }
+          .ic-pack-decision {
+            border: 1px solid #99f6e4 !important;
+            border-left: 5px solid #0f766e !important;
+            background-color: #f0fdfa !important;
+            padding: 8mm !important;
+            break-inside: avoid;
+          }
+          .ic-pack-decision-blocked {
+            border-color: #fecaca !important;
+            border-left-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
+          }
+          .ic-pack-decision span,
+          .ic-pack-section-kicker,
+          .ic-pack-label,
+          .ic-pack-kv-label {
+            font-family: 'IBM Plex Mono', monospace !important;
+            letter-spacing: 0.08em !important;
+            text-transform: uppercase !important;
+          }
+          .ic-pack-decision span {
+            color: #64748b !important;
+            font-size: 8pt !important;
+          }
+          .ic-pack-decision strong {
+            display: block !important;
+            margin-top: 2mm !important;
+            color: #0f172a !important;
+            font-size: 18pt !important;
+            line-height: 1.15 !important;
+          }
+          .ic-pack-decision em {
+            display: block !important;
+            margin-top: 3mm !important;
+            color: #991b1b !important;
+            font-style: normal !important;
+            font-weight: 700 !important;
+            line-height: 1.35 !important;
+          }
+          .ic-pack-section {
+            padding: 0 0 9mm !important;
+            margin: 0 0 8mm !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            break-inside: auto;
+            page-break-inside: auto;
+          }
+          .ic-pack-section-break {
+            page-break-before: always;
+            break-before: page;
+          }
+          .ic-pack-section h2 {
+            font-size: 17pt !important;
+            margin: 1mm 0 5mm !important;
+            break-after: avoid;
+            page-break-after: avoid;
+          }
+          .ic-pack-section-kicker {
+            break-after: avoid;
+            page-break-after: avoid;
+          }
+          .ic-pack-section-kicker {
+            color: #0f766e !important;
+            font-size: 8pt !important;
+            font-weight: 700 !important;
+          }
+          .ic-pack-alert {
+            border: 1px solid #99f6e4 !important;
+            border-left: 4px solid #0f766e !important;
+            background-color: #f0fdfa !important;
+            border-radius: 6px !important;
+            padding: 5mm !important;
+            margin-bottom: 5mm !important;
+            break-inside: avoid;
+          }
+          .ic-pack-alert-red {
+            border-color: #fecaca !important;
+            border-left-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
+          }
+          .ic-pack-alert strong {
+            display: block !important;
+            color: #0f172a !important;
+            font-size: 12pt !important;
+            margin-bottom: 2mm !important;
+          }
+          .ic-pack-alert p,
+          .ic-pack-section p {
+            color: #334155 !important;
+            margin: 0 0 4mm !important;
+          }
+          .ic-pack-label {
+            display: inline-block !important;
+            color: #b45309 !important;
+            background-color: #fffbeb !important;
+            border: 1px solid #fcd34d !important;
+            border-radius: 4px !important;
+            padding: 1.5mm 2.5mm !important;
+            font-size: 7.5pt !important;
+            font-weight: 700 !important;
+          }
+          .ic-pack-grid-4 {
+            display: grid !important;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 3mm !important;
+            margin-bottom: 5mm !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .ic-pack-kv {
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 5px !important;
+            background-color: #f8fafc !important;
+            padding: 3mm !important;
+            min-height: 18mm !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .ic-pack-kv-label {
+            color: #64748b !important;
+            font-size: 7pt !important;
+            margin-bottom: 1.5mm !important;
+          }
+          .ic-pack-kv-value {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+            font-size: 11pt !important;
+          }
+          .ic-pack-kv-note,
+          .ic-pack-muted {
+            color: #64748b !important;
+            font-size: 8.5pt !important;
+          }
+          .ic-pack-table {
+            display: grid !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 6px !important;
+            overflow: hidden !important;
+            break-inside: auto;
+            page-break-inside: auto;
+          }
+          .ic-pack-table-head,
+          .ic-pack-table-row {
+            display: grid !important;
+            grid-template-columns: 1.1fr 0.75fr 1.25fr !important;
+            gap: 3mm !important;
+            padding: 2.8mm 3.2mm !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .ic-pack-table-head {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            font: 700 7.5pt 'IBM Plex Mono', monospace !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.06em !important;
+            break-after: avoid;
+            page-break-after: avoid;
+          }
+          .ic-pack-table-row strong {
+            color: #0f172a !important;
+          }
+          .ic-pack-row-warning {
+            background-color: #fffbeb !important;
+          }
+          .ic-pack-list {
+            display: grid !important;
+            gap: 2.5mm !important;
+            break-inside: auto;
+            page-break-inside: auto;
+          }
+          .ic-pack-list-item {
+            border: 1px solid #e2e8f0 !important;
+            border-left: 4px solid #0f766e !important;
+            border-radius: 5px !important;
+            padding: 3mm !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .ic-pack-risk,
+          .ic-pack-missing {
+            border-left-color: #dc2626 !important;
+            background-color: #fff7ed !important;
+          }
+          .ic-pack-request {
+            border-left-color: #0f766e !important;
+            background-color: #f8fafc !important;
+          }
+          .ic-pack-list-item strong {
+            display: block !important;
+            color: #0f172a !important;
+            margin-bottom: 1mm !important;
+          }
+          .ic-pack-list-item span {
+            color: #475569 !important;
+            font-size: 8.5pt !important;
+          }
+          .ic-pack-footer {
+            display: block !important;
+            border-top: 1px solid #e2e8f0 !important;
+            padding-top: 3mm !important;
+            color: #64748b !important;
+            font: 8pt 'IBM Plex Mono', monospace !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
 
           /* ── DIMENSION ROWS ── */
           .dim-row-wrap  { background-color: #fff !important; border: 1px solid #e2e8f0 !important;
@@ -1044,6 +1420,17 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important; font-size: 8pt !important; padding: 8px 0 !important; }
         }
       `}</style>
+
+      <ICPackExport
+        extracted={extracted}
+        scored={currentScored}
+        workflow={workflow}
+        currentRun={currentRunSummary}
+        currentRunSnapshot={currentRunSnapshot}
+        staleDocumentCount={staleRunDocumentCount}
+        isSavedDeal={Boolean(dealId)}
+        runMetadataLoaded={runMetadataLoaded}
+      />
 
       {/* ── PRINT-ONLY HEADER ── */}
       <div style={{
@@ -1127,13 +1514,15 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           )}
           <button
             onClick={() => window.print()}
+            aria-label="Print or save the IC memo pack as PDF"
+            title="Print or save the IC memo pack as PDF"
             style={{
               background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 6, padding: '6px 14px', color: 'rgba(255,255,255,0.7)',
               fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
             }}
           >
-            ⬇ PDF
+            Print IC Pack
           </button>
         </div>
       </header>
@@ -1212,10 +1601,79 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
       {/* ── MAIN CONTENT ── */}
       <div className="report-content" style={{ padding: '40px', maxWidth: 1200 }}>
 
+        {workflow && (
+          <>
+            <RunVersionBanner
+              currentRun={currentRunSummary}
+              currentRunSnapshot={currentRunSnapshot}
+              staleDocumentCount={staleRunDocumentCount}
+            />
+            <ICMemoView
+              workflow={workflow}
+              extracted={extracted}
+              scored={currentScored}
+              onOpenEvidence={setEvidenceFact}
+            />
+            <RunHistoryDrawer
+              dealId={dealId}
+              onViewSnapshot={(run, summary, currentRun) => {
+                setViewedRunSnapshot({ run, summary, currentRun })
+                if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              onPromoted={onPromoted ?? (() => {
+                if (typeof window !== 'undefined') window.location.reload()
+              })}
+            />
+            <DiligenceWorkspace dealId={dealId} workflow={workflow} />
+            <details
+              className="no-print"
+              style={{
+                marginBottom: 34,
+                background: 'rgba(255,255,255,0.025)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 8,
+                overflow: 'hidden',
+              }}
+            >
+              <summary
+                style={{
+                  cursor: 'pointer',
+                  padding: '14px 16px',
+                  color: '#e8edf3',
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 14,
+                  fontWeight: 700,
+                }}
+              >
+                Supporting evidence, extraction warnings, and full diligence checklist
+                <span style={{ display: 'block', marginTop: 4, color: 'rgba(255,255,255,0.42)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Collapsed to keep the IC memo primary
+                </span>
+              </summary>
+              <div style={{ padding: '18px 18px 0' }}>
+                <ExtractionWarnings workflow={workflow} />
+                <MarketAuditPanel
+                  audit={workflow.market_audit ?? currentScored.market_audit}
+                  pipelineAudit={workflow.pipeline_audit ?? currentScored.pipeline_audit}
+                  pipelineProjects={workflow.pipeline_projects ?? currentScored.pipeline_projects}
+                />
+                <FactsReviewPanel workflow={workflow} onOpenEvidence={setEvidenceFact} />
+                {workflow.valuation_gate.status !== 'pass' && <ValuationGatePanel workflow={workflow} />}
+                <DiligenceChecklist workflow={workflow} />
+              </div>
+            </details>
+          </>
+        )}
+
         {/* IC VALUATION SUMMARY */}
         {(() => {
+          const gate = workflow?.valuation_gate
+          const illustrativeOnly = gate ? !gate.can_show_confident_valuation : false
+          if (gate?.status === 'blocked' && workflow) {
+            return null
+          }
           const dc = (currentScored as any).demand_context
-          if (!dc || !centre?.licensed_places) return null
+          if (!dc || !centre?.licensed_places) return workflow ? null : gate ? <ValuationGatePanel workflow={workflow} /> : null
           const mc = (currentScored as any).market_context
           const approvedPlaces = mc?.approved_pipeline_places ?? 0
           const piIntel = (currentScored as any).pipeline_intel
@@ -1227,25 +1685,40 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           // Pass actual IM EBITDA so IC engine can anchor base scenario
           const actualEbitda = effectiveEbitda ?? undefined
           const actualRevenue = effectiveRevenue ?? undefined
-          const actualOccupancy = (ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)
-            ? ((ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct)! / 100)
+          const actualOccupancyForValuation = occupancy?.current_month_pct ?? occupancy?.latest_week_pct ?? ratios?.occupancy_latest_4wk_pct ?? occupancy?.avg_4wk_pct
+          const actualOccupancy = actualOccupancyForValuation
+            ? (actualOccupancyForValuation / 100)
             : undefined
           return (
-            <ICSummary
-              kids0to4={dc.estimated_kids_0_to_4 ?? 0}
-              totalLicensedPlaces={dc.total_licensed_places ?? 0}
-              isRegional={dc.is_regional ?? false}
-              pipelineApprovedPlaces={approvedPlaces}
-              pipelineLodgedPlaces={lodgedPlaces}
-              centreLicensedPlaces={centre.licensed_places}
-              centreCurrentOccupancy={actualOccupancy}
-              centreAvgDailyFee={actualFee}
-              centreAskingPrice={effectiveAskPrice ?? undefined}
-              actualEbitda={actualEbitda}
-              actualRevenue={actualRevenue}
-              acquiraScore={canonicalScore}
-              demandGrowthFactor={dc.growth_factor ?? undefined}
-            />
+            <div style={{ marginBottom: illustrativeOnly ? 32 : 0 }}>
+              {illustrativeOnly && (
+                <div style={{
+                  background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.22)',
+                  borderRadius: 8, padding: '10px 14px', marginBottom: 12,
+                  color: 'rgba(255,255,255,0.62)', fontSize: 12.5,
+                }}>
+                  <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: '#f59e0b', textTransform: 'uppercase', marginRight: 8 }}>
+                    Illustrative only
+                  </span>
+                  Valuation outputs are not underwritten until required financial and occupancy evidence is verified.
+                </div>
+              )}
+              <ICSummary
+                kids0to4={dc.estimated_kids_0_to_4 ?? 0}
+                totalLicensedPlaces={dc.total_licensed_places ?? 0}
+                isRegional={dc.is_regional ?? false}
+                pipelineApprovedPlaces={approvedPlaces}
+                pipelineLodgedPlaces={lodgedPlaces}
+                centreLicensedPlaces={centre.licensed_places}
+                centreCurrentOccupancy={actualOccupancy}
+                centreAvgDailyFee={actualFee}
+                centreAskingPrice={effectiveAskPrice ?? undefined}
+                actualEbitda={actualEbitda}
+                actualRevenue={actualRevenue}
+                acquiraScore={canonicalScore}
+                demandGrowthFactor={dc.growth_factor ?? undefined}
+              />
+            </div>
           )
         })()}
 
@@ -1394,7 +1867,29 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
               licensed_places={extracted.centre.licensed_places || 0}
               centre_name={scored.centre_name || ''}
               overall_score={canonicalScore}
-              pipelineIntel={(currentScored as any).pipeline_intel ?? null}
+              marketAudit={workflow?.market_audit ?? currentScored.market_audit}
+              legacyMarket={{
+                ...((currentScored as any).market_context ?? {}),
+                ...((currentScored as any).demand_context ?? {}),
+                source: (currentScored as any).market_context ? 'scored market context' : 'scored demand context',
+              }}
+              pipelineIntel={mapPipelineProjects.length ? {
+                applications: mapPipelineProjects.map(project => ({
+                  address: project.address || '',
+                  description: project.notes || project.name || `${project.source_type === 'manual_legacy_count' ? 'Legacy count placeholder' : 'Underwriting-backed'} pipeline project`,
+                  status: project.status === 'approved' || project.status === 'under_construction'
+                    ? 'approved'
+                    : project.status === 'lodged'
+                    ? 'lodged'
+                    : project.status === 'refused' || project.status === 'withdrawn'
+                    ? 'refused'
+                    : 'unknown',
+                  places: project.proposed_places ?? null,
+                  distance_km: project.distance_km ?? null,
+                  date: project.source_date ?? undefined,
+                  info_url: project.source_url ?? undefined,
+                })),
+              } : ((currentScored as any).pipeline_intel ?? null)}
             />
           </div>
         )}
@@ -1625,23 +2120,26 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
           fontSize: 14, color: 'rgba(255,255,255,0.6)',
           lineHeight: 1.75, marginBottom: 16
         }}>
-          {tx('verdict_one_liner', currentScored.verdict?.one_liner) || tx('analyst_summary', currentScored.analyst_summary) || '—'}
+          {workflow?.narrative_guard?.analyst_summary
+            || tx('verdict_one_liner', currentScored.verdict?.one_liner)
+            || tx('analyst_summary', currentScored.analyst_summary)
+            || '—'}
         </div>
-        {currentScored.verdict?.recommended_buyer_profile && (
+        {(workflow?.narrative_guard?.recommendation || currentScored.verdict?.recommended_buyer_profile) && (
           <div style={{
             background: 'rgba(0,180,160,0.06)', border: '1px solid rgba(0,180,160,0.15)',
             borderRadius: 8, padding: '14px 18px', marginBottom: 40,
             fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6
           }}>
             <span style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: '#00b4a0', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 8 }}>
-              Ideal Buyer
+              {workflow?.narrative_guard?.recommendation ? 'Guarded Recommendation' : 'Ideal Buyer'}
             </span>
-            {tx('verdict_buyer_profile', currentScored.verdict.recommended_buyer_profile)}
+            {workflow?.narrative_guard?.recommendation || tx('verdict_buyer_profile', currentScored.verdict?.recommended_buyer_profile)}
           </div>
         )}
 
         {/* ── NEXT STEPS ── */}
-        {(() => {
+        {!workflow && (() => {
           const ns = (currentScored as any).next_steps
           if (!ns) return null
           return (
@@ -1926,6 +2424,13 @@ export default function ReportView({ extracted, scored, dealId, saving, onBack, 
         <span>Acquira Deal Intelligence · {centre?.name}</span>
         <span>Extraction {extracted.meta?.extraction_version} · Scoring {currentScored.scoring_version} · {extracted.meta?.source_type}</span>
       </footer>
+      <EvidenceDrawer
+        fact={evidenceFact}
+        evidence={workflow?.evidence}
+        runId={workflow?.run_id}
+        runLabel={workflow?.run_id ? 'Evidence from current run' : null}
+        onClose={() => setEvidenceFact(null)}
+      />
     </div>
   )
 }
