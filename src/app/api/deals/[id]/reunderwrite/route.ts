@@ -7,8 +7,8 @@ import {
   failUnderwritingRun,
   getActiveRunForDeal,
 } from '@/lib/underwritingRuns'
+import { getServerBackendUrl } from '@/lib/serverBackendUrl'
 
-const RAILWAY_URL = process.env.RAILWAY_API_URL || 'https://web-production-c3589.up.railway.app'
 const MAX_SELECTED_DOCUMENTS = 10
 const MAX_SELECTED_BYTES = 75 * 1024 * 1024
 const ACTIVE_RUN_WINDOW_MS = 15 * 60 * 1000
@@ -290,6 +290,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }, { status: 202 })
     }
 
+    const railwayUrl = getServerBackendUrl()
     const run = await createRunningReunderwriteRun(supabaseAdmin, {
       deal_id: id,
       base_run_id: baseRun.id,
@@ -307,7 +308,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const timeout = setTimeout(() => abortController.abort(), BACKEND_REUNDERWRITE_TIMEOUT_MS)
     let backendRes: Response
     try {
-      backendRes = await fetch(`${RAILWAY_URL}/pipeline/reunderwrite`, {
+      backendRes = await fetch(`${railwayUrl}/pipeline/reunderwrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortController.signal,
