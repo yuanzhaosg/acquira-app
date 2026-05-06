@@ -21,6 +21,7 @@ import type {
 import type { ExtractedDeal } from '@/types/extracted'
 import type { DealWorkflow, WorkflowFact } from '@/types/workflow'
 import type { UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
+import { getPublicBackendUrl } from '@/lib/backendUrls'
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -657,7 +658,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
   const [daPipeline, setDaPipeline]   = useState<DAPipelineData | null>(null)
   const [daLoading, setDaLoading]     = useState(false)
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'https://acquira-api-production.up.railway.app'
+  const apiBase = getPublicBackendUrl()
 
   async function loadNearbyCentres() {
     setNearbyLoading(true)

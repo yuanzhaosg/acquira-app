@@ -1,8 +1,5 @@
-import { NextRequest } from 'next/server'
-
-const RAILWAY_URL =
-  process.env.RAILWAY_API_URL ||
-  'https://web-production-c3589.up.railway.app'
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerBackendUrl } from '@/lib/serverBackendUrl'
 
 export const maxDuration = 300
 export const dynamic = 'force-dynamic'
@@ -23,8 +20,36 @@ function sseError(message: string, status = 500) {
   )
 }
 
+export async function GET() {
+  let railwayUrl: string
+
+  try {
+    railwayUrl = getServerBackendUrl()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Pipeline backend URL is not configured'
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+  }
+
+  try {
+    const healthRes = await fetch(`${railwayUrl}/health`, { cache: 'no-store' })
+    const health = await healthRes.json().catch(() => null)
+    return NextResponse.json({
+      ok: healthRes.ok,
+      backend_host: new URL(railwayUrl).host,
+      health,
+    }, { status: healthRes.ok ? 200 : 502 })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Pipeline backend health check failed'
+    return NextResponse.json({
+      ok: false,
+      backend_host: new URL(railwayUrl).host,
+      error: message,
+    }, { status: 502 })
+  }
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: Record<string, unknown>
 
   try {
     body = await req.json()
@@ -32,7 +57,15 @@ export async function POST(req: NextRequest) {
     return sseError('Invalid JSON request body', 400)
   }
 
-  const upstreamUrl = `${RAILWAY_URL.replace(/\/$/, '')}/pipeline`
+  let railwayUrl: string
+  try {
+    railwayUrl = getServerBackendUrl()
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Pipeline backend URL is not configured'
+    return sseError(message, 500)
+  }
+
+  const upstreamUrl = `${railwayUrl}/pipeline`
 
   console.log('[api/pipeline] forwarding to Railway:', upstreamUrl)
   console.log('[api/pipeline] payload:', {
@@ -55,9 +88,10 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify(body),
       cache: 'no-store',
     })
-  } catch (err: any) {
+  } catch (err) {
     console.error('[api/pipeline] Railway connection failed:', err)
-    return sseError(err?.message || 'Pipeline connection failed', 502)
+    const message = err instanceof Error ? err.message : 'Pipeline connection failed'
+    return sseError(message, 502)
   }
 
   if (!railwayRes.ok || !railwayRes.body) {
