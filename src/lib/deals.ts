@@ -15,6 +15,7 @@ const writeSupabase = createClient(
 )
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
+import type { DealWorkflow } from '@/types/workflow'
 
 // ─── DealRecord ───────────────────────────────────────────────────────────────
 // Mirrors the Supabase `deals` table columns.
@@ -24,6 +25,7 @@ import type { ScoredDeal } from '@/types/scored'
 export interface DealRecord {
   id: string
   created_at: string
+  current_run_id?: string | null
   centre_name: string | null
   address: string | null
   suburb: string | null
@@ -52,6 +54,7 @@ export interface DealRecord {
 
   extracted: ExtractedDeal
   scored: ScoredDeal
+  workflow?: DealWorkflow | null
   overrides: Record<string, number | string>
   source_file: string | null
   data_quality: string | null
@@ -93,6 +96,7 @@ function countCriticalFlags(scored: ScoredDeal): { hasCritical: boolean; count: 
 export async function saveDeal(
   extracted: ExtractedDeal,
   scored: ScoredDeal,
+  workflow: DealWorkflow | null = null,
   overrides: Record<string, number | string> = {}
 ): Promise<{ id: string } | null> {
   const centre   = extracted.centre
@@ -118,7 +122,7 @@ export async function saveDeal(
       verdict:        verdictFromScore(canonicalScore),
       verdict_category: scored.verdict?.category ?? null,
 
-      occupancy_pct:   occupancy?.avg_4wk_pct ?? occupancy?.current_month_pct ?? null,
+      occupancy_pct:   occupancy?.current_month_pct ?? occupancy?.latest_week_pct ?? occupancy?.avg_4wk_pct ?? null,
       ebitda:          fy25?.ebitda ?? ratios?.ebitda_fy25 ?? null,
       revenue:         fy25?.revenue ?? ratios?.revenue_fy25 ?? null,
       asking_price:    extracted.financials?.asking_price ?? ratios?.asking_price ?? null,
@@ -132,6 +136,7 @@ export async function saveDeal(
 
       extracted,
       scored,
+      workflow,
       overrides,
       source_file:  extracted.meta?.source_files?.[0] ?? null,
       data_quality: extracted.meta?.data_quality ?? null,

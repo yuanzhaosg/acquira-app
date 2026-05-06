@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { ExtractedDeal } from './extracted'
+import type { MarketAudit, PipelineAudit, PipelineProject } from './workflow'
 
 // ─── Dimension IDs ────────────────────────────────────────────────────────────
 
@@ -211,6 +212,9 @@ export interface ScoredDeal {
 
   // Audit trail
   audit_trail?: AuditTrail
+  market_audit?: MarketAudit | null
+  pipeline_projects?: PipelineProject[]
+  pipeline_audit?: PipelineAudit | null
 
   // Verdict
   verdict?: Verdict

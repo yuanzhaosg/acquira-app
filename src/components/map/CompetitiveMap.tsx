@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import type { MarketAudit } from '@/types/workflow'
 
 interface Competitor {
   id: string
@@ -73,6 +74,57 @@ interface CompetitiveMapProps {
   centre_name: string
   overall_score: number
   pipelineIntel?: PipelineIntel | null
+  marketAudit?: MarketAudit | null
+  legacyMarket?: LegacyMarketSummary | null
+}
+
+interface LegacyMarketSummary {
+  competitor_count?: number | null
+  total_licensed_places?: number | null
+  approved_pipeline_places?: number | null
+  edr_mid?: number | null
+  confidence?: string | null
+  zone?: string | null
+  source?: string | null
+}
+
+type MapErrorCode =
+  | 'missing_provider_token'
+  | 'missing_server_map_token'
+  | 'geocode_failed'
+  | 'invalid_coordinates'
+  | 'empty_competitors'
+  | 'api_failed'
+  | 'malformed_data'
+
+type MapErrorState = {
+  code: MapErrorCode
+  message: string
+  detail?: string
+}
+
+type GoogleLatLng = { lat: () => number; lng: () => number }
+type GoogleMapInstance = {
+  getCenter: () => GoogleLatLng | null
+  panTo: (coords: { lat: number; lng: number }) => void
+  setZoom: (zoom: number) => void
+  addListener: (eventName: string, handler: () => void) => void
+}
+type GoogleMapObject = { setMap: (map: GoogleMapInstance | null) => void }
+type GoogleMarkerObject = GoogleMapObject & {
+  addListener: (eventName: string, handler: () => void) => void
+}
+type GoogleInfoWindowObject = {
+  open: (map: GoogleMapInstance, marker: GoogleMarkerObject) => void
+}
+type GoogleMapsApi = {
+  maps: {
+    Map: new (element: HTMLElement, options: Record<string, unknown>) => GoogleMapInstance
+    Circle: new (options: Record<string, unknown>) => GoogleMapObject
+    Marker: new (options: Record<string, unknown>) => GoogleMarkerObject
+    InfoWindow: new (options: Record<string, unknown>) => GoogleInfoWindowObject
+    SymbolPath: { CIRCLE: string | number }
+  }
 }
 
 const ZONE_COLORS = {
@@ -94,6 +146,36 @@ function nqsColor(rating: string): string {
   if (rating === 'Meeting NQS')         return '#00b4a0'
   if (rating === 'Working Towards NQS') return '#ef4444'
   return '#64748b'
+}
+
+function formatAuditNumber(value: number | null | undefined, suffix = ''): string {
+  if (value == null) return 'Not available'
+  return `${value.toLocaleString('en-AU', { maximumFractionDigits: 2 })}${suffix}`
+}
+
+function statusLabel(value: string | null | undefined): string {
+  return value ? value.replace(/_/g, ' ') : 'Not available'
+}
+
+function supplySourceLabel(source: string | null | undefined): string {
+  if (source === 'geospatial_supabase') return 'Geospatial radius'
+  if (source === 'postcode_fallback') return 'Postcode fallback'
+  if (source === 'unavailable') return 'Unavailable'
+  return statusLabel(source)
+}
+
+function investorWarning(message: string): string {
+  const lower = message.toLowerCase()
+  if (lower.includes('geospatial competitor supply differs materially')) {
+    return 'Supply differs materially from postcode comparison — verify catchment methodology.'
+  }
+  if (lower.includes('retained postcode fallback')) {
+    return 'Scoring source: Postcode fallback because geospatial confidence is not high enough.'
+  }
+  if (lower.includes('competitor list is empty')) {
+    return 'Competitor coverage may be incomplete; verify ACECQA/manual competitor set.'
+  }
+  return message
 }
 
 async function reverseGeocodePostcode(lat: number, lng: number, apiKey: string): Promise<string | null> {
@@ -123,23 +205,23 @@ async function geocodeDaAddress(address: string, apiKey: string): Promise<{ lat:
 }
 
 declare global {
-  interface Window { google: any; initAcquiraMap: () => void }
+  interface Window { google?: GoogleMapsApi; initAcquiraMap: () => void }
 }
 
 export default function CompetitiveMap({
-  address, suburb, state, postcode, licensed_places, centre_name, overall_score, pipelineIntel,
+  address, suburb, state, postcode, licensed_places, centre_name, overall_score, pipelineIntel, marketAudit, legacyMarket,
 }: CompetitiveMapProps) {
   const mapRef          = useRef<HTMLDivElement>(null)
-  const mapInstanceRef  = useRef<any>(null)
-  const markersRef      = useRef<any[]>([])
-  const circleRef       = useRef<any>(null)
+  const mapInstanceRef  = useRef<GoogleMapInstance | null>(null)
+  const markersRef      = useRef<GoogleMarkerObject[]>([])
+  const circleRef       = useRef<GoogleMapObject | null>(null)
   const dragDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const originRef       = useRef<{ lat: number; lng: number } | null>(null)
 
   const [mapData, setMapData]               = useState<MapData | null>(null)
   const [loading, setLoading]               = useState(true)
   const [refreshing, setRefreshing]         = useState(false)
-  const [error, setError]                   = useState<string | null>(null)
+  const [error, setError]                   = useState<MapErrorState | null>(null)
   const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null)
   const [showList, setShowList]             = useState(false)
   const [showSearchHere, setShowSearchHere] = useState(false)
@@ -158,12 +240,94 @@ export default function CompetitiveMap({
     ...manualDAs,
   ]
 
+  const hasAuditFallback = Boolean(
+    marketAudit?.competitor_supply
+    || marketAudit?.competitor_count
+    || marketAudit?.licensed_places
+    || legacyMarket?.competitor_count != null
+    || legacyMarket?.total_licensed_places != null
+    || legacyMarket?.edr_mid != null
+  )
+
+  function fallbackMessageFor(errorState: MapErrorState | null): string {
+    if (!errorState) return 'Map unavailable — showing postcode/market audit summary instead.'
+    if (errorState.code === 'missing_provider_token' || errorState.code === 'missing_server_map_token') {
+      return 'Map unavailable — map provider is not configured.'
+    }
+    if (errorState.code === 'geocode_failed' || errorState.code === 'invalid_coordinates') {
+      return 'Map unavailable — this address could not be geocoded.'
+    }
+    if (errorState.code === 'empty_competitors') {
+      return 'No mapped competitors found within the configured radius.'
+    }
+    if (hasAuditFallback) return 'Map unavailable — showing postcode/market audit summary instead.'
+    return errorState.message
+  }
+
+  function renderAuditFallback(errorState: MapErrorState | null) {
+    const supply = marketAudit?.competitor_supply
+    const warnings = [
+      ...(marketAudit?.warnings ?? []),
+      ...(supply?.warnings ?? []),
+      ...(supply?.material_difference ? ['geospatial competitor supply differs materially from postcode comparison'] : []),
+    ]
+
+    return (
+      <div style={{ padding: 16, background: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#0d1b2a' }}>{fallbackMessageFor(errorState)}</div>
+          {errorState?.detail && <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>{errorState.detail}</div>}
+        </div>
+        {hasAuditFallback ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 8 }}>
+              <AuditMetric label="Competitors" value={formatAuditNumber(supply?.competitor_count ?? marketAudit?.competitor_count?.value ?? legacyMarket?.competitor_count)} />
+              <AuditMetric label="Licensed places" value={formatAuditNumber(supply?.total_licensed_places ?? marketAudit?.licensed_places?.value ?? legacyMarket?.total_licensed_places)} />
+              <AuditMetric label="Radius" value={formatAuditNumber(supply?.radius_km ?? marketAudit?.catchment_radius_km, 'km')} />
+              <AuditMetric label="Source" value={supplySourceLabel(supply?.source ?? marketAudit?.competitor_count?.source ?? legacyMarket?.source ?? 'legacy_score_context')} note={supply?.confidence ? `${supply.confidence} confidence` : legacyMarket?.confidence ? `${legacyMarket.confidence} confidence` : undefined} />
+              <AuditMetric label="Geocode method" value={statusLabel(supply?.target_geocode_method)} />
+              <AuditMetric label="Exclusion method" value={statusLabel(supply?.exclusion_method)} />
+              <AuditMetric label="EDR / demand ratio" value={formatAuditNumber(marketAudit?.edr?.value ?? legacyMarket?.edr_mid)} note={marketAudit?.edr?.interpretation ?? legacyMarket?.zone ?? undefined} />
+              <AuditMetric label="Pipeline places" value={formatAuditNumber(marketAudit?.pipeline_places?.value ?? legacyMarket?.approved_pipeline_places)} />
+            </div>
+            {supply?.compared_to_postcode && (
+              <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.5 }}>
+                Postcode comparison: {formatAuditNumber(supply.compared_to_postcode.competitor_count)} competitors · {formatAuditNumber(supply.compared_to_postcode.total_licensed_places)} places · EDR {formatAuditNumber(supply.compared_to_postcode.edr)}
+              </div>
+            )}
+            {warnings.length > 0 && (
+              <div style={{ display: 'grid', gap: 7 }}>
+                {warnings.slice(0, 4).map((warning, index) => (
+                  <div key={`${warning}-${index}`} style={{
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.22)',
+                    borderRadius: 8, padding: '8px 10px', color: '#7c4a03', fontSize: 12, lineHeight: 1.45,
+                  }}>
+                    {investorWarning(warning)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+            No structured competitor audit summary is available for this report.
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ── Fetch map data ────────────────────────────────────────────────────────
   const fetchMapData = useCallback(async (
     opts: { lat?: number; lng?: number; pcode?: string; isRefresh?: boolean }
   ): Promise<MapData | null> => {
     const { lat, lng, pcode, isRefresh = false } = opts
     try {
+      if (!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) {
+        console.warn('CompetitiveMap unavailable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is not configured')
+        setError({ code: 'missing_provider_token', message: 'Map unavailable — map provider is not configured.' })
+        return null
+      }
       if (isRefresh) setRefreshing(true)
       else setLoading(true)
 
@@ -171,13 +335,34 @@ export default function CompetitiveMap({
       if (lat !== undefined && lng !== undefined) { body.lat_override = lat; body.lng_override = lng }
 
       const res = await fetch('/api/map-data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      if (!res.ok) throw new Error('Failed to fetch map data')
-      const data: MapData = await res.json()
+      const payload = await res.json().catch(() => null) as (MapData & { error?: string; code?: MapErrorCode }) | null
+      if (!res.ok) {
+        const code = payload?.code ?? 'api_failed'
+        const message = code === 'geocode_failed'
+          ? 'Map unavailable — this address could not be geocoded.'
+          : code === 'missing_server_map_token'
+          ? 'Map unavailable — map provider is not configured.'
+          : 'Map unavailable — showing postcode/market audit summary instead.'
+        console.warn('CompetitiveMap map-data response failed:', { status: res.status, code, message: payload?.error })
+        setError({ code, message, detail: payload?.error })
+        return null
+      }
+      if (!payload?.target || !Number.isFinite(payload.target.lat) || !Number.isFinite(payload.target.lng) || !Array.isArray(payload.competitors)) {
+        console.warn('CompetitiveMap malformed map-data payload:', payload)
+        setError({ code: 'malformed_data', message: 'Map unavailable — showing postcode/market audit summary instead.' })
+        return null
+      }
+      const data: MapData = payload
       setMapData(data)
-      setError(null)
+      if (data.competitors.length === 0) {
+        setError({ code: 'empty_competitors', message: 'No mapped competitors found within the configured radius.' })
+      } else {
+        setError(null)
+      }
       return data
-    } catch {
-      setError('Could not load map data for this area')
+    } catch (err) {
+      console.warn('CompetitiveMap map-data fetch failed:', err)
+      setError({ code: 'api_failed', message: 'Map unavailable — showing postcode/market audit summary instead.' })
       return null
     } finally {
       setLoading(false)
@@ -198,14 +383,16 @@ export default function CompetitiveMap({
     if (circleRef.current) { try { circleRef.current.setMap(null) } catch { /* ignore */ } circleRef.current = null }
   }
 
-  async function drawOverlays(map: any, data: MapData, daApps: DaApplication[] = []) {
+  async function drawOverlays(map: GoogleMapInstance, data: MapData, daApps: DaApplication[] = []) {
+    const google = window.google
+    if (!google) return
     clearOverlays()
 
     const zoneStyle = ZONE_COLORS[data.demand.zone]
     const apiKey    = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!
 
     // Demand zone circle
-    circleRef.current = new window.google.maps.Circle({
+    circleRef.current = new google.maps.Circle({
       strokeColor: zoneStyle.stroke, strokeOpacity: 1, strokeWeight: 2,
       fillColor: zoneStyle.fill, fillOpacity: 1,
       map,
@@ -215,12 +402,12 @@ export default function CompetitiveMap({
 
     // Target centre marker
     const markerScore  = Math.round(overall_score).toString()
-    const targetMarker = new window.google.maps.Marker({
+    const targetMarker = new google.maps.Marker({
       position: { lat: data.target.lat, lng: data.target.lng },
       map,
       title: centre_name,
       icon: {
-        path: window.google.maps.SymbolPath.CIRCLE,
+        path: google.maps.SymbolPath.CIRCLE,
         scale: 22,
         fillColor: '#0d1b2a', fillOpacity: 1,
         strokeColor: '#ffffff', strokeWeight: 3,
@@ -230,7 +417,7 @@ export default function CompetitiveMap({
     })
     markersRef.current.push(targetMarker)
 
-    const targetInfo = new window.google.maps.InfoWindow({
+    const targetInfo = new google.maps.InfoWindow({
       content: `<div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:180px">
         <div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:4px">${centre_name}</div>
         <div style="font-size:11px;color:#5a7a94">${address}, ${suburb}</div>
@@ -245,12 +432,12 @@ export default function CompetitiveMap({
     // Existing competitor markers (ACECQA)
     data.competitors.slice(0, 20).forEach((comp, i) => {
       const color  = nqsColor(comp.nqs_rating)
-      const marker = new window.google.maps.Marker({
+      const marker = new google.maps.Marker({
         position: { lat: comp.lat, lng: comp.lng },
         map,
         title: comp.name,
         icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
+          path: google.maps.SymbolPath.CIRCLE,
           scale: 16,
           fillColor: color, fillOpacity: 0.9,
           strokeColor: '#ffffff', strokeWeight: 2,
@@ -260,7 +447,7 @@ export default function CompetitiveMap({
       })
       markersRef.current.push(marker)
 
-      const infoWindow = new window.google.maps.InfoWindow({
+      const infoWindow = new google.maps.InfoWindow({
         content: `<div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:180px">
           <div style="font-weight:700;font-size:13px;color:#0d1b2a;margin-bottom:2px">${comp.name}</div>
           <div style="font-size:11px;color:#5a7a94;margin-bottom:8px">${comp.suburb} · ${(comp.distance_m / 1000).toFixed(1)}km away</div>
@@ -290,12 +477,12 @@ export default function CompetitiveMap({
       const coords = await geocodeDaAddress(app.address, apiKey)
       if (!coords) continue
 
-      const daMarker = new window.google.maps.Marker({
+      const daMarker = new google.maps.Marker({
         position: coords,
         map,
         title: app.address,
         icon: {
-          path: window.google.maps.SymbolPath.CIRCLE,
+          path: google.maps.SymbolPath.CIRCLE,
           scale: 18,
           fillColor: colors.fill, fillOpacity: 0.95,
           strokeColor: colors.stroke, strokeWeight: 2.5,
@@ -308,7 +495,7 @@ export default function CompetitiveMap({
       const statusBg = app.status === 'approved' ? 'rgba(239,68,68,0.12)' : app.status === 'lodged' ? 'rgba(245,158,11,0.12)' : 'rgba(100,116,139,0.12)'
       const statusColor = colors.fill
 
-      const daInfo = new window.google.maps.InfoWindow({
+      const daInfo = new google.maps.InfoWindow({
         content: `<div style="font-family:'DM Sans',sans-serif;padding:8px;min-width:200px">
           <div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:8px">
             <span style="background:${statusBg};color:${statusColor};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;font-family:'DM Mono',monospace">${app.status.toUpperCase()}</span>
@@ -328,7 +515,7 @@ export default function CompetitiveMap({
     }
   }
 
-  async function refreshForCentre(map: any, isManual = false) {
+  async function refreshForCentre(map: GoogleMapInstance, isManual = false) {
     const centre = map.getCenter()
     if (!centre) return
     const newLat = centre.lat(), newLng = centre.lng()
@@ -357,8 +544,9 @@ export default function CompetitiveMap({
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
     async function initMap() {
-      if (!mapRef.current || !window.google || !mapData) return
-      const map = new window.google.maps.Map(mapRef.current, {
+      const google = window.google
+      if (!mapRef.current || !google || !mapData) return
+      const map = new google.maps.Map(mapRef.current, {
         center: { lat: mapData.target.lat, lng: mapData.target.lng },
         zoom: 14, mapTypeId: 'roadmap',
         styles: [
@@ -552,10 +740,8 @@ export default function CompetitiveMap({
             </div>
           )}
           {error && !loading && (
-            <div style={{ height: 380, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-              <div style={{ textAlign: 'center', color: '#ef4444' }}>
-                <div style={{ fontSize: 13 }}>{error}</div>
-              </div>
+            <div style={{ minHeight: 220, background: '#f8fafc' }}>
+              {renderAuditFallback(error)}
             </div>
           )}
           {!loading && !error && showSearchHere && (
@@ -725,6 +911,21 @@ export default function CompetitiveMap({
 
       </div>
     </>
+  )
+}
+
+function AuditMetric({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div style={{
+      background: '#fff', border: '1px solid #e2e8f0',
+      borderRadius: 8, padding: '10px 12px', minHeight: 74,
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b', marginBottom: 5 }}>
+        {label}
+      </div>
+      <div style={{ color: '#0d1b2a', fontSize: 15, fontWeight: 800, lineHeight: 1.25 }}>{value}</div>
+      {note && <div style={{ marginTop: 4, color: '#64748b', fontSize: 11, lineHeight: 1.35 }}>{note}</div>}
+    </div>
   )
 }
 
