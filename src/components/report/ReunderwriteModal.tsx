@@ -201,7 +201,7 @@ export default function ReunderwriteModal({
 
         <div style={{ maxHeight: '56vh', overflowY: 'auto', padding: 16, display: 'grid', gap: 16 }}>
           <div style={{ border: '1px solid rgba(245,158,11,0.22)', background: 'rgba(245,158,11,0.08)', color: '#f59e0b', borderRadius: 8, padding: '9px 11px', fontSize: 12.5, lineHeight: 1.5 }}>
-            Deal and diligence notes are saved for context, but are not used for re-underwriting unless they are uploaded or attached as evidence documents.
+            Uploaded documents are primary evidence. Notes/status attached to selected diligence documents are included as manual context with lower confidence and need verification.
           </div>
           <section style={{ display: 'grid', gap: 9 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

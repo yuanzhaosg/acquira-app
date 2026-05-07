@@ -15,6 +15,7 @@ function assert(condition, message) {
 
 const evidencePanel = read('src/components/diligence/EvidenceRequestsPanel.tsx')
 const reunderwriteModal = read('src/components/report/ReunderwriteModal.tsx')
+const reunderwriteRoute = read('src/app/api/deals/[id]/reunderwrite/route.ts')
 const runHistory = read('src/components/report/RunHistoryDrawer.tsx')
 const icMemo = read('src/components/report/ICMemoView.tsx')
 const marketAudit = read('src/components/report/MarketAuditPanel.tsx')
@@ -33,8 +34,13 @@ assert(
   'Queued async placeholder copy must clearly require the background worker.',
 )
 assert(
-  /not used for re-underwriting unless they are uploaded or attached as evidence documents/.test(reunderwriteModal),
-  'Manual notes warning must be visible in the re-underwrite flow.',
+  /Notes\/status attached to selected diligence documents are included as manual context with lower confidence/.test(reunderwriteModal),
+  'Manual notes context warning must be visible in the re-underwrite flow.',
+)
+assert(
+  /manualEvidenceForSelectedDocuments/.test(reunderwriteRoute)
+    && /manual_evidence_notes:\s*manualEvidenceNotes/.test(reunderwriteRoute),
+  'Re-underwrite route must include selected diligence item notes/status as manual evidence context.',
 )
 
 for (const title of [
