@@ -299,7 +299,7 @@ export default function ICMemoView({
         }}>
           <div style={{ color: gate.status === 'blocked' ? '#fff' : 'rgba(255,255,255,0.86)', fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, lineHeight: 1.25, marginBottom: 8 }}>
             {gate.status === 'blocked'
-              ? 'Cannot underwrite yet — valuation blocked pending financial evidence.'
+              ? 'Investigate with conditions — valuation blocked where required inputs remain unavailable.'
               : verdictPlain}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.64)', fontSize: 14, lineHeight: 1.65 }}>
@@ -361,7 +361,7 @@ export default function ICMemoView({
           <div style={{ marginTop: 12 }}><ConfidenceLegend /></div>
         </MemoSection>
 
-        <MemoSection title="5. Investment Thesis">
+        <MemoSection title="5. Why This Deal Could Work">
           {thesisFacts.length ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
               {thesisFacts.map(f => <FactPill key={f.id} fact={f} onOpen={onOpenEvidence} />)}
@@ -400,18 +400,18 @@ export default function ICMemoView({
           )}
         </MemoSection>
 
-        <MemoSection title="8. Market / Pipeline Evidence">
+        <MemoSection title="8. Market & Competitive Position">
           <MarketAuditSummary audit={marketAudit} pipelineAudit={pipelineAudit} pipelineProjects={pipelineProjects} />
         </MemoSection>
 
-        <MemoSection title="9. What Is Missing / Valuation Gate" tone={gate.can_show_confident_valuation ? 'default' : 'missing'}>
+        <MemoSection title="9. What We Do Not Know / Valuation Gate" tone={gate.can_show_confident_valuation ? 'default' : 'missing'}>
           <div style={{
             background: gate.status === 'blocked' ? 'rgba(239,68,68,0.1)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.07)' : 'rgba(245,158,11,0.08)',
             border: `1px solid ${gate.status === 'blocked' ? 'rgba(239,68,68,0.34)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.22)' : 'rgba(245,158,11,0.22)'}`,
             borderRadius: 8, padding: '14px 16px', color: 'rgba(255,255,255,0.78)', fontSize: 14, lineHeight: 1.65, marginBottom: 12,
           }}>
             {gate.status === 'blocked'
-              ? guardedValuationNote ?? 'Cannot underwrite yet - valuation blocked pending financial evidence.'
+              ? guardedValuationNote ?? 'Financial evidence may be observed, but valuation remains guarded until the blocked evidence items are resolved.'
               : guardedValuationNote ?? gate.message}
             {!gate.can_show_confident_valuation && (
               <div style={{ marginTop: 8, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, textTransform: 'uppercase' }}>
@@ -459,7 +459,12 @@ export default function ICMemoView({
           )}
         </MemoSection>
 
-        <MemoSection title="11. Appendix / Extraction Ledger">
+        <MemoSection title="11. IC Decision & Deal Structure Recommendation">
+          <div style={{ color: '#fff', fontSize: 14, fontWeight: 800, lineHeight: 1.5, marginBottom: 8 }}>{icDecision}</div>
+          <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, lineHeight: 1.65, margin: 0 }}>{structuring || 'Proceed only with evidence-backed diligence conditions, valuation guardrails, and documented override reasons for any review-required facts.'}</p>
+        </MemoSection>
+
+        <MemoSection title="12. Appendix / Extraction Ledger">
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: '0 0 10px' }}>
             Material facts carry provenance, trust, underwriting use, source refs, extractor version, and prompt version for run-scoped review.
           </p>

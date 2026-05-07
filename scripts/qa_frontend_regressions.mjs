@@ -56,13 +56,14 @@ for (const title of [
   '2. Key Red Flags / Conflicts',
   '3. What Would Change The Recommendation',
   '4. Evidence Readiness',
-  '5. Investment Thesis',
+  '5. Why This Deal Could Work',
   '6. Key Facts',
   '7. Derived Metrics and Recipes',
-  '8. Market / Pipeline Evidence',
-  '9. What Is Missing / Valuation Gate',
+  '8. Market & Competitive Position',
+  '9. What We Do Not Know / Valuation Gate',
   '10. Broker / Seller Request List',
-  '11. Appendix / Extraction Ledger',
+  '11. IC Decision & Deal Structure Recommendation',
+  '12. Appendix / Extraction Ledger',
 ]) {
   assert(icMemo.includes(title), `IC memo missing section: ${title}`)
 }
@@ -165,6 +166,34 @@ assert(
 assert(
   /\.has-ic-pack > :not\(\.ic-pack-export\):not\(style\)/.test(reportView),
   'ReportView print CSS must isolate the IC Pack export instead of printing legacy report sections.',
+)
+assert(
+  /REPORT_MODES/.test(reportView)
+    && /label: 'Memo'/.test(reportView)
+    && /label: 'Underwriting'/.test(reportView)
+    && /label: 'Diligence'/.test(reportView)
+    && /label: 'Evidence'/.test(reportView)
+    && /label: 'Runs'/.test(reportView)
+    && /activeReportMode === 'memo'/.test(reportView),
+  'ReportView must split the page into Memo, Underwriting, Diligence, Evidence, and Runs modes with Memo as the default.',
+)
+assert(
+  /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView)
+    && /activeReportMode === 'diligence'[\s\S]*DiligenceWorkspace/.test(reportView)
+    && /activeReportMode === 'evidence'[\s\S]*FactsReviewPanel/.test(reportView)
+    && /activeReportMode === 'memo'[\s\S]*ICMemoView/.test(reportView),
+  'Operational workflow panels must live outside the default Memo mode.',
+)
+assert(
+  /Market & Competitive Position/.test(icPackExport)
+    && /IC Decision & Deal Structure Recommendation/.test(icPackExport)
+    && /What We Do Not Know/.test(icPackExport)
+    && /Broker \/ Seller Request List/.test(icPackExport),
+  'IC Pack export must use integrated memo section language.',
+)
+assert(
+  icPackExport.indexOf('Appendix / Audit Trail') > icPackExport.indexOf('Broker / Seller Request List'),
+  'IC Pack export appendix must appear after the broker/seller request list.',
 )
 
 console.log('Frontend regression checks passed.')

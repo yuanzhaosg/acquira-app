@@ -61,6 +61,16 @@ function fmtM(n: number | null | undefined): string {
   return `$${n.toLocaleString()}`
 }
 
+type ReportMode = 'memo' | 'underwriting' | 'diligence' | 'evidence' | 'runs'
+
+const REPORT_MODES: Array<{ id: ReportMode; label: string; description: string }> = [
+  { id: 'memo', label: 'Memo', description: 'Investment decision view' },
+  { id: 'underwriting', label: 'Underwriting', description: 'Valuation, scoring, and assumptions' },
+  { id: 'diligence', label: 'Diligence', description: 'Checklist, uploads, notes, and requests' },
+  { id: 'evidence', label: 'Evidence', description: 'Ledger, source refs, warnings, and market data' },
+  { id: 'runs', label: 'Runs', description: 'Snapshots, compare, re-underwrite, and promote' },
+]
+
 // Score ring: input is 0–100
 function ringOffset(score: number): number {
   const pct = Math.min(Math.max(score / 100, 0), 1)
@@ -505,6 +515,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
   onPromoted?: () => void
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
+  const [activeReportMode, setActiveReportMode] = useState<ReportMode>('memo')
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
   const [evidenceFact, setEvidenceFact] = useState<WorkflowFact | null>(null)
 
@@ -1146,6 +1157,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
           /* ── HIDE INTERACTIVE ── */
           .report-header, nav, .no-print, .score-ring-wrap, .dim-score-bar { display: none !important; }
+          .report-mode-tabs { display: none !important; }
           .has-ic-pack .print-only-header,
           .has-ic-pack .report-hero,
           .has-ic-pack .report-content,
@@ -1610,68 +1622,168 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
         {workflow && (
           <>
-            <RunVersionBanner
-              currentRun={currentRunSummary}
-              currentRunSnapshot={currentRunSnapshot}
-              staleDocumentCount={staleRunDocumentCount}
-            />
-            <ICMemoView
-              workflow={workflow}
-              extracted={extracted}
-              scored={currentScored}
-              onOpenEvidence={setEvidenceFact}
-            />
-            <RunHistoryDrawer
-              dealId={dealId}
-              manualContextFields={{ asking_price: overrides.asking_price ?? effectiveAskPrice ?? null }}
-              onViewSnapshot={(run, summary, currentRun) => {
-                setViewedRunSnapshot({ run, summary, currentRun })
-                if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              onPromoted={onPromoted ?? (() => {
-                if (typeof window !== 'undefined') window.location.reload()
+            <div className="report-mode-tabs no-print" aria-label="Report modes" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gap: 8,
+              marginBottom: 24,
+            }}>
+              {REPORT_MODES.map(mode => {
+                const active = activeReportMode === mode.id
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => setActiveReportMode(mode.id)}
+                    aria-pressed={active}
+                    style={{
+                      textAlign: 'left',
+                      border: `1px solid ${active ? 'rgba(0,180,160,0.45)' : 'rgba(255,255,255,0.09)'}`,
+                      background: active ? 'rgba(0,180,160,0.11)' : 'rgba(255,255,255,0.025)',
+                      color: active ? '#e8fff9' : 'rgba(255,255,255,0.64)',
+                      borderRadius: 8,
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      minHeight: 74,
+                    }}
+                  >
+                    <span style={{ display: 'block', fontSize: 14, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", marginBottom: 4 }}>{mode.label}</span>
+                    <span style={{ display: 'block', color: active ? 'rgba(232,255,249,0.62)' : 'rgba(255,255,255,0.38)', fontSize: 11.5, lineHeight: 1.35 }}>{mode.description}</span>
+                  </button>
+                )
               })}
-            />
-            <DiligenceWorkspace dealId={dealId} workflow={workflow} />
-            <details
-              className="no-print"
-              style={{
+            </div>
+
+            {activeReportMode === 'memo' && (
+              <ICMemoView
+                workflow={workflow}
+                extracted={extracted}
+                scored={currentScored}
+                onOpenEvidence={setEvidenceFact}
+              />
+            )}
+
+            {activeReportMode === 'runs' && (
+              <>
+                <RunVersionBanner
+                  currentRun={currentRunSummary}
+                  currentRunSnapshot={currentRunSnapshot}
+                  staleDocumentCount={staleRunDocumentCount}
+                />
+                <RunHistoryDrawer
+                  dealId={dealId}
+                  manualContextFields={{ asking_price: overrides.asking_price ?? effectiveAskPrice ?? null }}
+                  onViewSnapshot={(run, summary, currentRun) => {
+                    setViewedRunSnapshot({ run, summary, currentRun })
+                    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  onPromoted={onPromoted ?? (() => {
+                    if (typeof window !== 'undefined') window.location.reload()
+                  })}
+                />
+              </>
+            )}
+
+            {activeReportMode === 'diligence' && (
+              <>
+                <DiligenceWorkspace dealId={dealId} workflow={workflow} />
+                <div style={{ marginBottom: 34 }}>
+                  <DiligenceChecklist workflow={workflow} />
+                </div>
+              </>
+            )}
+
+            {activeReportMode === 'evidence' && (
+              <div style={{
                 marginBottom: 34,
                 background: 'rgba(255,255,255,0.025)',
                 border: '1px solid rgba(255,255,255,0.08)',
                 borderRadius: 8,
-                overflow: 'hidden',
-              }}
-            >
-              <summary
-                style={{
-                  cursor: 'pointer',
-                  padding: '14px 16px',
-                  color: '#e8edf3',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 700,
-                }}
-              >
-                Supporting evidence, extraction warnings, and full diligence checklist
-                <span style={{ display: 'block', marginTop: 4, color: 'rgba(255,255,255,0.42)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Collapsed to keep the IC memo primary
-                </span>
-              </summary>
-              <div style={{ padding: '18px 18px 0' }}>
+                padding: 18,
+              }}>
                 <ExtractionWarnings workflow={workflow} />
                 <MarketAuditPanel
                   audit={workflow.market_audit ?? currentScored.market_audit}
                   pipelineAudit={workflow.pipeline_audit ?? currentScored.pipeline_audit}
                   pipelineProjects={workflow.pipeline_projects ?? currentScored.pipeline_projects}
                 />
+                {extracted.centre?.address && (
+                  <div style={{ marginBottom: 34 }}>
+                    <SectionTitle>Competitive Map</SectionTitle>
+                    <CompetitiveMap
+                      address={extracted.centre.address}
+                      suburb={extracted.centre.suburb || ''}
+                      state={extracted.centre.state || ''}
+                      postcode={extracted.centre.postcode || ''}
+                      licensed_places={extracted.centre.licensed_places || 0}
+                      centre_name={scored.centre_name || ''}
+                      overall_score={canonicalScore}
+                      marketAudit={workflow.market_audit ?? currentScored.market_audit}
+                      legacyMarket={{
+                        ...((currentScored as any).market_context ?? {}),
+                        ...((currentScored as any).demand_context ?? {}),
+                        source: (currentScored as any).market_context ? 'scored market context' : 'scored demand context',
+                      }}
+                      pipelineIntel={mapPipelineProjects.length ? {
+                        applications: mapPipelineProjects.map(project => ({
+                          address: project.address || '',
+                          description: project.notes || project.name || `${project.source_type === 'manual_legacy_count' ? 'Legacy count placeholder' : 'Underwriting-backed'} pipeline project`,
+                          status: project.status === 'approved' || project.status === 'under_construction'
+                            ? 'approved'
+                            : project.status === 'lodged'
+                            ? 'lodged'
+                            : project.status === 'refused' || project.status === 'withdrawn'
+                            ? 'refused'
+                            : 'unknown',
+                          places: project.proposed_places ?? null,
+                          distance_km: project.distance_km ?? null,
+                          date: project.source_date ?? undefined,
+                          info_url: project.source_url ?? undefined,
+                        })),
+                      } : ((currentScored as any).pipeline_intel ?? null)}
+                    />
+                  </div>
+                )}
                 <FactsReviewPanel workflow={workflow} onOpenEvidence={setEvidenceFact} />
                 {workflow.valuation_gate.status !== 'pass' && <ValuationGatePanel workflow={workflow} />}
-                <DiligenceChecklist workflow={workflow} />
               </div>
-            </details>
+            )}
+
+            {activeReportMode !== 'memo' && activeReportMode !== 'underwriting' && (
+              <div style={{
+                color: 'rgba(255,255,255,0.42)',
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                marginBottom: 30,
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                paddingTop: 14,
+              }}>
+                Memo narrative is intentionally kept out of this workspace mode. Switch back to Memo for the investor-facing view.
+              </div>
+            )}
           </>
         )}
+
+        {(!workflow || activeReportMode === 'underwriting') && (
+          <>
+            {workflow && (
+              <div
+                style={{
+                  background: 'rgba(0,180,160,0.07)',
+                  border: '1px solid rgba(0,180,160,0.18)',
+                  borderRadius: 8,
+                  padding: '14px 16px',
+                  marginBottom: 26,
+                  color: 'rgba(255,255,255,0.66)',
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              >
+                <span style={{ color: '#00b4a0', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 8 }}>
+                  Underwriting workspace
+                </span>
+                These controls support analysis and re-scoring. They are not part of the investor-facing memo or IC Pack export.
+              </div>
+            )}
 
         {/* IC VALUATION SUMMARY */}
         {(() => {
@@ -2220,9 +2332,11 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             </div>
           )
         })()}
+          </>
+        )}
 
         {/* ── DECISION CHECKLIST ── */}
-        <div className="no-print" style={{ marginBottom: 32 }}>
+        {(!workflow || activeReportMode === 'diligence') && <div className="no-print" style={{ marginBottom: 32 }}>
           <button
             onClick={() => setChecklistOpen(o => !o)}
             style={{
@@ -2287,10 +2401,10 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── NOTES & TAGS ── */}
-        <div className="no-print" style={{ marginBottom: 40 }}>
+        {(!workflow || activeReportMode === 'diligence') && <div className="no-print" style={{ marginBottom: 40 }}>
           <button
             onClick={() => setNotesOpen(o => !o)}
             style={{
@@ -2363,12 +2477,12 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
       </div>{/* end report-content */}
 
       {/* ── SCORE INTERPRETATION ── */}
-      <div className="score-interpretation" style={{
+      {(!workflow || activeReportMode === 'underwriting') && <div className="score-interpretation" style={{
         margin: '0 40px 40px',
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.07)',
@@ -2421,7 +2535,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             EDR replaces vendor-supplied GapMaps figures, which systematically overstate real demand.
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ── FOOTER ── */}
       <footer style={{

@@ -883,7 +883,7 @@ export default function ICPackExport({
         </div>
       </ExportSection>
 
-      <ExportSection number="2" title="Top Red Flags / Conflicts">
+      <ExportSection number="2" title="Why This Deal Can Fail / Conflicts">
         {riskItems.length ? (
           <div className="ic-pack-list">
             {riskItems.slice(0, 10).map(item => (
@@ -934,91 +934,19 @@ export default function ICPackExport({
         <EvidenceReadinessRows workflow={workflow} />
       </ExportSection>
 
-      <ExportSection number="11" title="Appendix / Audit Trail">
-        {currentRun ? (
-          <>
-            <div className="ic-pack-grid-4">
-              <KeyValue label={historicalMode ? 'Exported snapshot' : 'Current underwriting'} value={formatRunLabel(currentRun)} note={`Run ID ${formatRunShortId(currentRun.id)}`} />
-              <KeyValue label="Run type" value={formatRunType(currentRun.run_type)} note={currentRun.base_run_id ? `Base ${formatRunShortId(currentRun.base_run_id)}` : undefined} />
-              <KeyValue label="Completed" value={formatRunDate(currentRun.completed_at)} />
-              <KeyValue label="Promoted" value={formatRunDate(currentRun.promoted_at)} />
-              <KeyValue label="Input documents" value={`${inputDocumentCount}`} note={`${inputSourceCount} retained source · ${inputDiligenceCount} diligence`} />
-              <KeyValue label="Input size" value={formatRunBytes(currentRun.input_total_bytes)} />
-              <KeyValue label="Run status" value={currentRun.status} note={currentRun.progress_message ?? undefined} />
-              <KeyValue label="Evidence provenance" value="Run-scoped" note="Evidence references are scoped to this underwriting run." />
-              {historicalMode && <KeyValue label="Current status" value={isRunCurrent ? 'This run is current' : 'Historical only'} note={isRunCurrent ? undefined : `Current promoted run: ${currentRunLabel ?? 'not available'}`} />}
-              {historicalMode && <KeyValue label="Export generated" value={exportGeneratedAt} />}
-            </div>
-            {staleDocumentCount > 0 && (
-              <div className="ic-pack-alert ic-pack-alert-red">
-                <strong>This IC Pack excludes newer uploaded diligence documents.</strong>
-                <p>
-                  {staleDocumentCount} document{staleDocumentCount === 1 ? '' : 's'} were uploaded after {formatRunDate(currentRun.completed_at)} and are not included in this underwriting run.
-                </p>
-              </div>
-            )}
-            {runDiff && (
-              <div className="ic-pack-list">
-                {runDiff.scoreChange && (
-                  <div className="ic-pack-list-item ic-pack-request">
-                    <strong>Score change</strong>
-                    <span>{runDiff.scoreChange}</span>
-                  </div>
-                )}
-                {runDiff.valuationGateChange && (
-                  <div className="ic-pack-list-item ic-pack-request">
-                    <strong>Valuation gate</strong>
-                    <span>{runDiff.valuationGateChange}</span>
-                  </div>
-                )}
-                {runDiff.recommendationChange && (
-                  <div className="ic-pack-list-item ic-pack-request">
-                    <strong>Recommendation change</strong>
-                    <span>{runDiff.recommendationChange}</span>
-                  </div>
-                )}
-                {runDiff.resolvedBlockers.slice(0, 5).map(blocker => (
-                  <div key={`resolved-${blocker}`} className="ic-pack-list-item ic-pack-request">
-                    <strong>Resolved blocker</strong>
-                    <span>{blocker}</span>
-                  </div>
-                ))}
-                {runDiff.newBlockers.slice(0, 5).map(blocker => (
-                  <div key={`new-${blocker}`} className="ic-pack-list-item ic-pack-missing">
-                    <strong>New blocker</strong>
-                    <span>{blocker}</span>
-                  </div>
-                ))}
-                {runDiff.warnings.slice(0, 4).map((warning, index) => (
-                  <div key={`${warning}-${index}`} className="ic-pack-list-item ic-pack-missing">
-                    <strong>Run warning</strong>
-                    <span>{warning}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="ic-pack-alert">
-            <strong>{metadataFallbackLabel}</strong>
-            <p>{metadataFallbackBody}</p>
-          </div>
-        )}
+      <ExportSection number="5" title="Key Underwriting Facts">
+        <FactRows facts={displayFacts} />
+      </ExportSection>
+
+      <ExportSection number="6" title="Why This Deal Could Work">
+        <p>{sanitizeReportText(scored.dimensions?.profitability_cashflow?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? guardedSummary ?? 'Investment thesis requires further evidence review.')}</p>
       </ExportSection>
 
       <ExportSection number="7" title="Scoring Detail">
         <ScoringBreakdown extracted={extracted} scored={scored} workflow={workflow} />
       </ExportSection>
 
-      <ExportSection number="5" title="Key Underwriting Facts">
-        <FactRows facts={displayFacts} />
-      </ExportSection>
-
-      <ExportSection number="6" title="Investment Thesis">
-        <p>{sanitizeReportText(scored.dimensions?.profitability_cashflow?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? guardedSummary ?? 'Investment thesis requires further evidence review.')}</p>
-      </ExportSection>
-
-      <ExportSection number="8" title="Market / Competitor Audit">
+      <ExportSection number="8" title="Market & Competitive Position">
         <p className="ic-pack-muted">Interactive map markers are summarized here; the printable export does not reproduce the map itself.</p>
         {marketAudit ? (
           <AuditRows audit={marketAudit} />
@@ -1048,7 +976,7 @@ export default function ICPackExport({
         <p>{valuationBlocked ? 'Recovery thesis depends on evidence. Potential turnaround language should be read as a diligence hypothesis, not an investable valuation conclusion.' : guardedValuationNote ?? scored.dimensions?.valuation_structure?.summary ?? 'Valuation assumptions require supporting evidence before IC reliance.'}</p>
       </ExportSection>
 
-      <ExportSection number="10" title="Missing / Document Requests">
+      <ExportSection number="10" title="What We Do Not Know">
         {missingFacts.length || blockerFacts.length ? (
           <>
             <div className="ic-pack-list">
@@ -1075,7 +1003,7 @@ export default function ICPackExport({
         )}
       </ExportSection>
 
-      <ExportSection number="10A" title="Broker Diligence Requests">
+      <ExportSection number="11" title="Broker / Seller Request List">
         {requests.length ? (
           <div className="ic-pack-list">
             {requests.slice(0, 12).map(item => (
@@ -1099,7 +1027,7 @@ export default function ICPackExport({
         )}
       </ExportSection>
 
-      <ExportSection number="12" title="IC Decision Detail">
+      <ExportSection number="12" title="IC Decision & Deal Structure Recommendation">
         <div className={valuationBlocked ? 'ic-pack-alert ic-pack-alert-red' : 'ic-pack-alert'}>
           <strong>{decision}</strong>
           <p>
@@ -1111,6 +1039,52 @@ export default function ICPackExport({
           {guard?.market_note && <p>{guard.market_note}</p>}
           {isIllustrative && <div className="ic-pack-label">Illustrative only — not underwritten.</div>}
         </div>
+      </ExportSection>
+
+      <ExportSection number="13" title="Appendix / Audit Trail">
+        {currentRun ? (
+          <>
+            <div className="ic-pack-grid-4">
+              <KeyValue label={historicalMode ? 'Exported snapshot' : 'Current underwriting'} value={formatRunLabel(currentRun)} note={`Run ID ${formatRunShortId(currentRun.id)}`} />
+              <KeyValue label="Run type" value={formatRunType(currentRun.run_type)} note={currentRun.base_run_id ? `Base ${formatRunShortId(currentRun.base_run_id)}` : undefined} />
+              <KeyValue label="Completed" value={formatRunDate(currentRun.completed_at)} />
+              <KeyValue label="Promoted" value={formatRunDate(currentRun.promoted_at)} />
+              <KeyValue label="Input documents" value={`${inputDocumentCount}`} note={`${inputSourceCount} retained source · ${inputDiligenceCount} diligence`} />
+              <KeyValue label="Input size" value={formatRunBytes(currentRun.input_total_bytes)} />
+              <KeyValue label="Run status" value={currentRun.status} note={currentRun.progress_message ?? undefined} />
+              <KeyValue label="Evidence provenance" value="Run-scoped" note="Evidence references are scoped to this underwriting run." />
+            </div>
+            {staleDocumentCount > 0 && (
+              <div className="ic-pack-alert ic-pack-alert-red">
+                <strong>This IC Pack excludes newer uploaded diligence documents.</strong>
+                <p>
+                  {staleDocumentCount} document{staleDocumentCount === 1 ? '' : 's'} were uploaded after {formatRunDate(currentRun.completed_at)} and are not included in this underwriting run.
+                </p>
+              </div>
+            )}
+            {runDiff && (
+              <div className="ic-pack-list">
+                {[runDiff.scoreChange, runDiff.valuationGateChange, runDiff.recommendationChange].filter(Boolean).map((change, index) => (
+                  <div key={`run-change-${index}`} className="ic-pack-list-item ic-pack-request">
+                    <strong>Run change</strong>
+                    <span>{change}</span>
+                  </div>
+                ))}
+                {runDiff.warnings.slice(0, 4).map((warning, index) => (
+                  <div key={`${warning}-${index}`} className="ic-pack-list-item ic-pack-missing">
+                    <strong>Run warning</strong>
+                    <span>{warning}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="ic-pack-alert">
+            <strong>{metadataFallbackLabel}</strong>
+            <p>{metadataFallbackBody}</p>
+          </div>
+        )}
       </ExportSection>
 
       <footer className="ic-pack-footer">
