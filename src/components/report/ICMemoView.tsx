@@ -25,6 +25,39 @@ function factHasEvidence(fact: WorkflowFact): boolean {
   return Boolean(fact.source?.label || fact.source?.excerpt || fact.evidence_id)
 }
 
+type FactClassification = 'key_fact' | 'thesis_positive' | 'risk_negative' | 'missing_evidence' | 'neutral_context'
+
+function factText(fact: WorkflowFact): string {
+  return `${fact.field} ${fact.label}`.toLowerCase()
+}
+
+function isHardFact(fact: WorkflowFact): boolean {
+  const text = factText(fact)
+  return fact.category === 'centre'
+    || /\b(address|centre name|licensed|places|capacity|nqs|rating|daily fee|fee|rent|lease|term|option|postcode)\b/.test(text)
+}
+
+function displayConfidence(fact: WorkflowFact): WorkflowFact['confidence'] {
+  if (fact.confidence === 'missing') return 'missing'
+  if (isHardFact(fact) && factHasEvidence(fact)) return 'high'
+  return fact.confidence
+}
+
+function classifyFact(fact: WorkflowFact): FactClassification {
+  if (fact.blocker || fact.confidence === 'missing' || fact.value == null || fact.value === '') return 'missing_evidence'
+  const text = factText(fact)
+  if (/\b(risk|declin|negative|overdue|working towards|below|above safe|unverified|not verified|missing|short|critical)\b/.test(text)) return 'risk_negative'
+  if (isHardFact(fact)) return 'key_fact'
+  if (
+    ['fees', 'occupancy', 'financials', 'lease', 'valuation'].includes(fact.category)
+    && /\b(occupancy|waitlist|revenue|ebitda|margin|rent ratio|labour|payroll|yield|multiple|demand|undersupply|pricing|option)\b/.test(text)
+  ) {
+    return 'thesis_positive'
+  }
+  if (['staffing', 'regulatory'].includes(fact.category)) return 'key_fact'
+  return 'neutral_context'
+}
+
 function decisionLanguage(status: string, score?: number): string {
   if (status === 'blocked') return 'Cannot underwrite yet'
   if (status === 'needs_review') return 'Investigate only with conditions'
@@ -35,7 +68,8 @@ function decisionLanguage(status: string, score?: number): string {
 
 function FactPill({ fact, onOpen }: { fact: WorkflowFact; onOpen: (fact: WorkflowFact) => void }) {
   const clickable = factHasEvidence(fact)
-  const isMissing = fact.confidence === 'missing' || fact.blocker
+  const confidence = displayConfidence(fact)
+  const isMissing = confidence === 'missing' || fact.blocker
   return (
     <button
       type="button"
@@ -53,8 +87,8 @@ function FactPill({ fact, onOpen }: { fact: WorkflowFact; onOpen: (fact: Workflo
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.76)' }}>{fact.label}</span>
-        <span style={{ fontSize: 10.5, fontFamily: 'IBM Plex Mono, monospace', color: fact.confidence === 'high' ? '#22c55e' : fact.confidence === 'missing' ? '#ef4444' : '#f59e0b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          {isMissing ? 'missing' : fact.confidence}
+        <span style={{ fontSize: 10.5, fontFamily: 'IBM Plex Mono, monospace', color: confidence === 'high' ? '#22c55e' : confidence === 'missing' ? '#ef4444' : '#f59e0b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          {isMissing ? 'missing' : confidence}
         </span>
       </div>
       <div style={{ fontSize: 13, color: isMissing ? '#f59e0b' : 'rgba(255,255,255,0.7)', marginBottom: 6 }}>{factValue(fact)}</div>
@@ -69,6 +103,16 @@ function FactPill({ fact, onOpen }: { fact: WorkflowFact; onOpen: (fact: Workflo
         )}
       </div>
     </button>
+  )
+}
+
+function ConfidenceLegend() {
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', color: 'rgba(255,255,255,0.48)', fontSize: 11.8, lineHeight: 1.45 }}>
+      <span><strong style={{ color: '#22c55e' }}>High</strong> = source-backed exact value</span>
+      <span><strong style={{ color: '#f59e0b' }}>Medium</strong> = extracted or inferred, needs review</span>
+      <span><strong style={{ color: '#ef4444' }}>Missing</strong> = required evidence not found</span>
+    </div>
   )
 }
 
@@ -109,9 +153,11 @@ export default function ICMemoView({
     ? scored.overall_score * 10
     : undefined
   const facts = workflow.facts ?? workflow.extracted_facts ?? []
-  const knownFacts = facts.filter(f => f.confidence !== 'missing' && f.value != null).slice(0, 8)
-  const blockerFacts = facts.filter(f => f.blocker || f.confidence === 'missing').slice(0, 8)
-  const interestingFacts = knownFacts.filter(f => ['fees', 'occupancy', 'financials', 'centre'].includes(f.category)).slice(0, 4)
+  const classifiedFacts = facts.map(fact => ({ fact, classification: classifyFact(fact) }))
+  const thesisFacts = classifiedFacts.filter(row => row.classification === 'thesis_positive').map(row => row.fact).slice(0, 6)
+  const keyFacts = classifiedFacts.filter(row => row.classification === 'key_fact').map(row => row.fact).slice(0, 10)
+  const riskFacts = classifiedFacts.filter(row => row.classification === 'risk_negative').map(row => row.fact).slice(0, 4)
+  const blockerFacts = classifiedFacts.filter(row => row.classification === 'missing_evidence').map(row => row.fact).slice(0, 8)
   const risks = workflow.risks ?? []
   const warnings = workflow.extraction_warnings ?? []
   const requests = workflow.diligence_checklist ?? workflow.diligence_requests ?? []
@@ -190,65 +236,42 @@ export default function ICMemoView({
       </div>
 
       <div style={{ display: 'grid', gap: 22, padding: '24px 26px' }}>
-        <MemoSection title="1. Verdict">
-          <div style={{ color: '#fff', fontSize: 18, lineHeight: 1.45, fontWeight: 800, marginBottom: 8 }}>
-            {decision}
-          </div>
-          <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{icDecision}</p>
-        </MemoSection>
-
-        <MemoSection title="2. Why This Deal Is Interesting">
-          {interestingFacts.length ? (
+        <MemoSection title="1. Investment Thesis">
+          {thesisFacts.length ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-              {interestingFacts.map(f => <FactPill key={f.id} fact={f} onOpen={onOpenEvidence} />)}
+              {thesisFacts.map(f => <FactPill key={f.id} fact={f} onOpen={onOpenEvidence} />)}
             </div>
           ) : (
-            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>No positive thesis facts are confirmed yet.</p>
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>No positive, underwriting-relevant thesis points are confirmed yet.</p>
+          )}
+          <div style={{ marginTop: 12 }}><ConfidenceLegend /></div>
+        </MemoSection>
+
+        <MemoSection title="2. Key Facts">
+          {keyFacts.length ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+              {keyFacts.map(f => <FactPill key={f.id} fact={f} onOpen={onOpenEvidence} />)}
+            </div>
+          ) : (
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>No source-backed key facts are confirmed yet.</p>
           )}
         </MemoSection>
 
-        {(marketAudit || pipelineAudit) && (
-          <MemoSection title="Market Evidence">
-            {marketAudit ? (
-              <MarketAuditSummary audit={marketAudit} pipelineAudit={pipelineAudit} pipelineProjects={pipelineProjects} />
-            ) : (
-              <PipelineSummary audit={pipelineAudit} projects={pipelineProjects} compact />
+        <MemoSection title="3. What Is Missing / Valuation Gate" tone={gate.can_show_confident_valuation ? 'default' : 'missing'}>
+          <div style={{
+            background: gate.status === 'blocked' ? 'rgba(239,68,68,0.1)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.07)' : 'rgba(245,158,11,0.08)',
+            border: `1px solid ${gate.status === 'blocked' ? 'rgba(239,68,68,0.34)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.22)' : 'rgba(245,158,11,0.22)'}`,
+            borderRadius: 8, padding: '14px 16px', color: 'rgba(255,255,255,0.78)', fontSize: 14, lineHeight: 1.65, marginBottom: 12,
+          }}>
+            {gate.status === 'blocked'
+              ? guardedValuationNote ?? 'Cannot underwrite yet - valuation blocked pending financial evidence.'
+              : guardedValuationNote ?? gate.message}
+            {!gate.can_show_confident_valuation && (
+              <div style={{ marginTop: 8, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, textTransform: 'uppercase' }}>
+                Illustrative only - not underwritten
+              </div>
             )}
-          </MemoSection>
-        )}
-
-        <MemoSection title="3. Why This Deal Can Fail">
-          {risks.length || warnings.length ? (
-            <div style={{ display: 'grid', gap: 8 }}>
-              {risks.slice(0, 5).map(r => (
-                <div key={r.id} style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ color: '#ef4444', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>{r.title}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.58)', fontSize: 12.5, lineHeight: 1.55 }}>{r.reason ?? 'Risk requires review.'}</div>
-                </div>
-              ))}
-              {warnings.slice(0, 4).map(w => (
-                <div key={w.id} style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 8, padding: '10px 12px' }}>
-                  <div style={{ color: '#f59e0b', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>{w.field?.replace(/_/g, ' ') ?? 'Extraction warning'}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.58)', fontSize: 12.5, lineHeight: 1.55 }}>{w.message}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>No structured risks were generated.</p>
-          )}
-        </MemoSection>
-
-        <MemoSection title="4. What We Know">
-          {knownFacts.length ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-              {knownFacts.map(f => <FactPill key={f.id} fact={f} onOpen={onOpenEvidence} />)}
-            </div>
-          ) : (
-            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>No extracted facts are confirmed yet.</p>
-          )}
-        </MemoSection>
-
-        <MemoSection title="5. What We Do Not Know" tone="missing">
+          </div>
           <div style={{ display: 'grid', gap: 8 }}>
             {gate.blockers.map(b => (
               <div key={b.field} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '10px 12px', color: 'rgba(255,255,255,0.68)', fontSize: 13, lineHeight: 1.55 }}>
@@ -269,34 +292,33 @@ export default function ICMemoView({
           </div>
         </MemoSection>
 
-        <MemoSection title="6. Valuation Status" tone={gate.can_show_confident_valuation ? 'default' : 'missing'}>
-          <div style={{
-            background: gate.status === 'blocked' ? 'rgba(239,68,68,0.1)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.07)' : 'rgba(245,158,11,0.08)',
-            border: `1px solid ${gate.status === 'blocked' ? 'rgba(239,68,68,0.34)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.22)' : 'rgba(245,158,11,0.22)'}`,
-            borderRadius: 8, padding: '14px 16px', color: 'rgba(255,255,255,0.78)', fontSize: 14, lineHeight: 1.65,
-          }}>
-            {gate.status === 'blocked'
-              ? guardedValuationNote ?? 'Cannot underwrite yet — valuation blocked pending financial evidence.'
-              : guardedValuationNote ?? gate.message}
-            {!gate.can_show_confident_valuation && (
-              <div style={{ marginTop: 8, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, textTransform: 'uppercase' }}>
-                Illustrative only — not underwritten
-              </div>
-            )}
-          </div>
+        <MemoSection title="4. Market Evidence">
+          <MarketAuditSummary audit={marketAudit} pipelineAudit={pipelineAudit} pipelineProjects={pipelineProjects} />
         </MemoSection>
 
-        <MemoSection title="7. Deal Structure Recommendation">
-          <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 13.5, lineHeight: 1.7, margin: 0 }}>{structuring}</p>
-          {guardedPipelineNote && pipelineAudit?.search_required && (
-            <p style={{ color: '#f59e0b', fontSize: 12.5, lineHeight: 1.6, margin: '10px 0 0' }}>{guardedPipelineNote}</p>
-          )}
-          {guard?.market_note && (
-            <p style={{ color: '#f59e0b', fontSize: 12.5, lineHeight: 1.6, margin: '10px 0 0' }}>{guard.market_note}</p>
+        <MemoSection title="5. Risks">
+          {risks.length || warnings.length || riskFacts.length ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {riskFacts.map(f => <FactPill key={f.id} fact={f} onOpen={onOpenEvidence} />)}
+              {risks.slice(0, 5).map(r => (
+                <div key={r.id} style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ color: '#ef4444', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>{r.title}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.58)', fontSize: 12.5, lineHeight: 1.55 }}>{r.reason ?? 'Risk requires review.'}</div>
+                </div>
+              ))}
+              {warnings.slice(0, 4).map(w => (
+                <div key={w.id} style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)', borderRadius: 8, padding: '10px 12px' }}>
+                  <div style={{ color: '#f59e0b', fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>{w.field?.replace(/_/g, ' ') ?? 'Extraction warning'}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.58)', fontSize: 12.5, lineHeight: 1.55 }}>{w.message}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>No structured risks were generated.</p>
           )}
         </MemoSection>
 
-        <MemoSection title="8. Broker Request List" tone="action">
+        <MemoSection title="6. Broker Evidence Requests" tone="action">
           {requests.length ? (
             <div style={{ display: 'grid', gap: 8 }}>
               {requests.slice(0, 8).map(item => (
@@ -316,8 +338,15 @@ export default function ICMemoView({
           )}
         </MemoSection>
 
-        <MemoSection title="9. IC Decision">
+        <MemoSection title="7. IC Decision">
           <div style={{ color: '#fff', fontSize: 15, lineHeight: 1.65, fontWeight: 700 }}>{icDecision}</div>
+          <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: 13.5, lineHeight: 1.7, margin: '10px 0 0' }}>{structuring}</p>
+          {guardedPipelineNote && pipelineAudit?.search_required && (
+            <p style={{ color: '#f59e0b', fontSize: 12.5, lineHeight: 1.6, margin: '10px 0 0' }}>{guardedPipelineNote}</p>
+          )}
+          {guard?.market_note && (
+            <p style={{ color: '#f59e0b', fontSize: 12.5, lineHeight: 1.6, margin: '10px 0 0' }}>{guard.market_note}</p>
+          )}
         </MemoSection>
       </div>
     </section>

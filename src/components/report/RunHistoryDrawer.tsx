@@ -438,6 +438,11 @@ export default function RunHistoryDrawer({
                           {run.progress_message ?? run.progress_step}
                         </div>
                       )}
+                      {run.status === 'queued' && run.execution_mode === 'async_placeholder' && (
+                        <div style={{ color: '#f59e0b', fontSize: 12.1, marginTop: 6 }}>
+                          This run is queued for the background worker and will not process until the worker is deployed. Use Run now for immediate re-underwriting.
+                        </div>
+                      )}
                       {run.status === 'failed' && run.error_message && (
                         <div style={{ color: '#ef4444', fontSize: 12.2, marginTop: 7 }}>{run.error_message}</div>
                       )}
@@ -497,7 +502,7 @@ export default function RunHistoryDrawer({
               run.status === 'completed'
                 ? `Run #${run.run_number} completed. Review it in Run History before promoting.`
                 : run.status === 'queued'
-                ? `Run #${run.run_number} queued. Review progress in Run History.`
+                ? `Run #${run.run_number} queued for the background worker. It will not process until the worker is deployed.`
                 : `Run #${run.run_number} finished with status ${run.status}.`
             )
             await load()

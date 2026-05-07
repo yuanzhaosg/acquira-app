@@ -97,6 +97,8 @@ export interface WorkflowEvidence {
 }
 
 export interface MarketAudit {
+  status?: 'complete' | 'partial' | 'missing' | string | null
+  missing_fields?: string[]
   catchment_radius_km?: number | null
   radius_reason?: string | null
   kids_0_4?: {
