@@ -1,4 +1,9 @@
 export type WorkflowConfidence = 'high' | 'medium' | 'low' | 'missing'
+export type EvidenceProvenance = 'found' | 'derived' | 'imputed' | 'manual_context' | 'missing' | 'not_applicable'
+export type EvidenceTrust = 'high' | 'medium' | 'low' | 'disputed' | 'unknown'
+export type UnderwritingUse = 'accepted' | 'review_required' | 'blocked' | 'excluded'
+export type EvidenceSourceType = 'pdf_text' | 'pdf_vision' | 'excel_cell' | 'workbook_derived' | 'supplemental_doc' | 'manual_context' | 'market_model' | 'system_derived'
+export type EvidenceSourceQuality = 'authoritative' | 'supporting' | 'broker_summary' | 'template_or_forecast' | 'manual' | 'unknown'
 export type WorkflowFactStatus = 'extracted' | 'needs_review' | 'confirmed' | 'overridden'
 export type ValuationGateStatus = 'pass' | 'blocked' | 'needs_review'
 export type MarketAuditConfidence = 'high' | 'medium' | 'low'
@@ -9,14 +14,29 @@ export type CompetitorSupplySource = 'geospatial_supabase' | 'postcode_fallback'
 
 export interface EvidenceSource {
   label: string | null
+  file?: string | null
   page?: number | null
   sheet?: string | null
+  sheet_name?: string | null
+  cell_range?: string | null
   row_label?: string | null
   excerpt?: string | null
   evidence_id?: string | null
   local_evidence_id?: string | null
   run_id?: string | null
   run_evidence_id?: string | null
+}
+
+export interface EvidenceSourceRef {
+  file_name?: string | null
+  page?: number | null
+  sheet_name?: string | null
+  cell_range?: string | null
+  extraction_method?: string | null
+  excerpt?: string | null
+  extractor_version?: string | null
+  prompt_version?: string | null
+  run_id?: string | null
 }
 
 export interface WorkflowFact {
@@ -31,6 +51,34 @@ export interface WorkflowFact {
   source_label?: string
   confidence: WorkflowConfidence
   status: WorkflowFactStatus
+  provenance?: EvidenceProvenance
+  trust?: EvidenceTrust
+  underwriting_use?: UnderwritingUse
+  source_type?: EvidenceSourceType | string
+  source_quality?: EvidenceSourceQuality | string
+  source_refs?: EvidenceSourceRef[]
+  period?: {
+    start_date?: string | null
+    end_date?: string | null
+    fiscal_year?: string | null
+    period_label?: string | null
+    coverage_status?: 'complete' | 'partial' | 'unknown' | 'not_applicable' | string
+    coverage_reason?: string | null
+  }
+  derivation_formula?: string | null
+  derivation_note?: string | null
+  derivation_recipe?: {
+    included_lines?: string[]
+    excluded_lines?: string[]
+    assumptions?: string[]
+    convention?: string
+    calculation_steps?: string[]
+  } | null
+  conflicts?: Array<{ value?: unknown; source_ref?: EvidenceSourceRef | Record<string, unknown>; reason?: string }>
+  reason?: string | null
+  next_action?: string | null
+  extractor_version?: string | null
+  prompt_version?: string | null
   blocker?: boolean
   extraction_method?: string
   evidence_id?: string
@@ -91,9 +139,32 @@ export interface WorkflowEvidence {
   excerpt?: string | null
   confidence: WorkflowConfidence
   extraction_method?: string
+  provenance?: EvidenceProvenance
+  trust?: EvidenceTrust
+  underwriting_use?: UnderwritingUse
+  source_type?: EvidenceSourceType | string
+  source_quality?: EvidenceSourceQuality | string
+  source_refs?: EvidenceSourceRef[]
+  derivation_formula?: string | null
+  derivation_recipe?: WorkflowFact['derivation_recipe']
   local_evidence_id?: string | null
   run_id?: string | null
   run_evidence_id?: string | null
+}
+
+export interface EvidenceReadinessItem {
+  fact_id?: string
+  field?: string
+  label?: string
+  value?: unknown
+  provenance?: EvidenceProvenance | string
+  trust?: EvidenceTrust | string
+  underwriting_use?: UnderwritingUse | string
+  source_type?: string
+  source_quality?: string
+  reason?: string | null
+  next_action?: string | null
+  source_refs?: EvidenceSourceRef[]
 }
 
 export interface MarketAudit {
@@ -216,6 +287,14 @@ export interface DealWorkflow {
   diligence_requests?: DiligenceItem[]
   extraction_warnings: ExtractionWarning[]
   evidence: WorkflowEvidence[]
+  evidence_ledger?: WorkflowFact[]
+  evidence_readiness?: Record<string, EvidenceReadinessItem[]>
+  partner_judgement_prompts?: Array<{
+    id: string
+    question: string
+    why_it_matters?: string
+    category?: string
+  }>
   narrative_guard?: NarrativeGuard | null
   market_audit?: MarketAudit | null
   pipeline_projects?: PipelineProject[]

@@ -44,21 +44,33 @@ assert(
 )
 
 for (const title of [
-  '1. Investment Thesis',
-  '2. Key Facts',
-  '3. What Is Missing / Valuation Gate',
-  '4. Market Evidence',
-  '5. Risks',
-  '6. Broker Evidence Requests',
-  '7. IC Decision',
+  '1. Recommendation and Confidence',
+  '2. Key Red Flags / Conflicts',
+  '3. What Would Change The Recommendation',
+  '4. Evidence Readiness',
+  '5. Investment Thesis',
+  '6. Key Facts',
+  '7. Derived Metrics and Recipes',
+  '8. Market / Pipeline Evidence',
+  '9. What Is Missing / Valuation Gate',
+  '10. Broker / Seller Request List',
+  '11. Appendix / Extraction Ledger',
 ]) {
   assert(icMemo.includes(title), `IC memo missing section: ${title}`)
 }
 
 assert(
   /isHardFact[\s\S]*category === 'centre'/.test(icMemo)
+    && /classifyFact[\s\S]*if \(fact\.trust === 'disputed'/.test(icMemo)
     && /classifyFact[\s\S]*if \(isHardFact\(fact\)\) return 'key_fact'/.test(icMemo),
   'IC memo hard facts must classify as Key Facts rather than Investment Thesis.',
+)
+assert(
+  /function EvidenceReadiness/.test(icMemo)
+    && /Found \/ accepted/.test(icMemo)
+    && /Excluded from underwriting/.test(icMemo)
+    && /Manual context/.test(icMemo),
+  'Evidence Readiness must render provenance/trust/use groups.',
 )
 assert(
   /High<\/strong> = source-backed exact value/.test(icMemo)
