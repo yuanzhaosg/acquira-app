@@ -73,6 +73,12 @@ assert(
   'Evidence Readiness must render provenance/trust/use groups.',
 )
 assert(
+  /function periodLabel/.test(icMemo)
+    && /coverage_reason/.test(icMemo)
+    && /period_label/.test(icMemo),
+  'Evidence Readiness must render period labels and coverage reasons.',
+)
+assert(
   /High<\/strong> = source-backed exact value/.test(icMemo)
     && /Medium<\/strong> = extracted or inferred, needs review/.test(icMemo)
     && /Missing<\/strong> = required evidence not found/.test(icMemo),

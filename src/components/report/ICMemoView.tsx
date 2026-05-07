@@ -64,6 +64,14 @@ function statusLabel(value?: string | null): string {
   return value.replace(/_/g, ' ')
 }
 
+function periodLabel(fact: WorkflowFact): string | null {
+  const period = fact.period
+  if (!period) return null
+  const label = period.period_label || period.fiscal_year || period.coverage_status
+  if (!label || label === 'not_applicable') return null
+  return `${label}${period.coverage_status ? ` · ${statusLabel(period.coverage_status)}` : ''}`
+}
+
 function readinessGroups(facts: WorkflowFact[]) {
   return {
     accepted: facts.filter(f => f.underwriting_use === 'accepted'),
@@ -109,10 +117,13 @@ function EvidenceReadiness({ facts, onOpen }: { facts: WorkflowFact[]; onOpen: (
                     <span style={{ fontSize: 12.5, fontWeight: 700 }}>{fact.label}</span>
                     <span style={{ color, fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase' }}>{statusLabel(fact.trust ?? fact.underwriting_use)}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{factValue(fact)} · {statusLabel(fact.provenance)} · {statusLabel(fact.source_quality)}</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+                    {factValue(fact)} · {statusLabel(fact.provenance)} · {statusLabel(fact.source_quality)}
+                    {periodLabel(fact) ? ` · ${periodLabel(fact)}` : ''}
+                  </div>
                   {(fact.reason || fact.next_action || fact.derivation_formula) && (
                     <div style={{ marginTop: 3, fontSize: 11.5, color: 'rgba(255,255,255,0.42)', lineHeight: 1.45 }}>
-                      {fact.reason ?? fact.derivation_formula ?? fact.next_action}
+                      {fact.reason ?? fact.period?.coverage_reason ?? fact.derivation_formula ?? fact.next_action}
                     </div>
                   )}
                 </button>
@@ -376,7 +387,11 @@ export default function ICMemoView({
               {facts.filter(f => f.provenance === 'derived').slice(0, 8).map(fact => (
                 <div key={`recipe-${fact.id}`} style={{ background: 'rgba(0,180,160,0.045)', border: '1px solid rgba(0,180,160,0.16)', borderRadius: 8, padding: '10px 12px' }}>
                   <div style={{ color: '#fff', fontSize: 13, fontWeight: 800 }}>{fact.label}: {factValue(fact)}</div>
-                  <div style={{ color: 'rgba(255,255,255,0.56)', fontSize: 12.3, lineHeight: 1.55, marginTop: 4 }}>{fact.derivation_formula ?? fact.derivation_note ?? 'Derived from source evidence.'}</div>
+                  <div style={{ color: 'rgba(255,255,255,0.56)', fontSize: 12.3, lineHeight: 1.55, marginTop: 4 }}>
+                    {fact.derivation_formula ?? fact.derivation_note ?? 'Derived from source evidence.'}
+                    {periodLabel(fact) ? ` Period: ${periodLabel(fact)}.` : ''}
+                    {fact.period?.coverage_reason ? ` ${fact.period.coverage_reason}` : ''}
+                  </div>
                 </div>
               ))}
             </div>
