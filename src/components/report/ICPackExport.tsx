@@ -53,6 +53,7 @@ type RiskItem = {
   title: string
   detail: string
   tone: 'risk' | 'missing' | 'request'
+  severity?: string
 }
 
 type EvidenceRequirement = 'revenue' | 'ebitda' | 'payroll_labour_cost' | 'occupancy_history'
@@ -79,6 +80,15 @@ function factValue(fact: DisplayFact): string {
   return String(fact.value)
 }
 
+function rawFactValue(value: unknown, unit?: string | null): string {
+  if (value == null || value === '') return 'Missing'
+  if (unit === 'aud' && typeof value === 'number') return money(value)
+  if (unit === 'percent' && typeof value === 'number') return pct(value)
+  if (unit === 'places' && typeof value === 'number') return `${value.toLocaleString('en-AU')} places`
+  if (typeof value === 'number') return value.toLocaleString('en-AU')
+  return String(value)
+}
+
 function confidenceLabel(fact: DisplayFact): string {
   const source = 'source' in fact ? fact.source?.label ?? fact.source_label ?? 'Source pending' : fact.source_refs?.[0]?.file_name ?? fact.source_type ?? 'Source pending'
   const compactSource = source.split('/').pop()?.replace(/\s+/g, ' ').slice(0, 64) ?? source
@@ -96,7 +106,7 @@ function scoreValue(scored: ScoredDeal): number {
 function decisionLabel(workflow: DealWorkflow | null | undefined, scored: ScoredDeal): string {
   const gate = workflow?.valuation_gate
   const score = scoreValue(scored)
-  if (gate?.status === 'blocked') return 'Cannot underwrite yet'
+  if (gate?.status === 'blocked') return 'Investigate only with conditions'
   if (gate?.status === 'needs_review' || gate?.can_show_confident_valuation === false) return 'Investigate only with conditions'
   if (score < 42) return 'Pass unless financial evidence is provided'
   if (score < 58) return 'Operator-led turnaround only'
@@ -139,7 +149,7 @@ function evidenceLabel(field: EvidenceRequirement): string {
 }
 
 function investorSafeVerdictLabel(blocked: boolean, workflow: DealWorkflow | null | undefined, scored: ScoredDeal): string {
-  if (blocked) return 'Valuation blocked pending financial evidence'
+  if (blocked) return 'Investigate only with conditions'
   return workflow?.narrative_guard?.recommendation ?? decisionLabel(workflow, scored)
 }
 
@@ -153,6 +163,53 @@ function investorSafeValuationCopy(blocked: boolean, missing: EvidenceRequiremen
   if (!blocked) return fallback ?? 'Valuation is based on extracted scoring data.'
   const missingText = missing.length ? ` Required evidence still missing: ${missing.map(evidenceLabel).join(', ')}.` : ''
   return `Valuation blocked — required financial evidence is missing.${missingText}`
+}
+
+function isMissingLike(value: unknown): boolean {
+  return value == null || value === '' || value === 'Not provided' || value === 'Missing'
+}
+
+function hasUsableFact(workflow: DealWorkflow | null | undefined, field: string): boolean {
+  const fact = canonicalFact(workflow, field)
+  return Boolean(fact && !isMissingLike(fact.value) && fact.underwriting_use !== 'excluded')
+}
+
+function askingPriceMissing(workflow: DealWorkflow | null | undefined, extracted: ExtractedDeal): boolean {
+  const fact = canonicalFact(workflow, 'asking_price')
+  if (fact) return isMissingLike(fact.value) || fact.underwriting_use === 'blocked' || fact.provenance === 'missing'
+  return !hasNumber(extracted.financials?.asking_price ?? extracted.key_ratios?.asking_price)
+}
+
+function buildCoverNarrative({
+  workflow,
+  extracted,
+}: {
+  workflow?: DealWorkflow | null
+  extracted: ExtractedDeal
+}): { headline: string; body: string; valuationNote: string; decisionDetail: string } {
+  const priceMissing = askingPriceMissing(workflow, extracted)
+  const revenue = canonicalValue(workflow, 'revenue')
+  const profit = canonicalValue(workflow, 'ebitda')
+  const normalised = canonicalValue(workflow, 'normalised_ebitda')
+  const occupancy = canonicalValue(workflow, 'current_occupancy')
+  const hasFinancialEvidence = ['revenue', 'ebitda', 'normalised_ebitda', 'payroll_labour_cost', 'rent'].some(field => hasUsableFact(workflow, field))
+  const financialText = hasFinancialEvidence
+    ? `Financial evidence is observed${revenue !== 'Not provided' ? `, including ${revenue} revenue` : ''}${profit !== 'Not provided' ? ` and ${profit} reported profit / EBITDA proxy` : ''}${normalised !== 'Not provided' ? `, with ${normalised} normalised profit / EBITDA proxy` : ''}.`
+    : 'Financial evidence has not been adequately observed.'
+  const body = priceMissing
+    ? `Valuation multiple cannot be assessed until asking price is confirmed. ${financialText} Underwriting remains review-required because source verification, payroll reconciliation, occupancy trend, NQS position, and market/DA methodology still need diligence.`
+    : `${financialText} Valuation remains review-required until source accounts, payroll definition, occupancy trend, and market/DA methodology are verified.`
+  const occupancyText = occupancy !== 'Not provided' ? ` Current occupancy is ${occupancy}; verify trend with source utilisation exports.` : ' Occupancy trend should be verified with source utilisation exports.'
+  return {
+    headline: priceMissing ? 'Investigate only with conditions — valuation multiple blocked until asking price is confirmed.' : 'Investigate with conditions — valuation depends on source verification.',
+    body: `${body}${occupancyText}`,
+    valuationNote: priceMissing
+      ? 'Illustrative only — valuation multiple blocked pending asking price.'
+      : 'Illustrative only — verify source evidence before relying on valuation.',
+    decisionDetail: priceMissing
+      ? 'Do not submit a binding offer until asking price, source accounts, payroll reconciliation, lease/options, occupancy trend, NQS remediation, and DA/pipeline search are verified. If the recovery thesis drives price, consider deferred consideration or an earnout tied to occupancy or EBITDA recovery.'
+      : 'Proceed only with evidence-backed conditions: source P&L verification, payroll reconciliation, lease/options confirmation, NQS remediation plan, occupancy recovery evidence, and DA/pipeline search. Use deferred consideration or an earnout where recovery is central to value.',
+  }
 }
 
 function compactText(value: string | null | undefined): string | null {
@@ -220,7 +277,23 @@ function sanitizeReportText(value: string | null | undefined): string {
 }
 
 function requestText(item: { question?: string; request?: string }, fallback: string): string {
-  return sanitizeReportText(item.question || item.request || fallback).replace(/\b[a-z]+(_[a-z0-9]+)+\b/g, match => match.replace(/_/g, ' '))
+  const text = sanitizeReportText(item.question || item.request || fallback).replace(/\b[a-z]+(_[a-z0-9]+)+\b/g, match => match.replace(/_/g, ' '))
+  if (/resolve conflicting source values/i.test(text)) {
+    return 'Reconcile labour cost: confirm FY2025 payroll basis and provide payroll summary or source accounts.'
+  }
+  if (/occupancy|utilisation/i.test(text) && /4|13|week|history|average/i.test(text)) {
+    return 'Upload weekly occupancy/utilisation export if 4-week or 13-week averages are required.'
+  }
+  if (/lease|assignment/i.test(text)) {
+    return 'Upload executed lease, variations/options schedule, and assignment deed if not already source-backed.'
+  }
+  if (/normalis|add.?back|maintenance/i.test(text)) {
+    return 'Upload support for one-off maintenance add-backs and normalisation adjustments.'
+  }
+  if (/asking price|price guide/i.test(text)) {
+    return 'Confirm asking price or price guide.'
+  }
+  return text
 }
 
 function valuationRows(workflow: DealWorkflow | null | undefined, extracted: ExtractedDeal): ValuationGateSummaryRow[] {
@@ -255,14 +328,14 @@ function componentScoreRows(scored: ScoredDeal, workflow?: DealWorkflow | null):
         label: compactText(entry.label) ?? formatDimensionKey(id),
         score: typeof entry.score === 'number' ? `${entry.score.toFixed(1)}/10` : 'Not scored',
         summary: suppressLegacyFinancialNarrative
-          ? 'Legacy score narrative suppressed for print because canonical ledger facts are available above. Use the selected facts, conflicts, and valuation gate for underwriting reliance.'
+          ? 'Refer to canonical underwriting facts, conflicts, and valuation gate above.'
           : rawSummary,
       }
     })
     .filter(row => row.label || row.summary)
 }
 
-function riskItem(key: string, title: string | null | undefined, detail: string | null | undefined, tone: RiskItem['tone'] = 'risk'): RiskItem | null {
+function riskItem(key: string, title: string | null | undefined, detail: string | null | undefined, tone: RiskItem['tone'] = 'risk', severity?: string): RiskItem | null {
   const cleanTitle = compactText(title)
   const cleanDetail = compactText(detail)
   if (!cleanTitle && !cleanDetail) return null
@@ -271,6 +344,7 @@ function riskItem(key: string, title: string | null | undefined, detail: string 
     title: cleanTitle ?? 'Underwriting warning',
     detail: cleanDetail ?? 'Review before IC reliance.',
     tone,
+    severity,
   }
 }
 
@@ -279,12 +353,30 @@ function uniqueRiskItems(items: Array<RiskItem | null>): RiskItem[] {
   const output: RiskItem[] = []
   for (const item of items) {
     if (!item) continue
-    const signature = `${item.title.toLowerCase()}|${item.detail.toLowerCase()}`
+    const signature = item.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
     if (seen.has(signature)) continue
     seen.add(signature)
     output.push(item)
   }
   return output
+}
+
+function conflictTitle(fact: DisplayFact): string {
+  const label = fact.label || fact.field || 'Fact'
+  if (/payroll|labou?r/i.test(label)) return 'Labour cost conflict'
+  if (/rent/i.test(label)) return 'Rent conflict'
+  if (/occupancy|utilisation/i.test(label)) return 'Occupancy source conflict'
+  if (/revenue/i.test(label)) return 'Revenue source conflict'
+  return `${label} conflict`
+}
+
+function conflictDetail(fact: DisplayFact, conflict: NonNullable<DisplayFact['conflicts']>[number]): string {
+  const selected = factValue(fact)
+  const alternate = rawFactValue(conflict.value, fact.unit)
+  if (/payroll|labou?r/i.test(fact.label || fact.field || '')) {
+    return `One source indicates ${selected}; another indicates ${alternate}. Reconcile payroll definition and source accounts before relying on labour ratio.`
+  }
+  return `Selected evidence indicates ${selected}; alternate evidence indicates ${alternate}. ${sanitizeReportText(conflict.reason ?? 'Resolve source period and authority before relying on this value.')}`
 }
 
 function buildRiskItems({
@@ -400,8 +492,8 @@ function ScoringBreakdown({
         <KeyValue label="Overall score" value={`${Math.round(scoreValue(scored))}/100`} />
         <KeyValue
           label="Verdict / category"
-          value={blocked ? 'Valuation blocked pending financial evidence' : workflow?.narrative_guard?.recommendation ?? scored.verdict?.category?.replace(/_/g, ' ') ?? scored.overall_verdict ?? 'Not available'}
-          note={blocked ? 'Recovery thesis cannot be underwritten until required evidence is provided.' : scored.verdict?.one_liner ?? undefined}
+          value={blocked ? 'Valuation multiple blocked pending asking price' : workflow?.narrative_guard?.recommendation ?? scored.verdict?.category?.replace(/_/g, ' ') ?? scored.overall_verdict ?? 'Not available'}
+          note={blocked ? 'Financial evidence may be observed; verify source accounts, payroll, occupancy, and price before reliance.' : scored.verdict?.one_liner ?? undefined}
         />
         <KeyValue
           label="Red flags"
@@ -430,7 +522,7 @@ function ScoringBreakdown({
             <span>Score</span>
             <span>Driver</span>
           </div>
-          {rows.map(row => (
+          {rows.slice(0, 6).map(row => (
             <div key={row.id} className="ic-pack-table-row">
               <span>{row.label}</span>
               <strong>{row.score}</strong>
@@ -497,9 +589,11 @@ function FactRows({ facts }: { facts: DisplayFact[] }) {
 
 function AuditRows({ audit }: { audit?: MarketAudit | null }) {
   if (!audit) return null
-  const warnings = (audit.warnings ?? []).map(sanitizeReportText)
+  const warnings = Array.from(new Set((audit.warnings ?? []).map(sanitizeReportText)))
   const supply = audit.competitor_supply
   const supplyUnavailable = supply?.source === 'unavailable' || (supply?.confidence === 'low' && supply?.competitor_count == null && Boolean(supply?.compared_to_postcode))
+  const postcodeCompetitors = supply?.compared_to_postcode?.competitor_count
+  const postcodePlaces = supply?.compared_to_postcode?.total_licensed_places
   return (
     <>
       <div className="ic-pack-grid-4">
@@ -515,7 +609,8 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
           note={audit.ldc_utilisation_rate?.rationale ?? audit.ldc_utilisation_rate?.source ?? undefined}
         />
         <KeyValue label="Licensed places" value={audit.licensed_places?.value != null ? audit.licensed_places.value.toLocaleString('en-AU') : 'Not available'} note={audit.licensed_places?.source ?? undefined} />
-        <KeyValue label="Competitors" value={supplyUnavailable ? 'Not available' : audit.competitor_count?.value != null ? audit.competitor_count.value.toLocaleString('en-AU') : 'Not available'} note={supplyUnavailable ? 'Geospatial supply unavailable; see postcode fallback.' : audit.competitor_count?.source ?? undefined} />
+        <KeyValue label="Market method" value={supplyUnavailable ? 'Postcode fallback' : supplySourceLabel(supply?.scoring_source ?? supply?.source ?? 'unavailable')} note={supplyUnavailable ? 'Geospatial competitor supply unavailable.' : audit.competitor_count?.source ?? undefined} />
+        <KeyValue label="Competitors" value={supplyUnavailable && postcodeCompetitors != null ? `${postcodeCompetitors.toLocaleString('en-AU')} postcode fallback` : audit.competitor_count?.value != null ? audit.competitor_count.value.toLocaleString('en-AU') : 'Not available'} note={supplyUnavailable ? 'Review catchment before relying on score.' : audit.competitor_count?.source ?? undefined} />
         <KeyValue
           label="Pipeline places"
           value={audit.pipeline_places?.value != null ? audit.pipeline_places.value.toLocaleString('en-AU') : 'Not available'}
@@ -528,9 +623,9 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
         <>
           <div className="ic-pack-grid-4">
             <KeyValue
-              label="Competitor supply source"
-              value={supplySourceLabel(supply.source)}
-              note={supply.confidence ? `${supply.confidence} confidence` : undefined}
+              label="Geospatial competitor supply"
+              value={supplyUnavailable ? 'Unavailable' : supplySourceLabel(supply.source)}
+              note={supplyUnavailable ? 'Postcode fallback used for scoring.' : supply.confidence ? `${supply.confidence} confidence` : undefined}
             />
             <KeyValue
               label="Scoring source"
@@ -541,7 +636,7 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
             <KeyValue label="Geocode method" value={supply.target_geocode_method ? supply.target_geocode_method.replace(/_/g, ' ') : 'Not available'} />
             <KeyValue label="Exclusion method" value={supply.exclusion_method ? supply.exclusion_method.replace(/_/g, ' ') : 'Not available'} />
             <KeyValue
-              label="Competitor supply"
+              label="Geospatial supply result"
               value={supplyUnavailable ? 'Not available' : [
                 supply.competitor_count != null ? `${supply.competitor_count.toLocaleString('en-AU')} centres` : null,
                 supply.total_licensed_places != null ? `${supply.total_licensed_places.toLocaleString('en-AU')} places` : null,
@@ -549,14 +644,20 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
               note={supplyUnavailable ? 'Geospatial competitor supply failed; postcode fallback retained.' : supply.confidence ? `${supply.confidence} confidence` : undefined}
             />
             <KeyValue
-              label="Postcode comparison"
+              label="Postcode fallback competitors"
               value={[
-                supply.compared_to_postcode?.competitor_count != null ? `${supply.compared_to_postcode.competitor_count.toLocaleString('en-AU')} centres` : null,
-                supply.compared_to_postcode?.total_licensed_places != null ? `${supply.compared_to_postcode.total_licensed_places.toLocaleString('en-AU')} places` : null,
+                postcodeCompetitors != null ? `${postcodeCompetitors.toLocaleString('en-AU')} centres` : null,
+                postcodePlaces != null ? `${postcodePlaces.toLocaleString('en-AU')} places` : null,
               ].filter(Boolean).join(' / ') || 'Not available'}
               note={supply.compared_to_postcode?.edr != null ? `Postcode EDR ${supply.compared_to_postcode.edr}` : undefined}
             />
           </div>
+          {supplyUnavailable && (
+            <div className="ic-pack-alert">
+              <strong>Market method summary</strong>
+              <p>Geospatial competitor supply was unavailable. Postcode fallback was used for market scoring; verify catchment, competitor list, and DA pipeline before relying on the market score.</p>
+            </div>
+          )}
           {supply.material_difference && (
             <div className="ic-pack-list" style={{ marginBottom: '4mm' }}>
               <div className="ic-pack-list-item ic-pack-missing">
@@ -567,7 +668,7 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
           )}
           {(supply.warnings?.length ?? 0) > 0 && (
             <div className="ic-pack-list" style={{ marginBottom: '4mm' }}>
-              {(supply.warnings ?? []).map(sanitizeReportText).slice(0, 3).map((warning, index) => (
+              {Array.from(new Set((supply.warnings ?? []).map(sanitizeReportText))).slice(0, 3).map((warning, index) => (
                 <div key={`${warning}-${index}`} className="ic-pack-list-item ic-pack-missing">
                   <strong>Supply warning</strong>
                   <span>{investorWarning(warning)}</span>
@@ -594,24 +695,68 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
 function EvidenceReadinessRows({ workflow }: { workflow?: DealWorkflow | null }) {
   const readiness = workflow?.evidence_readiness
   if (!readiness) return <p className="ic-pack-muted">Evidence readiness ledger unavailable for this report.</p>
+  const identityFields = new Set(['centre_name', 'trading_name', 'address', 'suburb', 'postcode', 'state', 'licensed_places'])
+  const seen = new Set<string>()
+  const itemKey = (item: { field?: string; label?: string }) => item.field || item.label || ''
+  const normalizeItem = (item: NonNullable<typeof readiness[keyof typeof readiness]>[number]) => {
+    const field = item.field ?? ''
+    if (identityFields.has(field) && item.provenance !== 'missing' && item.trust !== 'disputed') {
+      return { ...item, underwriting_use: 'accepted', trust: item.trust === 'low' ? 'medium' : item.trust }
+    }
+    if (field === 'asking_price' && (item.provenance === 'missing' || item.underwriting_use === 'excluded' || isMissingLike(item.value))) {
+      return { ...item, underwriting_use: 'blocked', provenance: 'missing', trust: 'unknown', reason: item.reason ?? 'Asking price or price guide has not been confirmed.' }
+    }
+    return item
+  }
+  const allItems = Object.values(readiness).flat().map(normalizeItem)
+  const itemsFor = (group: string) => allItems.filter(item => {
+    const key = itemKey(item)
+    if (!key) return false
+    if (/fy\d{2,4}.*occupancy|52.*occupancy|avg_52wk|fy\d+_avg/i.test(key)) {
+      if (seen.has('occupancy-fy-unavailable')) return false
+      if (group !== 'blocked') return false
+      seen.add('occupancy-fy-unavailable')
+      return true
+    }
+    const use = item.underwriting_use
+    const provenance = item.provenance
+    const target =
+      group === 'accepted' ? use === 'accepted'
+      : group === 'review_required' ? use === 'review_required'
+      : group === 'disputed' ? item.trust === 'disputed'
+      : group === 'blocked_missing' ? use === 'blocked' || provenance === 'missing'
+      : group === 'excluded' ? use === 'excluded' && provenance !== 'missing'
+      : group === 'manual_context' ? provenance === 'manual_context'
+      : false
+    if (!target) return false
+    const dedupe = `${group}:${key}`
+    if (seen.has(dedupe)) return false
+    seen.add(dedupe)
+    return true
+  })
   const groups = [
     ['accepted', 'Accepted'],
     ['review_required', 'Review required'],
     ['disputed', 'Disputed'],
-    ['blocked', 'Blocked'],
-    ['excluded', 'Excluded'],
-    ['missing', 'Missing'],
+    ['blocked_missing', 'Blocked / Missing'],
+    ['excluded', 'Excluded from underwriting'],
     ['manual_context', 'Manual context'],
   ] as const
   return (
     <div className="ic-pack-list">
       {groups.map(([key, label]) => {
-        const items = readiness[key] ?? []
+        const items = itemsFor(key)
         if (!items.length) return null
         return (
-          <div key={key} className={`ic-pack-list-item ${key === 'accepted' ? 'ic-pack-request' : key === 'disputed' || key === 'blocked' || key === 'missing' ? 'ic-pack-missing' : 'ic-pack-risk'}`}>
+          <div key={key} className={`ic-pack-list-item ${key === 'accepted' ? 'ic-pack-request' : key === 'disputed' || key === 'blocked_missing' ? 'ic-pack-missing' : 'ic-pack-risk'}`}>
             <strong>{label}</strong>
-            <span>{items.slice(0, 5).map(item => item.label || item.field).filter(Boolean).join(', ')}</span>
+            <span>{items.slice(0, 6).map(item => {
+              const label = item.label || item.field
+              if (/4.*week|13.*week/i.test(label ?? '') && item.provenance === 'missing') return `${label}: weekly export not supplied`
+              if (/occupancy/i.test(label ?? '') && item.provenance === 'missing') return `${label}: not available from supplied monthly IM data`
+              if (item.reason) return `${label}: ${sanitizeReportText(item.reason)}`
+              return label
+            }).filter(Boolean).join('; ')}</span>
           </div>
         )
       })}
@@ -640,6 +785,97 @@ function ValuationGateRows({ rows }: { rows: ValuationGateSummaryRow[] }) {
       ))}
     </div>
   )
+}
+
+function uniqueTexts(items: string[]): string[] {
+  const seen = new Set<string>()
+  const output: string[] = []
+  for (const item of items.map(sanitizeReportText).map(text => text.trim()).filter(Boolean)) {
+    const key = item.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+    if (seen.has(key)) continue
+    seen.add(key)
+    output.push(item)
+  }
+  return output
+}
+
+function recommendationChangeItems({
+  workflow,
+  extracted,
+}: {
+  workflow?: DealWorkflow | null
+  extracted: ExtractedDeal
+}): Array<{ title: string; detail: string }> {
+  const items = [
+    askingPriceMissing(workflow, extracted) ? { title: 'Confirm asking price or price guide', detail: 'Valuation multiple, price per place, and yield cannot be assessed without price.' } : null,
+    { title: 'Verify FY2025 financials against source accounts', detail: 'IM/vendor-prepared financials are useful evidence, but source P&L or management accounts should verify revenue and profit.' },
+    { title: 'Resolve payroll conflict and labour cost definition', detail: 'Confirm whether labour cost should use wages plus super, total payroll, leave accrual, agency/casual labour, or another FY2025 basis.' },
+    { title: 'Provide weekly occupancy/utilisation export', detail: 'Monthly occupancy history is useful, but weekly data is needed for 4-week and 13-week trend underwriting.' },
+    { title: 'Confirm NQS remediation plan and timing', detail: 'Working Towards NQS should be diligenced for remediation cost, timing, and operational impact.' },
+    { title: 'Complete DA and competitor pipeline search', detail: 'Market conclusions remain review-required until catchment and pipeline methodology are verified.' },
+  ].filter(Boolean) as Array<{ title: string; detail: string }>
+  return items
+}
+
+function uncertaintyItems({
+  workflow,
+  extracted,
+}: {
+  workflow?: DealWorkflow | null
+  extracted: ExtractedDeal
+}): string[] {
+  return uniqueTexts([
+    askingPriceMissing(workflow, extracted) ? 'We do not know the asking price or price guide.' : '',
+    'We do not know whether vendor-indicated add-backs are acceptable without source-account support.',
+    'We do not know whether pipeline or waitlist opportunities convert into actual enrolments.',
+    'We do not know whether NQS issues are easily remediated, or whether remediation affects occupancy recovery.',
+    'We do not know whether DA/pipeline risk is material until market methodology is verified.',
+  ])
+}
+
+function brokerRequestItems({
+  requests,
+  fallbackRequests,
+  workflow,
+  extracted,
+}: {
+  requests: Array<{ id: string; question?: string; request?: string; priority: string; category: string }>
+  fallbackRequests: string[]
+  workflow?: DealWorkflow | null
+  extracted: ExtractedDeal
+}): Array<{ id: string; text: string; meta: string }> {
+  const base = [
+    askingPriceMissing(workflow, extracted) ? 'Confirm asking price or price guide.' : '',
+    'Upload source FY2025 P&L / management accounts to verify IM financial summary.',
+    'Upload payroll report matching FY2025 period, including wages, super, leave accrual, and casual/agency labour if applicable.',
+    'Upload weekly occupancy/utilisation export if 4-week/13-week averages are required.',
+    'Upload NQS remediation plan and any correspondence about Working Towards items.',
+    'Complete or upload DA pipeline search and known competitor/pipeline intelligence.',
+    'Upload executed lease, variations/options schedule, and assignment deed if not already source-backed.',
+    ...requests.map(item => requestText(item, 'Upload supporting diligence evidence.')),
+    ...fallbackRequests,
+  ]
+  return uniqueTexts(base).slice(0, 10).map((text, index) => ({ id: `request-${index}`, text, meta: index < 7 ? 'IC diligence request' : 'Generated from workflow request' }))
+}
+
+function thesisItems({ workflow, extracted, scored }: { workflow?: DealWorkflow | null; extracted: ExtractedDeal; scored: ScoredDeal }): string[] {
+  const revenue = canonicalValue(workflow, 'revenue')
+  const profit = canonicalValue(workflow, 'ebitda')
+  const normalised = canonicalValue(workflow, 'normalised_ebitda')
+  const rent = canonicalValue(workflow, 'rent')
+  const currentOccupancy = canonicalValue(workflow, 'current_occupancy')
+  const occupancyPeak = extracted.occupancy?.peak_pct != null ? pct(extracted.occupancy.peak_pct) : null
+  const pipelineText = /pipeline|waitlist|opportunit/i.test(JSON.stringify(scored)) ? 'Pipeline or waitlist opportunities may support occupancy recovery, subject to conversion evidence.' : ''
+  return uniqueTexts([
+    revenue !== 'Not provided' || profit !== 'Not provided'
+      ? `Reported profitability is meaningful${revenue !== 'Not provided' ? `, with ${revenue} revenue` : ''}${profit !== 'Not provided' ? ` and ${profit} reported profit / EBITDA proxy` : ''}.`
+      : scored.dimensions?.profitability_cashflow?.summary ?? '',
+    normalised !== 'Not provided' ? `Vendor-indicated normalised profit / EBITDA proxy is ${normalised}, subject to add-back verification.` : '',
+    rent !== 'Not provided' ? `Rent economics appear attractive at ${rent}, subject to lease and rent ledger verification.` : '',
+    currentOccupancy !== 'Not provided' ? `Occupancy upside may exist if the centre can improve from ${currentOccupancy}${occupancyPeak ? ` toward prior peak of ${occupancyPeak}` : ''}.` : '',
+    pipelineText,
+    scored.dimensions?.market_position?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? '',
+  ]).slice(0, 6)
 }
 
 function PipelineRows({ audit, projects }: { audit?: PipelineAudit | null; projects?: PipelineProject[] }) {
@@ -716,13 +952,11 @@ export default function ICPackExport({
   const occupancy = extracted.occupancy
   const lease = extracted.lease
   const sourceFiles = extracted.meta?.source_files ?? []
-  const extractedMissingFields = extracted.meta?.missing_fields ?? []
   const gate = workflow?.valuation_gate
   const facts = workflow?.facts ?? workflow?.extracted_facts ?? []
   const quality = evidenceQuality(workflow, extracted)
   const exportFacts = canonicalRows(workflow, facts)
   const valuationSummaryRows = valuationRows(workflow, extracted)
-  const missingFacts = (workflow?.diligence_checklist ?? workflow?.diligence_requests ?? []).map(item => requestText(item, 'Upload supporting diligence evidence.'))
   const requests = workflow?.diligence_checklist ?? workflow?.diligence_requests ?? []
   const market = scoredExport.market_context ?? scoredExport.demand_context
   const marketAudit = workflow?.market_audit ?? scored.market_audit
@@ -732,16 +966,21 @@ export default function ICPackExport({
   const missingRequiredEvidence = missingValuationEvidence(extracted, workflow)
   const valuationBlocked = isValuationBlocked(extracted, workflow)
   const isIllustrative = valuationBlocked || (gate ? !gate.can_show_confident_valuation : false)
-  const blockedMessage = 'Cannot underwrite yet — valuation blocked pending financial evidence.'
+  const coverNarrative = buildCoverNarrative({ workflow, extracted })
+  const blockedMessage = coverNarrative.headline
   const decision = investorSafeVerdictLabel(valuationBlocked, workflow, scored)
   const guardedSummary = valuationBlocked
-    ? investorSafeCoverBody(true, missingRequiredEvidence, guard?.analyst_summary ?? scored.analyst_summary)
+    ? coverNarrative.body
     : guard?.analyst_summary ?? scored.analyst_summary
-  const guardedValuationNote = investorSafeValuationCopy(valuationBlocked, missingRequiredEvidence, guard?.valuation_note ?? gate?.message)
+  const guardedValuationNote = valuationBlocked ? coverNarrative.valuationNote : investorSafeValuationCopy(false, missingRequiredEvidence, guard?.valuation_note ?? gate?.message)
   const fallbackRequests = [
     ...(scoredExport.next_steps?.ask_broker_for ?? []),
     ...(scoredExport.next_steps?.due_diligence_priorities ?? []),
   ]
+  const recommendationItems = recommendationChangeItems({ workflow, extracted })
+  const uncertaintyList = uncertaintyItems({ workflow, extracted })
+  const brokerRequests = brokerRequestItems({ requests, fallbackRequests, workflow, extracted })
+  const thesisList = thesisItems({ workflow, extracted, scored })
   const runDiff = summarizeRunDiff(currentRunSnapshot?.diff)
   const riskItems = buildRiskItems({ extracted, scored, workflow, marketAudit, pipelineAudit })
   const inputSourceCount = currentRun?.input_source_count ?? 0
@@ -808,7 +1047,6 @@ export default function ICPackExport({
       status: 'extracted',
     },
   ]
-  const blockerFacts = facts.filter(f => f.blocker || f.confidence === 'missing').slice(0, 10)
   const displayFacts = exportFacts.length ? exportFacts : fallbackFactRows
   const currentOccupancyFact = canonicalFact(workflow, 'current_occupancy')
   const latestOccupancyFact = canonicalFact(workflow, 'avg_4wk_occupancy') ?? canonicalFact(workflow, 'avg_13wk_occupancy')
@@ -867,8 +1105,8 @@ export default function ICPackExport({
           </div>
         )}
         <div className={valuationBlocked ? 'ic-pack-alert ic-pack-alert-red' : 'ic-pack-alert'}>
-          <strong>{valuationBlocked ? 'Evidence required before underwriting' : scored.verdict?.one_liner ?? guardedSummary ?? decision}</strong>
-          <p>{investorSafeCoverBody(valuationBlocked, missingRequiredEvidence, guardedSummary)}</p>
+          <strong>{coverNarrative.headline}</strong>
+          <p>{valuationBlocked ? coverNarrative.body : guardedSummary ?? coverNarrative.body}</p>
           {isIllustrative && <div className="ic-pack-label">Illustrative only — not underwritten.</div>}
         </div>
         <div className="ic-pack-alert">
@@ -895,10 +1133,10 @@ export default function ICPackExport({
                 <span>{sanitizeReportText(item.detail)}</span>
               </div>
             ))}
-            {displayFacts.flatMap(fact => fact.conflicts ?? []).slice(0, 6).map((conflict, index) => (
+            {displayFacts.flatMap(fact => (fact.conflicts ?? []).map(conflict => ({ fact, conflict }))).slice(0, 6).map(({ fact, conflict }, index) => (
               <div key={`canonical-conflict-${index}`} className="ic-pack-list-item ic-pack-missing">
-                <strong>Canonical fact conflict</strong>
-                <span>{conflict.value != null ? `Alternate value ${String(conflict.value)}. ` : ''}{sanitizeReportText(conflict.reason ?? 'Alternate evidence differs from the selected fact.')}</span>
+                <strong>{conflictTitle(fact)}</strong>
+                <span>{conflictDetail(fact, conflict)}</span>
               </div>
             ))}
           </div>
@@ -909,10 +1147,10 @@ export default function ICPackExport({
 
       <ExportSection number="3" title="What Would Change The Recommendation">
         <div className="ic-pack-list">
-          {valuationSummaryRows.filter(row => row.underwriting_use !== 'accepted').slice(0, 6).map(row => (
-            <div key={`change-${row.field}`} className="ic-pack-list-item ic-pack-request">
-              <strong>{row.label}</strong>
-              <span>{sanitizeReportText(row.next_action || row.reason || 'Resolve this evidence item before IC reliance.')}</span>
+          {recommendationItems.map(item => (
+            <div key={`change-${item.title}`} className="ic-pack-list-item ic-pack-request">
+              <strong>{item.title}</strong>
+              <span>{item.detail}</span>
             </div>
           ))}
           {workflow?.partner_judgement_prompts?.slice(0, 4).map(prompt => (
@@ -939,7 +1177,19 @@ export default function ICPackExport({
       </ExportSection>
 
       <ExportSection number="6" title="Why This Deal Could Work">
-        <p>{sanitizeReportText(scored.dimensions?.profitability_cashflow?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? guardedSummary ?? 'Investment thesis requires further evidence review.')}</p>
+        <div className="ic-pack-list">
+          {thesisList.length ? thesisList.map((item, index) => (
+            <div key={`thesis-${index}`} className="ic-pack-list-item ic-pack-request">
+              <strong>{index === 0 ? 'Investment case' : 'Supporting point'}</strong>
+              <span>{item}</span>
+            </div>
+          )) : (
+            <div className="ic-pack-list-item ic-pack-request">
+              <strong>Investment case requires review</strong>
+              <span>Positive thesis points require further evidence review.</span>
+            </div>
+          )}
+        </div>
       </ExportSection>
 
       <ExportSection number="7" title="Scoring Detail">
@@ -966,59 +1216,34 @@ export default function ICPackExport({
 
       <ExportSection number="9" title="Valuation Gate & Assumptions" breakBefore>
         <div className={valuationBlocked ? 'ic-pack-alert ic-pack-alert-red' : 'ic-pack-alert'}>
-          <strong>{investorSafeValuationCopy(valuationBlocked, missingRequiredEvidence, guardedValuationNote)}</strong>
+          <strong>{guardedValuationNote}</strong>
           {valuationBlocked && (
-            <p>The asking price may appear distressed, but no valuation conclusion can be reached without financial evidence.</p>
+            <p>Financial evidence may be observed, but valuation multiple and return analysis require asking price and source verification.</p>
           )}
           {isIllustrative && <div className="ic-pack-label">Illustrative only — not underwritten.</div>}
         </div>
         <ValuationGateRows rows={valuationSummaryRows} />
-        <p>{valuationBlocked ? 'Recovery thesis depends on evidence. Potential turnaround language should be read as a diligence hypothesis, not an investable valuation conclusion.' : guardedValuationNote ?? scored.dimensions?.valuation_structure?.summary ?? 'Valuation assumptions require supporting evidence before IC reliance.'}</p>
+        <p>{valuationBlocked ? 'Monthly or IM-derived evidence can support a diligence hypothesis, but source accounts, payroll reconciliation, asking price, and occupancy trend must be verified before IC reliance.' : guardedValuationNote ?? scored.dimensions?.valuation_structure?.summary ?? 'Valuation assumptions require supporting evidence before IC reliance.'}</p>
       </ExportSection>
 
       <ExportSection number="10" title="What We Do Not Know">
-        {missingFacts.length || blockerFacts.length ? (
-          <>
-            <div className="ic-pack-list">
-              {missingFacts.slice(0, 12).map(field => (
-                <div key={field} className="ic-pack-list-item ic-pack-missing">
-                  <strong>{field}</strong>
-                  <span>Document-based request for underwriting support.</span>
-                </div>
-              ))}
+        <div className="ic-pack-list">
+          {uncertaintyList.map((item, index) => (
+            <div key={`unknown-${index}`} className="ic-pack-list-item ic-pack-missing">
+              <strong>Open IC question</strong>
+              <span>{item}</span>
             </div>
-            {blockerFacts.length > 0 && <FactRows facts={blockerFacts} />}
-          </>
-        ) : extractedMissingFields.length ? (
-          <div className="ic-pack-list">
-            {extractedMissingFields.slice(0, 12).map(field => (
-              <div key={field} className="ic-pack-list-item ic-pack-missing">
-                <strong>Upload source document or schedule supporting {field.replace(/_/g, ' ')}.</strong>
-                <span>Document-based request generated from legacy missing-field output.</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="ic-pack-muted">No missing fields were flagged in the current report.</p>
-        )}
+          ))}
+        </div>
       </ExportSection>
 
       <ExportSection number="11" title="Broker / Seller Request List">
-        {requests.length ? (
+        {brokerRequests.length ? (
           <div className="ic-pack-list">
-            {requests.slice(0, 12).map(item => (
+            {brokerRequests.map(item => (
               <div key={item.id} className="ic-pack-list-item ic-pack-request">
-                <strong>{requestText(item, 'Upload supporting diligence evidence.')}</strong>
-                <span>{item.priority.toUpperCase()} priority · {item.category}</span>
-              </div>
-            ))}
-          </div>
-        ) : fallbackRequests.length ? (
-          <div className="ic-pack-list">
-            {fallbackRequests.slice(0, 12).map((request, index) => (
-              <div key={`${request}-${index}`} className="ic-pack-list-item ic-pack-request">
-                <strong>{request}</strong>
-                <span>Generated from legacy next steps.</span>
+                <strong>{item.text}</strong>
+                <span>{item.meta}</span>
               </div>
             ))}
           </div>
@@ -1032,7 +1257,7 @@ export default function ICPackExport({
           <strong>{decision}</strong>
           <p>
             {valuationBlocked
-              ? 'Do not proceed to IC valuation until required financial evidence is provided. This can remain a potential turnaround opportunity for experienced operators, but the recovery thesis depends on source-backed financial and occupancy evidence.'
+              ? coverNarrative.decisionDetail
               : scoredExport.next_steps?.deal_structuring_notes ?? scored.verdict?.recommended_buyer_profile ?? 'Proceed only with evidence-backed diligence conditions.'}
           </p>
           {guard?.pipeline_note && <p>{guard.pipeline_note}</p>}

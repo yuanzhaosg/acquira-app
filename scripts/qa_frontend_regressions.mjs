@@ -160,8 +160,53 @@ assert(
 )
 assert(
   /hasCanonicalFinancials/.test(icPackExport)
-    && /Legacy score narrative suppressed for print/.test(icPackExport),
+    && /Refer to canonical underwriting facts/.test(icPackExport),
   'IC Pack export must suppress legacy scoring prose that can conflict with canonical financial facts.',
+)
+assert(
+  !/Canonical fact conflict/.test(icPackExport)
+    && !/Legacy score narrative suppressed/.test(icPackExport),
+  'IC Pack export must not expose internal ledger/debug strings.',
+)
+assert(
+  /function conflictTitle/.test(icPackExport)
+    && /Labour cost conflict/.test(icPackExport)
+    && /Reconcile payroll definition/.test(icPackExport),
+  'IC Pack export must convert canonical conflicts into investor-readable language.',
+)
+assert(
+  /function uncertaintyItems/.test(icPackExport)
+    && /What We Do Not Know/.test(icPackExport)
+    && !/Document-based request for underwriting support/.test(icPackExport),
+  'What We Do Not Know must render analytical uncertainties, not a missing-facts table.',
+)
+assert(
+  /Blocked \/ Missing/.test(icPackExport)
+    && /Excluded from underwriting/.test(icPackExport)
+    && /field === 'asking_price'/.test(icPackExport)
+    && /underwriting_use: 'blocked'/.test(icPackExport),
+  'Evidence Readiness must group absent asking price as Blocked/Missing rather than Excluded.',
+)
+assert(
+  /identityFields/.test(icPackExport)
+    && /underwriting_use: 'accepted'/.test(icPackExport),
+  'Source-backed identity facts must be promoted to Accepted in export readiness display.',
+)
+assert(
+  /Postcode fallback competitors/.test(icPackExport)
+    && /Geospatial competitor supply/.test(icPackExport)
+    && /Market method summary/.test(icPackExport),
+  'Market section must distinguish unavailable geospatial supply from postcode fallback competitors.',
+)
+assert(
+  /valuation multiple blocked pending asking price/i.test(icPackExport)
+    && /Financial evidence may be observed/.test(icPackExport),
+  'Valuation gate and cover copy must be precise when asking price is missing but financial evidence exists.',
+)
+assert(
+  /brokerRequestItems/.test(icPackExport)
+    && /Reconcile labour cost/.test(icPackExport),
+  'Broker requests must be specific and deduped.',
 )
 assert(
   /\.has-ic-pack > :not\(\.ic-pack-export\):not\(style\)/.test(reportView),
