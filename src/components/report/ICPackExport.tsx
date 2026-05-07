@@ -237,15 +237,22 @@ function formatDimensionKey(key: string): string {
     .replace(/\b\w/g, char => char.toUpperCase())
 }
 
-function componentScoreRows(scored: ScoredDeal): Array<{ id: string; label: string; score: string; summary: string }> {
+function componentScoreRows(scored: ScoredDeal, workflow?: DealWorkflow | null): Array<{ id: string; label: string; score: string; summary: string }> {
+  const hasCanonicalFinancials = Boolean(workflow?.canonical_facts?.revenue || workflow?.canonical_facts?.payroll_labour_cost || workflow?.canonical_facts?.ebitda)
   return Object.entries(scored.dimensions ?? {})
     .map(([id, dimension]) => {
       const entry = dimension as DimensionEntry
+      const rawSummary = compactText(entry.summary) ?? 'No component explanation available.'
+      const suppressLegacyFinancialNarrative = hasCanonicalFinancials
+        && /(profit|financial|cashflow|cash_flow|valuation|payroll|labou?r|occupancy|demand)/i.test(id)
+        && /\$|revenue|payroll|labou?r|ebitda|occupancy|utilisation|margin|grew|increased|decreased/i.test(rawSummary)
       return {
         id,
         label: compactText(entry.label) ?? formatDimensionKey(id),
         score: typeof entry.score === 'number' ? `${entry.score.toFixed(1)}/10` : 'Not scored',
-        summary: compactText(entry.summary) ?? 'No component explanation available.',
+        summary: suppressLegacyFinancialNarrative
+          ? 'Legacy score narrative suppressed for print because canonical ledger facts are available above. Use the selected facts, conflicts, and valuation gate for underwriting reliance.'
+          : rawSummary,
       }
     })
     .filter(row => row.label || row.summary)
@@ -369,7 +376,7 @@ function ScoringBreakdown({
   scored: ScoredDeal
   workflow?: DealWorkflow | null
 }) {
-  const rows = componentScoreRows(scored)
+  const rows = componentScoreRows(scored, workflow)
   const blocked = isValuationBlocked(extracted, workflow)
   const triggeredFlags = scored.deal_breaker_flags?.flags?.filter(flag => flag.triggered) ?? []
   const criticalFlags = triggeredFlags.filter(flag => flag.severity === 'critical')
@@ -804,6 +811,20 @@ export default function ICPackExport({
   const occupancyConflictNote = currentOccupancyFact && latestOccupancyFact && currentOccupancyFact.value !== latestOccupancyFact.value
     ? `Broker/current statement ${factValue(currentOccupancyFact)}; occupancy history ${factValue(latestOccupancyFact)}. Review source period before underwriting.`
     : undefined
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[ic-pack-export] ledger summary', {
+      has_canonical_facts: Boolean(workflow?.canonical_facts),
+      canonical_fact_keys: Object.keys(workflow?.canonical_facts ?? {}),
+      has_valuation_gate_summary: Boolean(workflow?.valuation_gate_summary?.rows?.length),
+      valuation_gate_fields: valuationSummaryRows.map(row => row.field),
+      has_evidence_readiness: Boolean(workflow?.evidence_readiness),
+      evidence_readiness_group_counts: Object.fromEntries(
+        Object.entries(workflow?.evidence_readiness ?? {}).map(([key, value]) => [key, value.length]),
+      ),
+      has_grouped_requests: requests.some(item => item.source === 'missing_fields_grouped'),
+      export_component_path: 'src/components/report/ICPackExport.tsx',
+    })
+  }
 
   return (
     <article className="ic-pack-export" aria-label="IC pack export">

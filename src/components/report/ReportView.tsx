@@ -1419,6 +1419,12 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
           /* ── FOOTER ── */
           footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important; font-size: 8pt !important; padding: 8px 0 !important; }
+          .has-ic-pack > :not(.ic-pack-export):not(style) {
+            display: none !important;
+          }
+          .has-ic-pack > .ic-pack-export {
+            display: block !important;
+          }
         }
       `}</style>
 

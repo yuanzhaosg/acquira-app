@@ -20,6 +20,7 @@ const runHistory = read('src/components/report/RunHistoryDrawer.tsx')
 const icMemo = read('src/components/report/ICMemoView.tsx')
 const marketAudit = read('src/components/report/MarketAuditPanel.tsx')
 const icPackExport = read('src/components/report/ICPackExport.tsx')
+const reportView = read('src/components/report/ReportView.tsx')
 
 assert(
   /execution_mode:\s*'sync'/.test(evidencePanel),
@@ -129,6 +130,15 @@ assert(
   /requestText\(item/.test(icPackExport)
     && /replace\(\/\\b\[a-z\]\+\(_\[a-z0-9\]\+\)\+\\b\/g/.test(icPackExport),
   'IC Pack export must suppress raw snake_case field names in broker requests.',
+)
+assert(
+  /hasCanonicalFinancials/.test(icPackExport)
+    && /Legacy score narrative suppressed for print/.test(icPackExport),
+  'IC Pack export must suppress legacy scoring prose that can conflict with canonical financial facts.',
+)
+assert(
+  /\.has-ic-pack > :not\(\.ic-pack-export\):not\(style\)/.test(reportView),
+  'ReportView print CSS must isolate the IC Pack export instead of printing legacy report sections.',
 )
 
 console.log('Frontend regression checks passed.')
