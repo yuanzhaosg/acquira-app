@@ -19,6 +19,7 @@ const reunderwriteRoute = read('src/app/api/deals/[id]/reunderwrite/route.ts')
 const runHistory = read('src/components/report/RunHistoryDrawer.tsx')
 const icMemo = read('src/components/report/ICMemoView.tsx')
 const marketAudit = read('src/components/report/MarketAuditPanel.tsx')
+const icPackExport = read('src/components/report/ICPackExport.tsx')
 
 assert(
   /execution_mode:\s*'sync'/.test(evidencePanel),
@@ -93,6 +94,41 @@ assert(
   /Market evidence \{status === 'missing' \? 'unavailable' : 'partial'\}/.test(marketAudit)
     && /Request demographic source, competitor set, geocode method, and DA\/pipeline evidence/.test(marketAudit),
   'Market Evidence missing/partial state must show useful next actions.',
+)
+assert(
+  /function canonicalFact/.test(icPackExport)
+    && /workflow\?\.canonical_facts/.test(icPackExport)
+    && /Key Underwriting Facts/.test(icPackExport),
+  'IC Pack export must use canonical ledger facts for displayed underwriting facts.',
+)
+assert(
+  /ValuationGateRows/.test(icPackExport)
+    && /Review required/.test(icPackExport)
+    && !/value=\{valuationBlocked \|\| gate \? \(evidenceState\.revenue \? 'Present' : 'Missing'\)/.test(icPackExport),
+  'IC Pack valuation gate must render underwriting use labels, not Present/Missing booleans.',
+)
+assert(
+  /function sanitizeReportText/.test(icPackExport)
+    && /42703/.test(icPackExport)
+    && /investorWarning\(warning\)/.test(icPackExport),
+  'IC Pack export must sanitize technical provider/database errors.',
+)
+assert(
+  /Evidence Readiness/.test(icPackExport)
+    && /EvidenceReadinessRows/.test(icPackExport)
+    && /Recommendation and Confidence/.test(icPackExport),
+  'IC Pack export must lead with decision context and show Evidence Readiness prominently.',
+)
+assert(
+  !/Source quality:/.test(icPackExport)
+    && /Underwriting confidence/.test(icPackExport)
+    && /Extraction completeness/.test(icPackExport),
+  'IC Pack export must replace global Source quality with honest aggregate labels.',
+)
+assert(
+  /requestText\(item/.test(icPackExport)
+    && /replace\(\/\\b\[a-z\]\+\(_\[a-z0-9\]\+\)\+\\b\/g/.test(icPackExport),
+  'IC Pack export must suppress raw snake_case field names in broker requests.',
 )
 
 console.log('Frontend regression checks passed.')

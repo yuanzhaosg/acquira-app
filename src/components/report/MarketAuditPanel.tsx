@@ -13,6 +13,12 @@ function confidenceColor(confidence: string | null | undefined): string {
 }
 
 function investorWarning(message: string): string {
+  if (/\b(42703|column .* does not exist|postgres|supabase|rpc|schema cache|PGRST|KeyError|Traceback|Exception|\{.*\})\b/i.test(message)) {
+    if (/competitor|acecqa|geospatial|service_approval/i.test(message)) {
+      return 'Competitor lookup failed due to market-data configuration. Postcode fallback was used; verify competitor methodology before relying on market score.'
+    }
+    return 'A data provider lookup failed. Review methodology before relying on this section.'
+  }
   const lower = message.toLowerCase()
   if (lower.includes('geospatial competitor supply differs materially')) {
     return 'Supply differs materially from postcode comparison — verify catchment methodology.'
@@ -67,6 +73,9 @@ function supplySourceLabel(source: string | null | undefined): string {
 function supplySentence(audit?: MarketAudit | null): string | null {
   const supply = audit?.competitor_supply
   if (!supply) return null
+  if (supply.source === 'unavailable' && supply.compared_to_postcode) {
+    return `Geospatial competitor supply was unavailable. Postcode fallback found ${formatNumber(supply.compared_to_postcode.competitor_count)} centres / ${formatNumber(supply.compared_to_postcode.total_licensed_places)} places. Market score uses postcode fallback and should be reviewed.`
+  }
   if (supply.material_difference) return 'Competitor supply mismatch detected — verify methodology.'
   if (supply.source === 'geospatial_supabase') {
     return `Competitor supply: geospatial radius, ${supply.confidence ?? 'low'} confidence, ${formatNumber(supply.competitor_count)} centres / ${formatNumber(supply.total_licensed_places)} places.`
@@ -99,14 +108,15 @@ function CompetitorSupplySection({ audit }: { audit?: MarketAudit | null }) {
   if (!supply) return null
   const scoringSource = supplySourceLabel(supply.scoring_source ?? supply.source)
   const warnings = supply.warnings ?? []
+  const supplyUnavailable = supply.source === 'unavailable' || (supply.confidence === 'low' && supply.competitor_count == null && Boolean(supply.compared_to_postcode))
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 8 }}>
         <Metric label="Scoring source" value={scoringSource} note={supply.scoring_confidence ? `${supply.scoring_confidence} confidence` : undefined} />
         <Metric label="Supply source" value={supplySourceLabel(supply.source)} note={supply.confidence ? `${supply.confidence} confidence` : undefined} />
         <Metric label="Radius" value={formatNumber(supply.radius_km, 'km')} />
-        <Metric label="Competitors" value={formatNumber(supply.competitor_count)} />
-        <Metric label="Licensed places" value={formatNumber(supply.total_licensed_places)} />
+        <Metric label="Competitors" value={supplyUnavailable ? 'Not available' : formatNumber(supply.competitor_count)} />
+        <Metric label="Licensed places" value={supplyUnavailable ? 'Not available' : formatNumber(supply.total_licensed_places)} />
         <Metric label="Target geocode" value={supply.target_geocode_method ? statusLabel(supply.target_geocode_method) : 'Not available'} />
         {supply.exclusion_method && <Metric label="Target exclusion" value={statusLabel(supply.exclusion_method)} />}
       </div>
@@ -247,8 +257,8 @@ export function MarketAuditSummary({ audit, pipelineAudit, pipelineProjects }: {
           note={audit?.ldc_utilisation_rate?.rationale ?? audit?.ldc_utilisation_rate?.source ?? undefined}
         />
         <Metric label="Licensed places" value={formatNumber(audit?.licensed_places?.value)} note={audit?.licensed_places?.source ?? undefined} />
-        <Metric label="Competitors" value={formatNumber(audit?.competitor_count?.value)} note={audit?.competitor_count?.source ?? undefined} />
-        <Metric label="Competitor places" value={formatNumber(audit?.competitor_supply?.total_licensed_places)} note={[supplySourceLabel(audit?.competitor_supply?.source), audit?.competitor_supply?.confidence ? `${audit.competitor_supply.confidence} confidence` : null].filter(Boolean).join(' · ')} />
+        <Metric label="Competitors" value={audit?.competitor_supply?.source === 'unavailable' ? 'Not available' : formatNumber(audit?.competitor_count?.value)} note={audit?.competitor_supply?.source === 'unavailable' ? 'Geospatial supply unavailable; see postcode fallback.' : audit?.competitor_count?.source ?? undefined} />
+        <Metric label="Competitor places" value={audit?.competitor_supply?.source === 'unavailable' ? 'Not available' : formatNumber(audit?.competitor_supply?.total_licensed_places)} note={[supplySourceLabel(audit?.competitor_supply?.source), audit?.competitor_supply?.confidence ? `${audit.competitor_supply.confidence} confidence` : null].filter(Boolean).join(' · ')} />
         <Metric label="Geocode method" value={audit?.competitor_supply?.target_geocode_method ? statusLabel(audit.competitor_supply.target_geocode_method) : 'Not available'} />
         <Metric label="Exclusion method" value={audit?.competitor_supply?.exclusion_method ? statusLabel(audit.competitor_supply.exclusion_method) : 'Not available'} />
         <Metric label="Postcode fallback" value={audit?.competitor_supply?.compared_to_postcode ? `${formatNumber(audit.competitor_supply.compared_to_postcode.competitor_count)} centres` : 'Not available'} note={audit?.competitor_supply?.compared_to_postcode ? `${formatNumber(audit.competitor_supply.compared_to_postcode.total_licensed_places)} places · EDR ${formatNumber(audit.competitor_supply.compared_to_postcode.edr)}` : undefined} />

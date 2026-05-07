@@ -167,6 +167,58 @@ export interface EvidenceReadinessItem {
   source_refs?: EvidenceSourceRef[]
 }
 
+export interface CanonicalEvidenceFact {
+  fact_id?: string
+  field?: string
+  label?: string
+  value?: string | number | boolean | null
+  normalized_value?: string | number | boolean | null
+  unit?: WorkflowFact['unit']
+  provenance?: EvidenceProvenance | string
+  trust?: EvidenceTrust | string
+  underwriting_use?: UnderwritingUse | string
+  source_type?: string
+  source_quality?: string
+  period?: WorkflowFact['period']
+  source_refs?: EvidenceSourceRef[]
+  derivation_formula?: string | null
+  derivation_recipe?: WorkflowFact['derivation_recipe']
+  reason?: string | null
+  next_action?: string | null
+  status?: string
+  conflicts?: Array<{
+    fact_id?: string
+    value?: unknown
+    source_ref?: EvidenceSourceRef | Record<string, unknown>
+    source_type?: string
+    source_quality?: string
+    trust?: string
+    reason?: string
+  }>
+}
+
+export interface ValuationGateSummaryRow {
+  field: string
+  label: string
+  evidence: 'found' | 'missing' | string
+  underwriting_use: UnderwritingUse | string
+  value?: string | number | boolean | null
+  unit?: WorkflowFact['unit']
+  trust?: EvidenceTrust | string
+  source_quality?: string
+  period?: WorkflowFact['period']
+  reason?: string | null
+  next_action?: string | null
+  fact_id?: string | null
+}
+
+export interface EvidenceQualitySummary {
+  evidence_quality?: 'High' | 'Mixed' | 'Low' | string
+  underwriting_reliability?: 'Accepted' | 'Review required' | 'Blocked' | string
+  extraction_completeness?: 'High' | 'Medium' | 'Low' | string
+  reason?: string | null
+}
+
 export interface MarketAudit {
   status?: 'complete' | 'partial' | 'missing' | string | null
   missing_fields?: string[]
@@ -283,11 +335,19 @@ export interface DealWorkflow {
     source?: string
   }>
   valuation_gate: ValuationGate
+  valuation_gate_summary?: {
+    status?: string
+    valuation_label?: string
+    can_show_confident_valuation?: boolean
+    rows?: ValuationGateSummaryRow[]
+  }
   diligence_checklist: DiligenceItem[]
   diligence_requests?: DiligenceItem[]
   extraction_warnings: ExtractionWarning[]
   evidence: WorkflowEvidence[]
   evidence_ledger?: WorkflowFact[]
+  canonical_facts?: Record<string, CanonicalEvidenceFact>
+  evidence_quality?: EvidenceQualitySummary
   evidence_readiness?: Record<string, EvidenceReadinessItem[]>
   partner_judgement_prompts?: Array<{
     id: string
