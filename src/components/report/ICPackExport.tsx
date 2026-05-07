@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect } from 'react'
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 import type { UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
@@ -54,6 +57,7 @@ type RiskItem = {
 
 type EvidenceRequirement = 'revenue' | 'ebitda' | 'payroll_labour_cost' | 'occupancy_history'
 type DisplayFact = WorkflowFact | CanonicalEvidenceFact
+const IC_PACK_EXPORT_VERSION = 'IC_PACK_EXPORT_VERSION ledger-v2 / commit 7e5985a'
 
 function money(value: number | null | undefined): string {
   if (value == null) return 'Not provided'
@@ -811,26 +815,32 @@ export default function ICPackExport({
   const occupancyConflictNote = currentOccupancyFact && latestOccupancyFact && currentOccupancyFact.value !== latestOccupancyFact.value
     ? `Broker/current statement ${factValue(currentOccupancyFact)}; occupancy history ${factValue(latestOccupancyFact)}. Review source period before underwriting.`
     : undefined
-  if (process.env.NODE_ENV !== 'production') {
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return
     console.debug('[ic-pack-export] ledger summary', {
+      component: 'ICPackExport',
+      export_version: 'ledger-v2',
       has_canonical_facts: Boolean(workflow?.canonical_facts),
-      canonical_fact_keys: Object.keys(workflow?.canonical_facts ?? {}),
       has_valuation_gate_summary: Boolean(workflow?.valuation_gate_summary?.rows?.length),
-      valuation_gate_fields: valuationSummaryRows.map(row => row.field),
       has_evidence_readiness: Boolean(workflow?.evidence_readiness),
+      has_evidence_quality: Boolean(workflow?.evidence_quality),
+      fact_keys: Object.keys(workflow?.canonical_facts ?? {}),
+      valuation_gate_fields: valuationSummaryRows.map(row => row.field),
       evidence_readiness_group_counts: Object.fromEntries(
         Object.entries(workflow?.evidence_readiness ?? {}).map(([key, value]) => [key, value.length]),
       ),
       has_grouped_requests: requests.some(item => item.source === 'missing_fields_grouped'),
       export_component_path: 'src/components/report/ICPackExport.tsx',
+      run_id: workflow?.run_id ?? currentRun?.id ?? currentRunSnapshot?.id ?? null,
     })
-  }
+  }, [workflow, valuationSummaryRows, requests, currentRun, currentRunSnapshot])
 
   return (
     <article className="ic-pack-export" aria-label="IC pack export">
       <header className="ic-pack-cover">
         <div>
           <div className="ic-pack-brand">Acquira IC Pack</div>
+          <div className="ic-pack-version-marker">{IC_PACK_EXPORT_VERSION}</div>
           {historicalMode && <div className="ic-pack-label" style={{ marginBottom: '6mm' }}>Historical underwriting snapshot</div>}
           <h1>{centre.name || scored.centre_name}</h1>
           <p>{centre.address || [centre.suburb, centre.state].filter(Boolean).join(', ') || 'Childcare acquisition report'}</p>
@@ -1104,7 +1114,7 @@ export default function ICPackExport({
       </ExportSection>
 
       <footer className="ic-pack-footer">
-        Acquira acquisition intelligence · Generated {exportGeneratedAt} · {historicalMode ? 'Historical snapshot · ' : ''}{currentRun ? `${formatRunLabel(currentRun)} (${formatRunShortId(currentRun.id)})` : metadataFallbackLabel} · Extraction completeness: {quality.extraction} · Underwriting confidence: {quality.reliability}
+        {IC_PACK_EXPORT_VERSION} · Acquira acquisition intelligence · Generated {exportGeneratedAt} · {historicalMode ? 'Historical snapshot · ' : ''}{currentRun ? `${formatRunLabel(currentRun)} (${formatRunShortId(currentRun.id)})` : metadataFallbackLabel} · Extraction completeness: {quality.extraction} · Underwriting confidence: {quality.reliability}
       </footer>
     </article>
   )

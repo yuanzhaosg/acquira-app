@@ -103,6 +103,11 @@ assert(
   'IC Pack export must use canonical ledger facts for displayed underwriting facts.',
 )
 assert(
+  /IC_PACK_EXPORT_VERSION ledger-v2 \/ commit 7e5985a/.test(icPackExport)
+    && /ic-pack-version-marker/.test(icPackExport),
+  'IC Pack export must include temporary ledger-v2 print marker for deployment verification.',
+)
+assert(
   /ValuationGateRows/.test(icPackExport)
     && /Review required/.test(icPackExport)
     && !/value=\{valuationBlocked \|\| gate \? \(evidenceState\.revenue \? 'Present' : 'Missing'\)/.test(icPackExport),
@@ -125,6 +130,21 @@ assert(
     && /Underwriting confidence/.test(icPackExport)
     && /Extraction completeness/.test(icPackExport),
   'IC Pack export must replace global Source quality with honest aggregate labels.',
+)
+for (const legacyPrintString of [
+  'Deal Facts & Source Confidence',
+  'REVENUE EVIDENCE',
+  'PAYROLL / LABOUR',
+  'OCCUPANCY HISTORY',
+  'Missing Information',
+  'Required before confident underwriting.',
+  'FACT VALUE SOURCE / CONFIDENCE',
+]) {
+  assert(!icPackExport.includes(legacyPrintString), `IC Pack export still contains legacy print string: ${legacyPrintString}`)
+}
+assert(
+  !/avg 13wk occupancy pct/i.test(icPackExport),
+  'IC Pack export must not render raw occupancy schema field names.',
 )
 assert(
   /requestText\(item/.test(icPackExport)
