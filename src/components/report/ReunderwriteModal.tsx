@@ -13,6 +13,10 @@ export interface ReunderwriteDocument {
   file_size?: number | null
 }
 
+export type ManualContextFields = {
+  asking_price?: number | string | null
+}
+
 function fmtDate(value?: string | null): string {
   if (!value) return 'Upload date unavailable'
   return new Date(value).toLocaleString('en-AU', {
@@ -92,6 +96,7 @@ export default function ReunderwriteModal({
   documents,
   sourceDocuments,
   initialSelectedIds,
+  manualContextFields,
   onClose,
   onComplete,
   onAttemptFinished,
@@ -100,6 +105,7 @@ export default function ReunderwriteModal({
   documents: ReunderwriteDocument[]
   sourceDocuments: DealSourceDocument[]
   initialSelectedIds?: string[]
+  manualContextFields?: ManualContextFields
   onClose: () => void
   onComplete: (run: UnderwritingRun) => void
   onAttemptFinished?: () => void | Promise<void>
@@ -119,8 +125,9 @@ export default function ReunderwriteModal({
 
   const sourceCount = selectedSourceIds.size
   const diligenceCount = selectedDiligenceIds.size
+  const hasManualContext = manualContextFields?.asking_price != null && manualContextFields.asking_price !== ''
   const selectedCount = sourceCount + diligenceCount
-  const canSubmit = selectedCount > 0 && !submitting
+  const canSubmit = (selectedCount > 0 || hasManualContext) && !submitting
   const allSourcesSelected = sourceDocuments.length > 0 && sourceDocuments.every(doc => selectedSourceIds.has(doc.id))
 
   function toggleSet(setter: Dispatch<SetStateAction<Set<string>>>, id: string) {
@@ -157,6 +164,7 @@ export default function ReunderwriteModal({
         body: JSON.stringify({
           diligence_document_ids: Array.from(selectedDiligenceIds),
           source_document_ids: Array.from(selectedSourceIds),
+          manual_context_fields: manualContextFields ?? {},
           execution_mode: 'sync',
         }),
       })
@@ -187,6 +195,11 @@ export default function ReunderwriteModal({
             <p style={{ margin: '5px 0 0', color: 'rgba(255,255,255,0.52)', fontSize: 12.5, lineHeight: 1.45 }}>
               Select retained originals and/or uploaded diligence documents to run immediate re-underwriting. The current report will not change unless you promote the completed run.
             </p>
+            {hasManualContext && (
+              <p style={{ margin: '7px 0 0', color: 'rgba(255,255,255,0.62)', fontSize: 12.2, lineHeight: 1.45 }}>
+                Manual context included: asking price. It will be treated as lower-confidence and needs broker/vendor verification.
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose} disabled={submitting} aria-label="Close re-underwrite modal" style={{ border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#e8edf3', borderRadius: 6, padding: '6px 9px', cursor: submitting ? 'not-allowed' : 'pointer' }}>
             Close

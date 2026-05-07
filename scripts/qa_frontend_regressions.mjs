@@ -44,6 +44,12 @@ assert(
     && /manual_evidence_notes:\s*manualEvidenceNotes/.test(reunderwriteRoute),
   'Re-underwrite route must include selected diligence item notes/status as manual evidence context.',
 )
+assert(
+  /manual_context_fields:\s*manualContextFields/.test(reunderwriteModal)
+    && /manualContextNotes\(body\.manual_context_fields\)/.test(reunderwriteRoute)
+    && /has_asking_price/.test(reunderwriteRoute),
+  'Re-underwrite flow must include asking price/manual context fields in the backend payload and safe logs.',
+)
 
 for (const title of [
   '1. Recommendation and Confidence',

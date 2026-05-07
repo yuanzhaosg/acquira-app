@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/useAuth'
 import type { DealSourceDocument, UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
 import RunDiffSummary from '@/components/report/RunDiffSummary'
-import ReunderwriteModal, { type ReunderwriteDocument } from '@/components/report/ReunderwriteModal'
+import ReunderwriteModal, { type ManualContextFields, type ReunderwriteDocument } from '@/components/report/ReunderwriteModal'
 import RunComparisonView from '@/components/report/RunComparisonView'
 
 type DiligenceDocumentSummary = ReunderwriteDocument
@@ -41,10 +41,12 @@ function fmtBytes(value?: number | null): string {
 
 export default function RunHistoryDrawer({
   dealId,
+  manualContextFields,
   onPromoted,
   onViewSnapshot,
 }: {
   dealId?: string | null
+  manualContextFields?: ManualContextFields
   onPromoted?: () => void
   onViewSnapshot?: (run: UnderwritingRun, summary: UnderwritingRunSummary, currentRun?: UnderwritingRunSummary | null) => void
 }) {
@@ -493,6 +495,7 @@ export default function RunHistoryDrawer({
           documents={documents}
           sourceDocuments={sourceDocuments}
           initialSelectedIds={initialReunderwriteIds}
+          manualContextFields={manualContextFields}
           onClose={() => setReunderwriteOpen(false)}
           onComplete={async run => {
             setReunderwriteOpen(false)

@@ -1623,6 +1623,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             />
             <RunHistoryDrawer
               dealId={dealId}
+              manualContextFields={{ asking_price: overrides.asking_price ?? effectiveAskPrice ?? null }}
               onViewSnapshot={(run, summary, currentRun) => {
                 setViewedRunSnapshot({ run, summary, currentRun })
                 if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })

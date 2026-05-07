@@ -58,6 +58,31 @@ interface ManualEvidenceNote {
   confidence: 'low'
 }
 
+function parseCurrencyLike(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.round(value)
+  if (typeof value !== 'string') return null
+  const raw = value.trim().toLowerCase()
+  if (!raw) return null
+  const multiplier = /\bm\b|million/.test(raw) ? 1_000_000 : /\bk\b|thousand/.test(raw) ? 1_000 : 1
+  const cleaned = raw.replace(/[$,\s]/g, '').replace(/million|thousand|aud|approx\.?|approximately/g, '').replace(/[mk]\b/g, '')
+  const parsed = Number.parseFloat(cleaned)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * multiplier) : null
+}
+
+function manualContextNotes(value: unknown): ManualEvidenceNote[] {
+  const fields = asRecord(value)
+  const askingPrice = parseCurrencyLike(fields.asking_price)
+  if (!askingPrice) return []
+  return [{
+    source_type: 'manual_user_note',
+    source_label: 'Manual assumption: asking price',
+    category: 'valuation',
+    question: 'User-provided asking price',
+    notes: `asking_price: ${askingPrice}`,
+    confidence: 'low',
+  }]
+}
+
 async function getUserId(req: NextRequest): Promise<string | null> {
   const authHeader = req.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) return null
@@ -207,13 +232,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!deal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
 
     const body = await req.json().catch(() => ({}))
+    const bodyManualContextNotes = manualContextNotes(body.manual_context_fields)
     const requestedBaseRunId = cleanId(body.base_run_id) ?? cleanId(deal.current_run_id)
     const selectedDiligenceIds = uniqueIds(body.diligence_document_ids)
     const selectedSourceIds = uniqueIds(body.source_document_ids)
     const allowRejectedItems = body.allow_rejected_items === true
     const requestedExecutionMode = executionMode(body.execution_mode)
-    if (!selectedDiligenceIds.length && !selectedSourceIds.length) {
-      return NextResponse.json({ error: 'Select at least one diligence document or retained source document' }, { status: 400 })
+    if (!selectedDiligenceIds.length && !selectedSourceIds.length && !bodyManualContextNotes.length) {
+      return NextResponse.json({ error: 'Select at least one diligence document, retained source document, or manual context field' }, { status: 400 })
     }
     const inputDocumentCount = selectedDiligenceIds.length + selectedSourceIds.length
     if (inputDocumentCount > MAX_SELECTED_DOCUMENTS) {
@@ -281,7 +307,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Selected documents linked to rejected diligence items require allow_rejected_items=true' }, { status: 400 })
       }
     }
-    const manualEvidenceNotes = await manualEvidenceForSelectedDocuments(id, selectedDocuments)
+    const manualEvidenceNotes = [
+      ...(await manualEvidenceForSelectedDocuments(id, selectedDocuments)),
+      ...bodyManualContextNotes,
+    ]
+    console.info('reunderwrite.request_summary', {
+      has_asking_price: bodyManualContextNotes.length > 0,
+      asking_price_present_boolean: bodyManualContextNotes.length > 0,
+      selected_docs_count: selectedDiligenceIds.length + selectedSourceIds.length,
+      manual_context_fields: bodyManualContextNotes.map(note => note.question),
+    })
 
     let selectedSourceDocuments: SourceDocumentRow[] = []
     if (selectedSourceIds.length) {
