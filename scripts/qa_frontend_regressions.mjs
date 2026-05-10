@@ -230,6 +230,40 @@ assert(
   'Operational workflow panels must live outside the default Memo mode.',
 )
 assert(
+  /function PublicMarketContextPanel/.test(reportView)
+    && /Public Market Benchmark/.test(reportView)
+    && /Local Demand-Supply Screen/.test(reportView)
+    && /activeReportMode === 'evidence'[\s\S]*PublicMarketContextPanel/.test(reportView),
+  'Public market context must render in Evidence mode only.',
+)
+assert(
+  /public_market_benchmark/.test(reportView)
+    && /local_demand_supply/.test(reportView)
+    && /public aggregate market evidence/.test(reportView)
+    && /realised CCS usage/.test(reportView)
+    && /estimated realised-demand \/ supply-capacity screen/.test(reportView)
+    && /child \/ approved place/.test(reportView)
+    && /new entrant plausibility/i.test(reportView),
+  'Evidence mode public market context must use careful evidence-screen wording.',
+)
+for (const forbiddenPublicMarketCopy of [
+  'demand per centre',
+  'proof of demand',
+  'proof of occupancy',
+  'actual demand',
+  'true demand',
+  'Definitive unmet demand',
+]) {
+  assert(!reportView.includes(forbiddenPublicMarketCopy), `Evidence mode public market copy contains forbidden phrase: ${forbiddenPublicMarketCopy}`)
+}
+assert(
+  !/Public Market Benchmark/.test(icMemo)
+    && !/Local Demand-Supply Screen/.test(icMemo)
+    && !/Public Market Benchmark/.test(icPackExport)
+    && !/Local Demand-Supply Screen/.test(icPackExport),
+  'Public market context must not appear in Memo or IC Pack export yet.',
+)
+assert(
   /Market & Competitive Position/.test(icPackExport)
     && /IC Decision & Deal Structure Recommendation/.test(icPackExport)
     && /What We Do Not Know/.test(icPackExport)

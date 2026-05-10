@@ -8,6 +8,8 @@ export type WorkflowFactStatus = 'extracted' | 'needs_review' | 'confirmed' | 'o
 export type ValuationGateStatus = 'pass' | 'blocked' | 'needs_review'
 export type MarketAuditConfidence = 'high' | 'medium' | 'low'
 export type MarketAuditInterpretation = 'undersupplied' | 'balanced' | 'oversupplied' | 'unknown'
+export type MarketCapacitySignal = 'supportive' | 'balanced' | 'stretched' | 'crowded' | 'inconclusive' | string
+export type MarketCapacityConfidence = 'high' | 'medium' | 'low' | 'unknown' | string
 export type PipelineProjectStatus = 'lodged' | 'approved' | 'under_construction' | 'opened' | 'refused' | 'withdrawn' | 'unknown'
 export type PipelineSourceType = 'none' | 'manual_structured' | 'manual_legacy_count' | 'uploaded_document' | 'planningalerts' | 'state_api' | 'council_portal' | 'search_assisted'
 export type CompetitorSupplySource = 'geospatial_supabase' | 'postcode_fallback' | 'unavailable'
@@ -219,6 +221,61 @@ export interface EvidenceQualitySummary {
   reason?: string | null
 }
 
+export interface PublicMarketBenchmark {
+  source?: string | null
+  source_quality?: string | null
+  as_of_quarter?: string | null
+  sa3_code?: string | null
+  sa3_name?: string | null
+  children_0_5_using_care?: number | null
+  children_6_plus_using_care?: number | null
+  total_children_using_care?: number | null
+  families_using_care?: number | null
+  all_approved_services?: number | null
+  cbdc_services?: number | null
+  children_0_5_per_cbdc_service?: number | null
+  total_children_per_all_service?: number | null
+  cbdc_density_per_1000_children_0_5?: number | null
+  cbdc_mean_fee_per_hour?: number | null
+  cbdc_fee_growth_yoy_pct?: number | null
+  cbdc_services_above_cap_pct?: number | null
+  caveats?: string[]
+  underwriting_use?: string[]
+  not_underwriting_use?: string[]
+}
+
+export interface LocalDemandSupplyEvidenceEntry {
+  field?: string | null
+  label?: string | null
+  value?: string | number | boolean | null
+  provenance?: string | null
+  source_quality?: string | null
+  trust?: string | null
+  underwriting_use?: string[]
+  not_underwriting_use?: string[]
+  reason?: string | null
+  caveats?: string[]
+}
+
+export interface LocalDemandSupplyScreen {
+  status?: string | null
+  reason?: string | null
+  sa3_ccs_participation_rate_0_5?: number | null
+  estimated_realised_ccs_demand_0_5?: number | null
+  current_cbdc_approved_places?: number | null
+  current_child_per_place?: number | null
+  proposed_new_places?: number | null
+  post_entry_child_per_place?: number | null
+  supply_dilution_pct?: number | null
+  future_supply_places?: number | null
+  future_child_per_place?: number | null
+  market_capacity_signal?: MarketCapacitySignal | null
+  market_capacity_confidence?: MarketCapacityConfidence | null
+  signal_reasons?: string[]
+  caveats?: string[]
+  evidence_ledger_entry?: LocalDemandSupplyEvidenceEntry | null
+}
+
 export interface MarketAudit {
   status?: 'complete' | 'partial' | 'missing' | string | null
   missing_fields?: string[]
@@ -276,6 +333,8 @@ export interface MarketAudit {
     formula?: string | null
     interpretation?: MarketAuditInterpretation | null
   }
+  public_market_benchmark?: PublicMarketBenchmark | null
+  local_demand_supply?: LocalDemandSupplyScreen | null
   warnings?: string[]
 }
 
