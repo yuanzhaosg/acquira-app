@@ -214,20 +214,30 @@ assert(
 )
 assert(
   /REPORT_MODES/.test(reportView)
+    && /label: 'Decision'/.test(reportView)
     && /label: 'Memo'/.test(reportView)
     && /label: 'Underwriting'/.test(reportView)
-    && /label: 'Diligence'/.test(reportView)
     && /label: 'Evidence'/.test(reportView)
-    && /label: 'Runs'/.test(reportView)
-    && /activeReportMode === 'memo'/.test(reportView),
-  'ReportView must split the page into Memo, Underwriting, Diligence, Evidence, and Runs modes with Memo as the default.',
+    && /label: 'Diligence'/.test(reportView)
+    && /label: 'Run History'/.test(reportView)
+    && /useState<ReportMode>\('decision'\)/.test(reportView)
+    && /activeReportMode === 'decision'[\s\S]*DecisionDashboard/.test(reportView),
+  'ReportView must split the page into Decision, Memo, Underwriting, Evidence, Diligence, and Run History modes with Decision as the default.',
 )
 assert(
   /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView)
     && /activeReportMode === 'diligence'[\s\S]*DiligenceWorkspace/.test(reportView)
     && /activeReportMode === 'evidence'[\s\S]*FactsReviewPanel/.test(reportView)
     && /activeReportMode === 'memo'[\s\S]*ICMemoView/.test(reportView),
-  'Operational workflow panels must live outside the default Memo mode.',
+  'Operational workflow panels must live outside the Decision dashboard and Memo story modes.',
+)
+assert(
+  /Memo = decision story/.test(reportView)
+    && /Underwriting = decision logic/.test(reportView)
+    && /Evidence = proof layer/.test(reportView)
+    && /Diligence = next actions/.test(reportView)
+    && /Run History = version history \/ audit trail/.test(reportView),
+  'Report modes must explain their distinct roles in the decision workflow.',
 )
 assert(
   /function PublicMarketContextPanel/.test(reportView)

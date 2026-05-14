@@ -97,14 +97,15 @@ function humanizeEvidenceToken(token: string): string {
   return labels[token] ?? token.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
 }
 
-type ReportMode = 'memo' | 'underwriting' | 'diligence' | 'evidence' | 'runs'
+type ReportMode = 'decision' | 'memo' | 'underwriting' | 'evidence' | 'diligence' | 'runs'
 
 const REPORT_MODES: Array<{ id: ReportMode; label: string; description: string }> = [
-  { id: 'memo', label: 'Memo', description: 'Investment decision view' },
-  { id: 'underwriting', label: 'Underwriting', description: 'Valuation, scoring, and assumptions' },
-  { id: 'diligence', label: 'Diligence', description: 'Checklist, uploads, notes, and requests' },
-  { id: 'evidence', label: 'Evidence', description: 'Ledger, source refs, warnings, and market data' },
-  { id: 'runs', label: 'Runs', description: 'Snapshots, compare, re-underwrite, and promote' },
+  { id: 'decision', label: 'Decision', description: 'Answer, confidence, blockers, and next action' },
+  { id: 'memo', label: 'Memo', description: 'Decision story for IC review' },
+  { id: 'underwriting', label: 'Underwriting', description: 'Decision logic, score drivers, and valuation readiness' },
+  { id: 'evidence', label: 'Evidence', description: 'Proof layer, source refs, warnings, and market data' },
+  { id: 'diligence', label: 'Diligence', description: 'Broker requests, blockers, uploads, and next actions' },
+  { id: 'runs', label: 'Run History', description: 'Version history, comparisons, and promotion' },
 ]
 
 // Score ring: input is 0–100
@@ -688,6 +689,313 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'teal' |
   )
 }
 
+function workflowFacts(workflow?: DealWorkflow | null): WorkflowFact[] {
+  return workflow?.facts ?? workflow?.extracted_facts ?? workflow?.evidence_ledger ?? []
+}
+
+function evidenceReadinessCounts(workflow?: DealWorkflow | null) {
+  const facts = workflowFacts(workflow)
+  return {
+    accepted: facts.filter(f => f.underwriting_use === 'accepted').length,
+    derived: facts.filter(f => f.provenance === 'derived').length,
+    review: facts.filter(f => f.underwriting_use === 'review_required' && f.trust !== 'disputed').length,
+    missing: facts.filter(f => f.underwriting_use === 'blocked' || f.blocker || f.confidence === 'missing' || f.value == null || f.value === '').length,
+    conflicting: facts.filter(f => f.trust === 'disputed' || f.conflicts?.length).length,
+    excluded: facts.filter(f => f.underwriting_use === 'excluded').length,
+  }
+}
+
+function decisionStatus(workflow: DealWorkflow | null | undefined, score: number): { label: string; tone: 'green' | 'amber' | 'red'; reason: string } {
+  if (workflow?.valuation_gate?.status === 'blocked') {
+    return { label: 'Blocked', tone: 'red', reason: 'Valuation cannot be relied on until required evidence is provided.' }
+  }
+  if (workflow?.valuation_gate?.status === 'needs_review') {
+    return { label: 'Proceed with caution', tone: 'amber', reason: 'Underwriting is possible, but confidence depends on resolving review items.' }
+  }
+  if (score >= 62) return { label: 'Proceed to diligence', tone: 'green', reason: 'Current score supports a diligence-led next step.' }
+  if (score >= 42) return { label: 'Proceed with caution', tone: 'amber', reason: 'There is enough signal to investigate, but risks or evidence gaps remain.' }
+  return { label: 'Do not proceed', tone: 'red', reason: 'Current score is below the threshold for a live acquisition process.' }
+}
+
+function confidenceFromWorkflow(workflow: DealWorkflow | null | undefined, score: number): { label: 'High' | 'Medium' | 'Low'; tone: 'green' | 'amber' | 'red' } {
+  const quality = workflow?.evidence_quality
+  const reliability = String(quality?.underwriting_reliability ?? '').toLowerCase()
+  const extraction = String(quality?.extraction_completeness ?? '').toLowerCase()
+  if (workflow?.valuation_gate?.status === 'blocked' || reliability.includes('blocked')) return { label: 'Low', tone: 'red' }
+  if (reliability.includes('review') || extraction.includes('low') || score < 52) return { label: 'Low', tone: 'red' }
+  if (quality?.evidence_quality === 'High' && score >= 62) return { label: 'High', tone: 'green' }
+  return { label: 'Medium', tone: 'amber' }
+}
+
+function firstActionableText(workflow?: DealWorkflow | null): string {
+  const diligence = [
+    ...(workflow?.diligence_requests ?? []),
+    ...(workflow?.diligence_checklist ?? []),
+  ]
+  const critical = diligence.find(item => item.priority === 'high' && !['received', 'verified', 'waived'].includes(item.status))
+  if (critical) return critical.request || critical.question
+  const blocker = workflowFacts(workflow).find(f => f.next_action || f.blocker || f.confidence === 'missing')
+  if (blocker?.next_action) return blocker.next_action
+  if (blocker) return `Request source evidence for ${blocker.label}.`
+  const gateBlocker = workflow?.valuation_gate?.blockers?.[0]
+  if (gateBlocker) return gateBlocker.required_evidence || gateBlocker.reason
+  return 'Review the memo, confirm evidence quality, and progress priority diligence requests.'
+}
+
+function displayFactValue(fact: WorkflowFact): string {
+  if (fact.value == null || fact.value === '') return 'Missing'
+  if (fact.unit === 'aud' && typeof fact.value === 'number') return fmtM(fact.value)
+  if (fact.unit === 'percent' && typeof fact.value === 'number') return fmt(fact.value, '', '%', 1)
+  return String(fact.value)
+}
+
+function compactFactLabel(fact: WorkflowFact): string {
+  const value = displayFactValue(fact)
+  return value === 'Missing' ? fact.label : `${fact.label}: ${value}`
+}
+
+function toneColor(tone: 'green' | 'amber' | 'red') {
+  return tone === 'green' ? '#22c55e' : tone === 'amber' ? '#f59e0b' : '#ef4444'
+}
+
+function SmallActionButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="no-print"
+      style={{
+        border: '1px solid rgba(0,180,160,0.25)',
+        background: 'rgba(0,180,160,0.08)',
+        color: '#00b4a0',
+        borderRadius: 6,
+        padding: '7px 10px',
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function SectionRoleGuide({
+  title,
+  description,
+  actions,
+}: {
+  title: string
+  description: string
+  actions?: Array<{ label: string; onClick: () => void }>
+}) {
+  return (
+    <div
+      className="no-print"
+      style={{
+        background: 'rgba(0,180,160,0.055)',
+        border: '1px solid rgba(0,180,160,0.16)',
+        borderRadius: 8,
+        padding: '14px 16px',
+        marginBottom: 22,
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 14,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
+    >
+      <div>
+        <div style={{
+          fontFamily: 'IBM Plex Mono, monospace',
+          fontSize: 10.5,
+          color: '#00b4a0',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          marginBottom: 4,
+        }}>
+          {title}
+        </div>
+        <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 1.55 }}>
+          {description}
+        </div>
+      </div>
+      {actions?.length ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {actions.map(action => <SmallActionButton key={action.label} onClick={action.onClick}>{action.label}</SmallActionButton>)}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function DecisionMetricCard({ label, value, tone, note }: { label: string; value: string | number; tone?: 'green' | 'amber' | 'red'; note?: string }) {
+  const color = tone ? toneColor(tone) : '#e8edf3'
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 8,
+      padding: 16,
+      minHeight: 112,
+    }}>
+      <div style={{
+        fontFamily: 'IBM Plex Mono, monospace',
+        fontSize: 10.5,
+        color: 'rgba(255,255,255,0.36)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        marginBottom: 8,
+      }}>
+        {label}
+      </div>
+      <div style={{ fontFamily: 'Space Grotesk, sans-serif', color, fontSize: 24, fontWeight: 800, lineHeight: 1.1 }}>
+        {value}
+      </div>
+      {note && <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.46)', fontSize: 12.5, lineHeight: 1.45 }}>{note}</div>}
+    </div>
+  )
+}
+
+function DecisionList({
+  title,
+  items,
+  empty,
+}: {
+  title: string
+  items: string[]
+  empty: string
+}) {
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 8,
+      padding: 16,
+    }}>
+      <div style={{
+        fontFamily: 'IBM Plex Mono, monospace',
+        fontSize: 10.5,
+        color: 'rgba(255,255,255,0.38)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        marginBottom: 10,
+      }}>
+        {title}
+      </div>
+      {items.length ? (
+        <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((item, index) => (
+            <li key={`${title}-${index}`} style={{ color: 'rgba(255,255,255,0.66)', fontSize: 13, lineHeight: 1.5 }}>{item}</li>
+          ))}
+        </ol>
+      ) : (
+        <div style={{ color: 'rgba(255,255,255,0.42)', fontSize: 13 }}>{empty}</div>
+      )}
+    </div>
+  )
+}
+
+function DecisionDashboard({
+  workflow,
+  score,
+  verdict,
+  onNavigate,
+}: {
+  workflow: DealWorkflow
+  score: number
+  verdict: string
+  onNavigate: (mode: ReportMode) => void
+}) {
+  const status = decisionStatus(workflow, score)
+  const confidence = confidenceFromWorkflow(workflow, score)
+  const counts = evidenceReadinessCounts(workflow)
+  const valuationTone = workflow.valuation_gate.status === 'pass' ? 'green' : workflow.valuation_gate.status === 'needs_review' ? 'amber' : 'red'
+  const valuationLabel = workflow.valuation_gate.status === 'pass'
+    ? 'Valuation available'
+    : workflow.valuation_gate.status === 'needs_review'
+    ? 'Valuation needs review'
+    : 'Valuation blocked'
+  const facts = workflowFacts(workflow)
+  const blockers = [
+    ...workflow.valuation_gate.blockers.map(blocker => `${blocker.field}: ${blocker.reason}`),
+    ...facts.filter(f => f.blocker || f.confidence === 'missing' || f.underwriting_use === 'blocked').map(compactFactLabel),
+  ].slice(0, 5)
+  const risks = (workflow.risks ?? []).map(risk => risk.title || risk.reason || risk.id).slice(0, 5)
+  const missing = [
+    ...(workflow.missing_fields ?? []),
+    ...facts.filter(f => f.confidence === 'missing' || f.value == null || f.value === '').map(f => f.label),
+  ].filter(Boolean).slice(0, 5)
+
+  return (
+    <section style={{
+      background: 'rgba(255,255,255,0.025)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 10,
+      padding: 22,
+      marginBottom: 36,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap', marginBottom: 20 }}>
+        <div>
+          <SectionTitle>Investment Decision Dashboard</SectionTitle>
+          <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 28, margin: '0 0 8px', color: '#e8edf3' }}>
+            {status.label}
+          </h2>
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.58)', maxWidth: 720, lineHeight: 1.65 }}>
+            {status.reason} Use this dashboard first, then move through Memo, Underwriting, Evidence, Diligence, and Run History.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignContent: 'flex-start' }}>
+          <SmallActionButton onClick={() => onNavigate('memo')}>Read memo</SmallActionButton>
+          <SmallActionButton onClick={() => onNavigate('underwriting')}>View logic</SmallActionButton>
+          <SmallActionButton onClick={() => onNavigate('evidence')}>Check evidence</SmallActionButton>
+          <SmallActionButton onClick={() => onNavigate('diligence')}>Open actions</SmallActionButton>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <DecisionMetricCard label="Decision status" value={status.label} tone={status.tone} note={verdict} />
+        <DecisionMetricCard label="Confidence" value={confidence.label} tone={confidence.tone} note={workflow.evidence_quality?.reason ?? workflow.valuation_gate.reason} />
+        <DecisionMetricCard label="Valuation readiness" value={valuationLabel} tone={valuationTone} note={workflow.valuation_gate.message} />
+        <DecisionMetricCard
+          label="Evidence readiness"
+          value={`${counts.accepted} accepted`}
+          tone={counts.missing || counts.conflicting ? 'amber' : 'green'}
+          note={`${counts.review} review · ${counts.missing} missing · ${counts.conflicting} conflicting · ${counts.excluded} excluded`}
+        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 18 }}>
+        <DecisionList title="Top blockers" items={blockers} empty="No hard blockers surfaced in the current workflow." />
+        <DecisionList title="Top risks" items={risks} empty="No risk list is present in the current workflow payload." />
+        <DecisionList title="Missing evidence" items={missing} empty="No missing evidence list is present in the current workflow payload." />
+      </div>
+
+      <div style={{
+        background: 'rgba(0,180,160,0.06)',
+        border: '1px solid rgba(0,180,160,0.18)',
+        borderRadius: 8,
+        padding: '16px 18px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 16,
+        flexWrap: 'wrap',
+        alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: '#00b4a0', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+            Next best action
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.74)', fontSize: 14, lineHeight: 1.55 }}>
+            {firstActionableText(workflow)}
+          </div>
+        </div>
+        <SmallActionButton onClick={() => onNavigate('diligence')}>Go to Diligence</SmallActionButton>
+      </div>
+    </section>
+  )
+}
+
 // ── MAIN REPORT VIEW ──────────────────────────────────────────────────────────
 
 export default function ReportView({ extracted, scored, workflow, dealId, saving, onBack, onNew, sampleMode, initialOverrides, onMap, onPromoted }: {
@@ -699,7 +1007,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
   onPromoted?: () => void
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
-  const [activeReportMode, setActiveReportMode] = useState<ReportMode>('memo')
+  const [activeReportMode, setActiveReportMode] = useState<ReportMode>('decision')
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
   const [evidenceFact, setEvidenceFact] = useState<WorkflowFact | null>(null)
 
@@ -1280,6 +1588,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           .report-hero       { grid-template-columns: 1fr !important; padding: 28px 20px 24px !important; }
           .report-score-dial { min-width: unset !important; width: 100% !important; }
           .report-metrics    { grid-template-columns: repeat(2, 1fr) !important; }
+          .report-mode-tabs  { grid-template-columns: repeat(2, 1fr) !important; }
           .report-content    { padding: 24px 20px !important; }
           .report-header     { padding: 0 16px !important; }
           .report-header-right { gap: 6px !important; flex-wrap: wrap !important; }
@@ -1808,7 +2117,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           <>
             <div className="report-mode-tabs no-print" aria-label="Report modes" style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
               gap: 8,
               marginBottom: 24,
             }}>
@@ -1837,17 +2146,45 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               })}
             </div>
 
-            {activeReportMode === 'memo' && (
-              <ICMemoView
+            {activeReportMode === 'decision' && (
+              <DecisionDashboard
                 workflow={workflow}
-                extracted={extracted}
-                scored={currentScored}
-                onOpenEvidence={setEvidenceFact}
+                score={canonicalScore}
+                verdict={verdict}
+                onNavigate={setActiveReportMode}
               />
+            )}
+
+            {activeReportMode === 'memo' && (
+              <>
+                <SectionRoleGuide
+                  title="Memo = decision story"
+                  description="Read this as the human IC narrative. It should explain the thesis and recommendation without becoming another evidence table."
+                  actions={[
+                    { label: 'View underwriting impact', onClick: () => setActiveReportMode('underwriting') },
+                    { label: 'View evidence', onClick: () => setActiveReportMode('evidence') },
+                    { label: 'Add diligence request', onClick: () => setActiveReportMode('diligence') },
+                  ]}
+                />
+                <ICMemoView
+                  workflow={workflow}
+                  extracted={extracted}
+                  scored={currentScored}
+                  onOpenEvidence={setEvidenceFact}
+                />
+              </>
             )}
 
             {activeReportMode === 'runs' && (
               <>
+                <SectionRoleGuide
+                  title="Run History = version history / audit trail"
+                  description="Use this workspace to see what changed between uploads, compare runs, and promote the current source of truth."
+                  actions={[
+                    { label: 'View decision', onClick: () => setActiveReportMode('decision') },
+                    { label: 'View evidence', onClick: () => setActiveReportMode('evidence') },
+                  ]}
+                />
                 <RunVersionBanner
                   currentRun={currentRunSummary}
                   currentRunSnapshot={currentRunSnapshot}
@@ -1869,6 +2206,15 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
             {activeReportMode === 'diligence' && (
               <>
+                <SectionRoleGuide
+                  title="Diligence = next actions"
+                  description="Use this workspace for broker requests, missing evidence, follow-up uploads, and operational next steps."
+                  actions={[
+                    { label: 'View missing evidence', onClick: () => setActiveReportMode('evidence') },
+                    { label: 'View decision blockers', onClick: () => setActiveReportMode('decision') },
+                    { label: 'View logic', onClick: () => setActiveReportMode('underwriting') },
+                  ]}
+                />
                 <DiligenceWorkspace dealId={dealId} workflow={workflow} />
                 <div style={{ marginBottom: 34 }}>
                   <DiligenceChecklist workflow={workflow} />
@@ -1884,6 +2230,15 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
                 borderRadius: 8,
                 padding: 18,
               }}>
+                <SectionRoleGuide
+                  title="Evidence = proof layer"
+                  description="Use this workspace to verify what is known, where it came from, whether it can be trusted, and where it affects the decision."
+                  actions={[
+                    { label: 'View underwriting impact', onClick: () => setActiveReportMode('underwriting') },
+                    { label: 'Create diligence request', onClick: () => setActiveReportMode('diligence') },
+                    { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
+                  ]}
+                />
                 <ExtractionWarnings workflow={workflow} />
                 <MarketAuditPanel
                   audit={workflow.market_audit ?? currentScored.market_audit}
@@ -1933,7 +2288,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               </div>
             )}
 
-            {activeReportMode !== 'memo' && activeReportMode !== 'underwriting' && (
+            {activeReportMode !== 'decision' && activeReportMode !== 'memo' && activeReportMode !== 'underwriting' && (
               <div style={{
                 color: 'rgba(255,255,255,0.42)',
                 fontSize: 12.5,
@@ -1951,23 +2306,15 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
         {(!workflow || activeReportMode === 'underwriting') && (
           <>
             {workflow && (
-              <div
-                style={{
-                  background: 'rgba(0,180,160,0.07)',
-                  border: '1px solid rgba(0,180,160,0.18)',
-                  borderRadius: 8,
-                  padding: '14px 16px',
-                  marginBottom: 26,
-                  color: 'rgba(255,255,255,0.66)',
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                }}
-              >
-                <span style={{ color: '#00b4a0', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 8 }}>
-                  Underwriting workspace
-                </span>
-                These controls support analysis and re-scoring. They are not part of the investor-facing memo or IC Pack export.
-              </div>
+              <SectionRoleGuide
+                title="Underwriting = decision logic"
+                description="Use this workspace to understand score drivers, valuation readiness, blockers, and what evidence changed confidence. Raw evidence remains in Evidence."
+                actions={[
+                  { label: 'View supporting evidence', onClick: () => setActiveReportMode('evidence') },
+                  { label: 'Open diligence item', onClick: () => setActiveReportMode('diligence') },
+                  { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
+                ]}
+              />
             )}
 
         {/* IC VALUATION SUMMARY */}
