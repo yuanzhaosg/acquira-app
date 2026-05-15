@@ -63,6 +63,14 @@ function statusLabel(value?: string | null): string {
   return value.replace(/_/g, ' ')
 }
 
+function factTrustBadge(fact: WorkflowFact): { label: string; color: string } | null {
+  if (fact.trust === 'disputed' || fact.conflicts?.length) return { label: 'DISPUTED', color: '#ef4444' }
+  if (fact.underwriting_use === 'blocked' || fact.blocker) return { label: 'REVIEW REQUIRED', color: '#ef4444' }
+  if (fact.underwriting_use === 'review_required' || fact.status === 'needs_review') return { label: 'REVIEW REQUIRED', color: '#f59e0b' }
+  if (fact.confidence === 'low' || fact.trust === 'low') return { label: 'LOW CONFIDENCE', color: '#f97316' }
+  return null
+}
+
 function periodLabel(fact: WorkflowFact): string | null {
   const period = fact.period
   if (!period) return null
@@ -147,6 +155,7 @@ function FactPill({ fact, onOpen }: { fact: WorkflowFact; onOpen: (fact: Workflo
   const clickable = factHasEvidence(fact)
   const confidence = displayConfidence(fact)
   const isMissing = confidence === 'missing' || fact.blocker
+  const badge = factTrustBadge(fact)
   return (
     <button
       type="button"
@@ -164,8 +173,26 @@ function FactPill({ fact, onOpen }: { fact: WorkflowFact; onOpen: (fact: Workflo
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: 'rgba(255,255,255,0.76)' }}>{fact.label}</span>
-        <span style={{ fontSize: 10.5, fontFamily: 'IBM Plex Mono, monospace', color: confidence === 'high' ? '#22c55e' : confidence === 'missing' ? '#ef4444' : '#f59e0b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          {isMissing ? 'missing' : confidence}
+        <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+          {badge && (
+            <span style={{
+              border: `1px solid ${badge.color}66`,
+              background: `${badge.color}1A`,
+              borderRadius: 4,
+              padding: '1px 5px',
+              color: badge.color,
+              fontSize: 9.5,
+              fontFamily: 'IBM Plex Mono, monospace',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+            }}>
+              {badge.label}
+            </span>
+          )}
+          <span style={{ fontSize: 10.5, fontFamily: 'IBM Plex Mono, monospace', color: confidence === 'high' ? '#22c55e' : confidence === 'missing' ? '#ef4444' : '#f59e0b', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+            {isMissing ? 'missing' : confidence}
+          </span>
         </span>
       </div>
       <div style={{ fontSize: 13, color: isMissing ? '#f59e0b' : 'rgba(255,255,255,0.7)', marginBottom: 6 }}>{factValue(fact)}</div>

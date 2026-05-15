@@ -4,6 +4,8 @@ import type { DealWorkflow, PipelineProject, WorkflowFact } from '@/types/workfl
 import type { UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
 import type React from 'react'
 
+const FULL_REPORT_EXPORT_VERSION = 'FULL_REPORT_EXPORT_VERSION ledger-v2 / commit 95178a5'
+
 type ScoredForReport = ScoredDeal & {
   market_context?: {
     competitor_count?: number | null
@@ -272,7 +274,7 @@ export default function FullReportExport({
         <div className="ic-pack-table">
           <div className="ic-pack-table-head">
             <div>Fact</div>
-            <div>Use</div>
+            <div>Status</div>
             <div>Source / action</div>
           </div>
           {facts.map(fact => (
@@ -338,7 +340,7 @@ export default function FullReportExport({
               {!runChanges.length && (
                 <div className="ic-pack-list-item ic-pack-request">
                   <strong>Run change summary</strong>
-                  <span>Detailed run diff is unavailable for this current snapshot.</span>
+                  <span>Detailed run diff is unavailable for this current snapshot. Run comparisons appear from Run 2 onwards.</span>
                 </div>
               )}
             </div>
@@ -352,7 +354,7 @@ export default function FullReportExport({
       </ReportSection>
 
       <footer className="ic-pack-footer">
-        Full Report PDF · Acquira acquisition intelligence · Generated {generatedAt}
+        {FULL_REPORT_EXPORT_VERSION} · Full Report PDF · Acquira acquisition intelligence · Generated {generatedAt}
       </footer>
     </article>
   )

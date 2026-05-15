@@ -39,7 +39,7 @@ function investorWarning(message: string): string {
     return 'Competitor coverage may be incomplete; verify ACECQA/manual competitor set.'
   }
   if (lower.includes('confidence is high')) {
-    return 'Demand confidence should be read cautiously because one or more market inputs are missing or approximated.'
+    return 'Market confidence should be read cautiously because one or more market inputs are missing or approximated.'
   }
   return message
 }

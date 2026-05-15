@@ -88,6 +88,13 @@ assert(
   'IC memo hard facts must classify as Key Facts rather than Investment Thesis.',
 )
 assert(
+  /function factTrustBadge/.test(icMemo)
+    && /DISPUTED/.test(icMemo)
+    && /REVIEW REQUIRED/.test(icMemo)
+    && /LOW CONFIDENCE/.test(icMemo),
+  'IC memo headline facts must visibly flag disputed, review-required, and low-confidence values.',
+)
+assert(
   /function EvidenceReadiness/.test(icMemo)
     && /Found \/ accepted/.test(icMemo)
     && /Excluded from underwriting/.test(icMemo)
@@ -149,6 +156,12 @@ assert(
   'Full Report PDF export must include all six report journey sections.',
 )
 assert(
+  /FULL_REPORT_EXPORT_VERSION ledger-v2 \/ commit/.test(fullReportExport)
+    && /<div>Status<\/div>/.test(fullReportExport)
+    && /Run comparisons appear from Run 2 onwards/.test(fullReportExport),
+  'Full Report PDF export must include version metadata, STATUS evidence label, and first-run helper text.',
+)
+assert(
   /Interactive map is summarized, not reproduced/.test(fullReportExport)
     && /Supply\/pipeline map is summarized for print/.test(fullReportExport)
     && !/CompetitiveMap/.test(fullReportExport)
@@ -167,6 +180,19 @@ assert(
     && /42703/.test(icPackExport)
     && /investorWarning\(warning\)/.test(icPackExport),
   'IC Pack export must sanitize technical provider/database errors.',
+)
+assert(
+  /function financialFactsNeedReconciliation/.test(icPackExport)
+    && /Reported profitability may be attractive, but financial evidence is disputed or review-required/.test(icPackExport)
+    && /before relying on valuation or offer assumptions/.test(icPackExport),
+  'IC Pack export must hedge positive investment-case wording when financial facts need reconciliation.',
+)
+assert(
+  /EDR capacity screen/.test(icPackExport)
+    && /Market confidence/.test(icPackExport)
+    && /Market \/ supply warning/.test(icPackExport)
+    && /market capacity conclusions/.test(icPackExport),
+  'IC Pack export must use product-boundary-safe market wording and consolidated warning labels.',
 )
 assert(
   /Evidence Readiness/.test(icPackExport)

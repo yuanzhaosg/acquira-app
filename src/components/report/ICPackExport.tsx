@@ -239,6 +239,24 @@ function canonicalValue(workflow: DealWorkflow | null | undefined, field: string
   return fact ? factValue(fact) : 'Not provided'
 }
 
+function factNeedsTrustWarning(fact?: DisplayFact): boolean {
+  return Boolean(
+    fact
+      && (
+        fact.trust === 'disputed'
+        || Boolean(fact.conflicts?.length)
+        || fact.underwriting_use === 'review_required'
+        || fact.underwriting_use === 'blocked'
+        || fact.trust === 'low'
+      )
+  )
+}
+
+function financialFactsNeedReconciliation(workflow: DealWorkflow | null | undefined): boolean {
+  return ['revenue', 'ebitda', 'normalised_ebitda', 'payroll_labour_cost']
+    .some(field => factNeedsTrustWarning(canonicalFact(workflow, field)))
+}
+
 function canonicalRows(workflow: DealWorkflow | null | undefined, facts: WorkflowFact[]): DisplayFact[] {
   const preferred = [
     'revenue',
@@ -274,6 +292,12 @@ function sanitizeReportText(value: string | null | undefined): string {
     return 'A data provider lookup failed. Review methodology before relying on this section.'
   }
   return text
+    .replace(/convert children aged 0-4 into likely long-day-care demand/gi, 'estimate long-day-care participation')
+    .replace(/Occupancy & Demand/g, 'Occupancy & Enrolment')
+    .replace(/estimated demand ratio/gi, 'EDR capacity screen')
+    .replace(/adjusted demand ratio/gi, 'EDR capacity screen')
+    .replace(/demand fundamentals/gi, 'market capacity position')
+    .replace(/demand conclusions/gi, 'market capacity conclusions')
 }
 
 function requestText(item: { question?: string; request?: string }, fallback: string): string {
@@ -321,7 +345,7 @@ function componentScoreRows(scored: ScoredDeal, workflow?: DealWorkflow | null):
       const entry = dimension as DimensionEntry
       const rawSummary = compactText(entry.summary) ?? 'No component explanation available.'
       const suppressLegacyFinancialNarrative = hasCanonicalFinancials
-        && /(profit|financial|cashflow|cash_flow|valuation|payroll|labou?r|occupancy|demand)/i.test(id)
+        && /(profit|financial|cashflow|cash_flow|valuation|payroll|labou?r|occupancy|market|capacity)/i.test(id)
         && /\$|revenue|payroll|labou?r|ebitda|occupancy|utilisation|margin|grew|increased|decreased/i.test(rawSummary)
       return {
         id,
@@ -450,7 +474,7 @@ function buildRiskItems({
       ? riskItem(
           'supply-material-difference',
           'Competitor supply mismatch',
-          'Geospatial competitor supply differs materially from postcode comparison; verify catchment methodology before relying on demand conclusions.',
+          'Geospatial competitor supply differs materially from postcode comparison; verify catchment methodology before relying on market capacity conclusions.',
           'risk',
         )
       : null,
@@ -589,8 +613,11 @@ function FactRows({ facts }: { facts: DisplayFact[] }) {
 
 function AuditRows({ audit }: { audit?: MarketAudit | null }) {
   if (!audit) return null
-  const warnings = Array.from(new Set((audit.warnings ?? []).map(sanitizeReportText)))
   const supply = audit.competitor_supply
+  const combinedWarnings = Array.from(new Set([
+    ...(audit.warnings ?? []).map(sanitizeReportText),
+    ...(supply?.warnings ?? []).map(sanitizeReportText),
+  ])).filter(Boolean)
   const supplyUnavailable = supply?.source === 'unavailable' || (supply?.confidence === 'low' && supply?.competitor_count == null && Boolean(supply?.compared_to_postcode))
   const postcodeCompetitors = supply?.compared_to_postcode?.competitor_count
   const postcodePlaces = supply?.compared_to_postcode?.total_licensed_places
@@ -616,8 +643,8 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
           value={audit.pipeline_places?.value != null ? audit.pipeline_places.value.toLocaleString('en-AU') : 'Not available'}
           note={[audit.pipeline_places?.source, audit.pipeline_places?.confidence ? `${audit.pipeline_places.confidence} confidence` : null].filter(Boolean).join(' · ')}
         />
-        <KeyValue label="EDR" value={audit.edr?.value != null ? String(audit.edr.value) : 'Not available'} note={audit.edr?.interpretation ?? undefined} />
-        <KeyValue label="EDR formula" value="Kids x utilisation / places" note={audit.edr?.formula ?? undefined} />
+        <KeyValue label="EDR capacity screen" value={audit.edr?.value != null ? String(audit.edr.value) : 'Not available'} note={audit.edr?.interpretation ?? undefined} />
+        <KeyValue label="EDR formula" value="Children x utilisation / places" note={audit.edr?.formula ?? undefined} />
       </div>
       {supply && (
         <>
@@ -666,23 +693,13 @@ function AuditRows({ audit }: { audit?: MarketAudit | null }) {
               </div>
             </div>
           )}
-          {(supply.warnings?.length ?? 0) > 0 && (
-            <div className="ic-pack-list" style={{ marginBottom: '4mm' }}>
-              {Array.from(new Set((supply.warnings ?? []).map(sanitizeReportText))).slice(0, 3).map((warning, index) => (
-                <div key={`${warning}-${index}`} className="ic-pack-list-item ic-pack-missing">
-                  <strong>Supply warning</strong>
-                  <span>{investorWarning(warning)}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </>
       )}
-      {warnings.length > 0 && (
+      {combinedWarnings.length > 0 && (
         <div className="ic-pack-list">
-          {warnings.slice(0, 5).map((warning, index) => (
+          {combinedWarnings.slice(0, 5).map((warning, index) => (
             <div key={`${warning}-${index}`} className="ic-pack-list-item ic-pack-missing">
-              <strong>Market audit warning</strong>
+              <strong>Market / supply warning</strong>
               <span>{investorWarning(warning)}</span>
             </div>
           ))}
@@ -769,7 +786,7 @@ function ValuationGateRows({ rows }: { rows: ValuationGateSummaryRow[] }) {
     <div className="ic-pack-table">
       <div className="ic-pack-table-head">
         <span>Input</span>
-        <span>Use</span>
+        <span>Status</span>
         <span>Evidence / reason</span>
       </div>
       {rows.map(row => (
@@ -866,15 +883,18 @@ function thesisItems({ workflow, extracted, scored }: { workflow?: DealWorkflow 
   const currentOccupancy = canonicalValue(workflow, 'current_occupancy')
   const occupancyPeak = extracted.occupancy?.peak_pct != null ? pct(extracted.occupancy.peak_pct) : null
   const pipelineText = /pipeline|waitlist|opportunit/i.test(JSON.stringify(scored)) ? 'Pipeline or waitlist opportunities may support occupancy recovery, subject to conversion evidence.' : ''
+  const financialReconciliationRequired = financialFactsNeedReconciliation(workflow)
   return uniqueTexts([
-    revenue !== 'Not provided' || profit !== 'Not provided'
+    financialReconciliationRequired
+      ? 'Reported profitability may be attractive, but financial evidence is disputed or review-required and must be reconciled before relying on valuation or offer assumptions.'
+      : revenue !== 'Not provided' || profit !== 'Not provided'
       ? `Reported profitability is meaningful${revenue !== 'Not provided' ? `, with ${revenue} revenue` : ''}${profit !== 'Not provided' ? ` and ${profit} reported profit / EBITDA proxy` : ''}.`
       : scored.dimensions?.profitability_cashflow?.summary ?? '',
-    normalised !== 'Not provided' ? `Vendor-indicated normalised profit / EBITDA proxy is ${normalised}, subject to add-back verification.` : '',
+    !financialReconciliationRequired && normalised !== 'Not provided' ? `Vendor-indicated normalised profit / EBITDA proxy is ${normalised}, subject to add-back verification.` : '',
     rent !== 'Not provided' ? `Rent economics appear attractive at ${rent}, subject to lease and rent ledger verification.` : '',
     currentOccupancy !== 'Not provided' ? `Occupancy upside may exist if the centre can improve from ${currentOccupancy}${occupancyPeak ? ` toward prior peak of ${occupancyPeak}` : ''}.` : '',
     pipelineText,
-    scored.dimensions?.market_position?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? '',
+    sanitizeReportText(scored.dimensions?.market_position?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? ''),
   ]).slice(0, 6)
 }
 
@@ -1202,16 +1222,16 @@ export default function ICPackExport({
           <AuditRows audit={marketAudit} />
         ) : (
           <div className="ic-pack-grid-4">
-            <KeyValue label="Adjusted demand ratio" value={market?.edr_mid != null ? String(market.edr_mid) : 'Not available'} note={market?.zone ?? undefined} />
+            <KeyValue label="EDR capacity screen" value={market?.edr_mid != null ? String(market.edr_mid) : 'Not available'} note={market?.zone ?? undefined} />
             <KeyValue label="Competitors" value={scoredExport.market_context?.competitor_count != null ? String(scoredExport.market_context.competitor_count) : 'Not available'} />
             <KeyValue label="Pipeline places" value={scoredExport.market_context?.approved_pipeline_places != null ? String(scoredExport.market_context.approved_pipeline_places) : 'Not available'} />
-            <KeyValue label="Demand confidence" value={market?.confidence ?? scored.audit_trail?.confidence ?? 'Not available'} />
+            <KeyValue label="Market confidence" value={market?.confidence ?? scored.audit_trail?.confidence ?? 'Not available'} />
           </div>
         )}
         <PipelineRows audit={pipelineAudit} projects={pipelineProjects} />
-        {guard?.pipeline_note && <p>{guard.pipeline_note}</p>}
-        {guard?.market_note && <p>{guard.market_note}</p>}
-        <p>{scored.dimensions?.market_position?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? 'Market summary unavailable.'}</p>
+        {guard?.pipeline_note && <p>{sanitizeReportText(guard.pipeline_note)}</p>}
+        {guard?.market_note && <p>{sanitizeReportText(guard.market_note)}</p>}
+        <p>{sanitizeReportText(scored.dimensions?.market_position?.summary ?? scored.dimensions?.occupancy_demand?.summary ?? 'Market summary unavailable.')}</p>
       </ExportSection>
 
       <ExportSection number="9" title="Valuation Gate & Assumptions" breakBefore>

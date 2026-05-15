@@ -16,7 +16,7 @@ Confirmed frontend structure:
 
 Current branch:
 
-`fix/backend-url-config-cleanup`
+`main`
 
 ## Current Production Backend Release
 
@@ -153,6 +153,23 @@ Purpose:
 
 Make the Full Report PDF export visible in the report toolbar and fix the Report Journey sidebar so it cannot overlap active report content while scrolling.
 
+## Active Trust/Wording Polish
+
+Active polish task:
+
+`docs/tasks/2026-05-15-report-trust-wording-polish.md`
+
+Purpose:
+
+Fix presentation-layer trust issues found during Claude audit:
+
+- show dispute/review/low-confidence badges on memo headline facts
+- hedge positive IC Pack investment-case wording when financial facts need reconciliation
+- keep IC Pack market copy inside PRODUCT_BOUNDARIES wording
+- add Full Report PDF audit/version footer
+- keep Evidence table labels buyer-facing
+- clarify first-run Run History empty state
+
 ## local_demand_supply
 
 Current behaviour:
@@ -174,10 +191,10 @@ Do not add frontend behaviour that implies it is auto-attached.
 
 ## Active Frontend Task
 
-`docs/tasks/2026-05-15-report-export-and-sidebar-layout-fix.md`
+`docs/tasks/2026-05-15-report-trust-wording-polish.md`
 
 Purpose:
 
-Fix Full Report PDF export visibility and the Report Journey sidebar overlap.
+Presentation-layer trust, conflict flag, and wording polish after Claude audit.
 
-This is a frontend visibility/layout bugfix only.
+This is a frontend presentation-only polish task. Do not change scoring, valuation, recommendation, extraction, Evidence Ledger semantics, public market benchmark semantics, or backend payload shapes.
