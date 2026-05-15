@@ -1,16 +1,14 @@
 'use client'
 import CompetitiveMap from '@/components/map/CompetitiveMap'
 import ICSummary from '@/components/report/ICSummary'
-import FactsReviewPanel from '@/components/report/FactsReviewPanel'
 import ValuationGatePanel from '@/components/report/ValuationGatePanel'
-import DiligenceChecklist from '@/components/report/DiligenceChecklist'
-import ExtractionWarnings from '@/components/report/ExtractionWarnings'
 import ICMemoView from '@/components/report/ICMemoView'
+import DecisionDashboard, { type ReportMode } from '@/components/report/DecisionDashboard'
+import EvidenceScreen from '@/components/report/EvidenceScreen'
 import EvidenceDrawer from '@/components/report/EvidenceDrawer'
 import ICPackExport from '@/components/report/ICPackExport'
-import MarketAuditPanel from '@/components/report/MarketAuditPanel'
-import DiligenceWorkspace from '@/components/diligence/DiligenceWorkspace'
-import RunHistoryDrawer from '@/components/report/RunHistoryDrawer'
+import DiligenceActionScreen from '@/components/report/DiligenceActionScreen'
+import RunHistoryScreen from '@/components/report/RunHistoryScreen'
 import RunVersionBanner from '@/components/report/RunVersionBanner'
 import RunSnapshotView from '@/components/report/RunSnapshotView'
 import { useState, useEffect } from 'react'
@@ -60,6 +58,15 @@ function fmtM(n: number | null | undefined): string {
   if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
   return `$${n.toLocaleString()}`
 }
+
+const REPORT_MODES: Array<{ id: ReportMode; label: string; description: string }> = [
+  { id: 'decision', label: 'Decision', description: 'Answer, confidence, blockers, and next action' },
+  { id: 'memo', label: 'Memo', description: 'Decision story for IC review' },
+  { id: 'underwriting', label: 'Underwriting', description: 'Decision logic, score drivers, and valuation readiness' },
+  { id: 'evidence', label: 'Evidence', description: 'Proof layer, source refs, warnings, and market data' },
+  { id: 'diligence', label: 'Diligence', description: 'Broker requests, blockers, uploads, and next actions' },
+  { id: 'runs', label: 'Run History', description: 'Version history, comparisons, and promotion' },
+]
 
 // Score ring: input is 0–100
 function ringOffset(score: number): number {
@@ -494,6 +501,77 @@ function Badge({ children, color }: { children: React.ReactNode; color: 'teal' |
   )
 }
 
+function SmallActionButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="no-print"
+      style={{
+        border: '1px solid rgba(0,180,160,0.25)',
+        background: 'rgba(0,180,160,0.08)',
+        color: '#00b4a0',
+        borderRadius: 6,
+        padding: '7px 10px',
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+function SectionRoleGuide({
+  title,
+  description,
+  actions,
+}: {
+  title: string
+  description: string
+  actions?: Array<{ label: string; onClick: () => void }>
+}) {
+  return (
+    <div
+      className="no-print"
+      style={{
+        background: 'rgba(0,180,160,0.055)',
+        border: '1px solid rgba(0,180,160,0.16)',
+        borderRadius: 8,
+        padding: '14px 16px',
+        marginBottom: 22,
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 14,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
+    >
+      <div>
+        <div style={{
+          fontFamily: 'IBM Plex Mono, monospace',
+          fontSize: 10.5,
+          color: '#00b4a0',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          marginBottom: 4,
+        }}>
+          {title}
+        </div>
+        <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 1.55 }}>
+          {description}
+        </div>
+      </div>
+      {actions?.length ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {actions.map(action => <SmallActionButton key={action.label} onClick={action.onClick}>{action.label}</SmallActionButton>)}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 // ── MAIN REPORT VIEW ──────────────────────────────────────────────────────────
 
 export default function ReportView({ extracted, scored, workflow, dealId, saving, onBack, onNew, sampleMode, initialOverrides, onMap, onPromoted }: {
@@ -505,6 +583,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
   onPromoted?: () => void
 }) {
   const [activeDim, setActiveDim]       = useState<string | null>(null)
+  const [activeReportMode, setActiveReportMode] = useState<ReportMode>('decision')
   const [overrides, setOverrides]       = useState<Record<string, number | string>>(initialOverrides ?? {})
   const [evidenceFact, setEvidenceFact] = useState<WorkflowFact | null>(null)
 
@@ -1085,6 +1164,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           .report-hero       { grid-template-columns: 1fr !important; padding: 28px 20px 24px !important; }
           .report-score-dial { min-width: unset !important; width: 100% !important; }
           .report-metrics    { grid-template-columns: repeat(2, 1fr) !important; }
+          .report-mode-sidebar { float: none !important; position: static !important; width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-right: 0 !important; }
           .report-content    { padding: 24px 20px !important; }
           .report-header     { padding: 0 16px !important; }
           .report-header-right { gap: 6px !important; flex-wrap: wrap !important; }
@@ -1146,6 +1226,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
           /* ── HIDE INTERACTIVE ── */
           .report-header, nav, .no-print, .score-ring-wrap, .dim-score-bar { display: none !important; }
+          .report-mode-sidebar { display: none !important; }
           .has-ic-pack .print-only-header,
           .has-ic-pack .report-hero,
           .has-ic-pack .report-content,
@@ -1419,6 +1500,12 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
           /* ── FOOTER ── */
           footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important; font-size: 8pt !important; padding: 8px 0 !important; }
+          .has-ic-pack > :not(.ic-pack-export):not(style) {
+            display: none !important;
+          }
+          .has-ic-pack > .ic-pack-export {
+            display: block !important;
+          }
         }
       `}</style>
 
@@ -1604,67 +1691,190 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
         {workflow && (
           <>
+            <aside className="report-mode-sidebar no-print" aria-label="Report journey" style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr',
+              gap: 8,
+              width: 230,
+              float: 'left',
+              marginRight: 24,
+              marginBottom: 24,
+              position: 'sticky',
+              top: 18,
+              zIndex: 1,
+            }}>
+              <div style={{
+                fontFamily: 'IBM Plex Mono, monospace',
+                fontSize: 10.5,
+                color: 'rgba(255,255,255,0.36)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                marginBottom: 2,
+              }}>
+                Report journey
+              </div>
+              {REPORT_MODES.map(mode => {
+                const active = activeReportMode === mode.id
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => setActiveReportMode(mode.id)}
+                    aria-pressed={active}
+                    style={{
+                      textAlign: 'left',
+                      border: `1px solid ${active ? 'rgba(0,180,160,0.45)' : 'rgba(255,255,255,0.09)'}`,
+                      background: active ? 'rgba(0,180,160,0.11)' : 'rgba(255,255,255,0.025)',
+                      color: active ? '#e8fff9' : 'rgba(255,255,255,0.64)',
+                      borderRadius: 8,
+                      padding: '12px 14px',
+                      cursor: 'pointer',
+                      minHeight: 68,
+                    }}
+                  >
+                    <span style={{ display: 'block', fontSize: 14, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", marginBottom: 4 }}>{mode.label}</span>
+                    <span style={{ display: 'block', color: active ? 'rgba(232,255,249,0.62)' : 'rgba(255,255,255,0.38)', fontSize: 11.5, lineHeight: 1.35 }}>{mode.description}</span>
+                  </button>
+                )
+              })}
+            </aside>
+
             <RunVersionBanner
               currentRun={currentRunSummary}
               currentRunSnapshot={currentRunSnapshot}
               staleDocumentCount={staleRunDocumentCount}
             />
-            <ICMemoView
-              workflow={workflow}
-              extracted={extracted}
-              scored={currentScored}
-              onOpenEvidence={setEvidenceFact}
-            />
-            <RunHistoryDrawer
-              dealId={dealId}
-              onViewSnapshot={(run, summary, currentRun) => {
-                setViewedRunSnapshot({ run, summary, currentRun })
-                if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              onPromoted={onPromoted ?? (() => {
-                if (typeof window !== 'undefined') window.location.reload()
-              })}
-            />
-            <DiligenceWorkspace dealId={dealId} workflow={workflow} />
-            <details
-              className="no-print"
-              style={{
-                marginBottom: 34,
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 8,
-                overflow: 'hidden',
-              }}
-            >
-              <summary
-                style={{
-                  cursor: 'pointer',
-                  padding: '14px 16px',
-                  color: '#e8edf3',
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 700,
-                }}
-              >
-                Supporting evidence, extraction warnings, and full diligence checklist
-                <span style={{ display: 'block', marginTop: 4, color: 'rgba(255,255,255,0.42)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  Collapsed to keep the IC memo primary
-                </span>
-              </summary>
-              <div style={{ padding: '18px 18px 0' }}>
-                <ExtractionWarnings workflow={workflow} />
-                <MarketAuditPanel
-                  audit={workflow.market_audit ?? currentScored.market_audit}
-                  pipelineAudit={workflow.pipeline_audit ?? currentScored.pipeline_audit}
-                  pipelineProjects={workflow.pipeline_projects ?? currentScored.pipeline_projects}
+
+            {activeReportMode === 'decision' && (
+              <DecisionDashboard
+                workflow={workflow}
+                score={canonicalScore}
+                verdict={verdict}
+                onNavigate={setActiveReportMode}
+              />
+            )}
+
+            {activeReportMode === 'memo' && (
+              <>
+                <SectionRoleGuide
+                  title="Memo = decision story"
+                  description="Read this as the human IC narrative. It should explain the thesis and recommendation without becoming another evidence table."
+                  actions={[
+                    { label: 'View underwriting impact', onClick: () => setActiveReportMode('underwriting') },
+                    { label: 'View evidence', onClick: () => setActiveReportMode('evidence') },
+                    { label: 'Add diligence request', onClick: () => setActiveReportMode('diligence') },
+                  ]}
                 />
-                <FactsReviewPanel workflow={workflow} onOpenEvidence={setEvidenceFact} />
-                {workflow.valuation_gate.status !== 'pass' && <ValuationGatePanel workflow={workflow} />}
-                <DiligenceChecklist workflow={workflow} />
+                <ICMemoView
+                  workflow={workflow}
+                  extracted={extracted}
+                  scored={currentScored}
+                  onOpenEvidence={setEvidenceFact}
+                  onNavigate={setActiveReportMode}
+                />
+              </>
+            )}
+
+            {activeReportMode === 'runs' && (
+              <>
+                <SectionRoleGuide
+                  title="Run History = version history / audit trail"
+                  description="Use this workspace to see what changed between uploads, compare runs, and promote the current source of truth."
+                  actions={[
+                    { label: 'View decision', onClick: () => setActiveReportMode('decision') },
+                    { label: 'View evidence', onClick: () => setActiveReportMode('evidence') },
+                  ]}
+                />
+                <RunHistoryScreen
+                  dealId={dealId}
+                  manualContextFields={{ asking_price: overrides.asking_price ?? effectiveAskPrice ?? null }}
+                  onViewSnapshot={(run, summary, currentRun) => {
+                    setViewedRunSnapshot({ run, summary, currentRun })
+                    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  onPromoted={onPromoted ?? (() => {
+                    if (typeof window !== 'undefined') window.location.reload()
+                  })}
+                />
+              </>
+            )}
+
+            {activeReportMode === 'diligence' && (
+              <>
+                <SectionRoleGuide
+                  title="Diligence = next actions"
+                  description="Use this workspace for broker requests, missing evidence, follow-up uploads, and operational next steps."
+                  actions={[
+                    { label: 'View missing evidence', onClick: () => setActiveReportMode('evidence') },
+                    { label: 'View decision blockers', onClick: () => setActiveReportMode('decision') },
+                    { label: 'View logic', onClick: () => setActiveReportMode('underwriting') },
+                  ]}
+                />
+                <DiligenceActionScreen dealId={dealId} workflow={workflow} />
+              </>
+            )}
+
+            {activeReportMode === 'evidence' && (
+              <>
+                <SectionRoleGuide
+                  title="Evidence = proof layer"
+                  description="Use this workspace to verify what is known, where it came from, whether it can be trusted, and where it affects the decision."
+                  actions={[
+                    { label: 'View underwriting impact', onClick: () => setActiveReportMode('underwriting') },
+                    { label: 'Create diligence request', onClick: () => setActiveReportMode('diligence') },
+                    { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
+                  ]}
+                />
+                <EvidenceScreen
+                  workflow={workflow}
+                  extracted={extracted}
+                  scored={currentScored}
+                  canonicalScore={canonicalScore}
+                  mapPipelineProjects={mapPipelineProjects}
+                  onOpenEvidence={setEvidenceFact}
+                />
+              </>
+            )}
+
+            {activeReportMode !== 'decision' && activeReportMode !== 'memo' && activeReportMode !== 'underwriting' && (
+              <div style={{
+                color: 'rgba(255,255,255,0.42)',
+                fontSize: 12.5,
+                lineHeight: 1.55,
+                marginBottom: 30,
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                paddingTop: 14,
+              }}>
+                Memo narrative is intentionally kept out of this workspace mode. Switch back to Memo for the investor-facing view.
               </div>
-            </details>
+            )}
           </>
         )}
+
+        {(!workflow || activeReportMode === 'underwriting') && (
+          <>
+            {workflow && (
+              <>
+                <SectionRoleGuide
+                  title="Underwriting = decision logic"
+                  description="Use this workspace to understand score drivers, valuation readiness, blockers, and what evidence changed confidence. Raw evidence remains in Evidence."
+                  actions={[
+                    { label: 'View supporting evidence', onClick: () => setActiveReportMode('evidence') },
+                    { label: 'Open diligence actions', onClick: () => setActiveReportMode('diligence') },
+                    { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
+                  ]}
+                />
+                <div style={{
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8,
+                  padding: '16px 18px',
+                  marginBottom: 28,
+                }}>
+                  <SectionTitle>Can we rely on this valuation?</SectionTitle>
+                  <ValuationGatePanel workflow={workflow} />
+                </div>
+              </>
+            )}
 
         {/* IC VALUATION SUMMARY */}
         {(() => {
@@ -1856,8 +2066,8 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           )
         })()}
 
-        {/* COMPETITIVE MAP */}
-        {extracted.centre?.address && (
+        {/* COMPETITIVE MAP - legacy non-workflow report only. Workflow reports render this inside Evidence. */}
+        {!workflow && extracted.centre?.address && (
           <div style={{ marginBottom: 40 }}>
             <SectionTitle>Competitive Map</SectionTitle>
             <CompetitiveMap
@@ -1868,7 +2078,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               licensed_places={extracted.centre.licensed_places || 0}
               centre_name={scored.centre_name || ''}
               overall_score={canonicalScore}
-              marketAudit={workflow?.market_audit ?? currentScored.market_audit}
+              marketAudit={currentScored.market_audit}
               legacyMarket={{
                 ...((currentScored as any).market_context ?? {}),
                 ...((currentScored as any).demand_context ?? {}),
@@ -2213,9 +2423,11 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             </div>
           )
         })()}
+          </>
+        )}
 
         {/* ── DECISION CHECKLIST ── */}
-        <div className="no-print" style={{ marginBottom: 32 }}>
+        {(!workflow || activeReportMode === 'diligence') && <div className="no-print" style={{ marginBottom: 32 }}>
           <button
             onClick={() => setChecklistOpen(o => !o)}
             style={{
@@ -2280,10 +2492,10 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* ── NOTES & TAGS ── */}
-        <div className="no-print" style={{ marginBottom: 40 }}>
+        {(!workflow || activeReportMode === 'diligence') && <div className="no-print" style={{ marginBottom: 40 }}>
           <button
             onClick={() => setNotesOpen(o => !o)}
             style={{
@@ -2356,12 +2568,12 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               </div>
             </div>
           )}
-        </div>
+        </div>}
 
       </div>{/* end report-content */}
 
       {/* ── SCORE INTERPRETATION ── */}
-      <div className="score-interpretation" style={{
+      {(!workflow || activeReportMode === 'underwriting') && <div className="score-interpretation" style={{
         margin: '0 40px 40px',
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.07)',
@@ -2414,7 +2626,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             EDR replaces vendor-supplied GapMaps figures, which systematically overstate real demand.
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* ── FOOTER ── */}
       <footer style={{

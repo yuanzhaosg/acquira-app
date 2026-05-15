@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/useAuth'
 import type { DealSourceDocument, UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
 import RunDiffSummary from '@/components/report/RunDiffSummary'
-import ReunderwriteModal, { type ReunderwriteDocument } from '@/components/report/ReunderwriteModal'
+import ReunderwriteModal, { type ManualContextFields, type ReunderwriteDocument } from '@/components/report/ReunderwriteModal'
 import RunComparisonView from '@/components/report/RunComparisonView'
 
 type DiligenceDocumentSummary = ReunderwriteDocument
@@ -41,14 +41,20 @@ function fmtBytes(value?: number | null): string {
 
 export default function RunHistoryDrawer({
   dealId,
+  manualContextFields,
+  defaultOpen = false,
+  screenMode = false,
   onPromoted,
   onViewSnapshot,
 }: {
   dealId?: string | null
+  manualContextFields?: ManualContextFields
+  defaultOpen?: boolean
+  screenMode?: boolean
   onPromoted?: () => void
   onViewSnapshot?: (run: UnderwritingRun, summary: UnderwritingRunSummary, currentRun?: UnderwritingRunSummary | null) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [runs, setRuns] = useState<UnderwritingRunSummary[]>([])
   const [documents, setDocuments] = useState<DiligenceDocumentSummary[]>([])
   const [sourceDocuments, setSourceDocuments] = useState<DealSourceDocument[]>([])
@@ -111,15 +117,15 @@ export default function RunHistoryDrawer({
     setOpsLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Sign in again to load run diagnostics.')
+      if (!session?.access_token) throw new Error('Sign in again to load run checks.')
       const res = await fetch(`/api/deals/${dealId}/ops/health`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error || 'Failed to load run diagnostics')
+      if (!res.ok) throw new Error(body.error || 'Failed to load run checks')
       setOpsHealth(body.health ?? null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load run diagnostics')
+      setError(e instanceof Error ? e.message : 'Failed to load run checks')
     } finally {
       setOpsLoading(false)
     }
@@ -313,30 +319,32 @@ export default function RunHistoryDrawer({
           >
             Re-run with evidence
           </button>
-          <button
-            type="button"
-            disabled={!dealId}
-            onClick={() => setOpen(prev => !prev)}
-            style={{
-              border: '1px solid rgba(255,255,255,0.14)',
-              background: 'rgba(255,255,255,0.04)',
-              color: dealId ? '#e8edf3' : 'rgba(255,255,255,0.3)',
-              borderRadius: 6,
-              padding: '8px 12px',
-              fontWeight: 800,
-              cursor: dealId ? 'pointer' : 'not-allowed',
-              fontSize: 12,
-            }}
-          >
-            {open ? 'Hide run history' : 'Run history'}
-          </button>
+          {!screenMode && (
+            <button
+              type="button"
+              disabled={!dealId}
+              onClick={() => setOpen(prev => !prev)}
+              style={{
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.04)',
+                color: dealId ? '#e8edf3' : 'rgba(255,255,255,0.3)',
+                borderRadius: 6,
+                padding: '8px 12px',
+                fontWeight: 800,
+                cursor: dealId ? 'pointer' : 'not-allowed',
+                fontSize: 12,
+              }}
+            >
+              {open ? 'Hide Run History' : 'Run History'}
+            </button>
+          )}
         </div>
       </div>
 
       {open && (
         <div style={{ marginTop: 10, border: '1px solid rgba(255,255,255,0.09)', background: '#132338', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <h3 style={{ margin: 0, color: '#fff', fontFamily: "'Space Grotesk', sans-serif", fontSize: 18 }}>Run history</h3>
+            <h3 style={{ margin: 0, color: '#fff', fontFamily: "'Space Grotesk', sans-serif", fontSize: 18 }}>Run History</h3>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button
                 type="button"
@@ -390,7 +398,7 @@ export default function RunHistoryDrawer({
             <div style={{ display: 'grid', gap: 10, padding: 14 }}>
               <details style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: 12 }}>
                 <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.78)', fontSize: 13, fontWeight: 800 }}>
-                  Run diagnostics
+                  Run checks
                 </summary>
                 <div style={{ display: 'grid', gap: 8, marginTop: 10, color: 'rgba(255,255,255,0.55)', fontSize: 12.3, lineHeight: 1.5 }}>
                   <div>Stale running runs: {opsHealth?.stale_running_runs?.length ?? 0}</div>
@@ -409,7 +417,7 @@ export default function RunHistoryDrawer({
                     onClick={loadOpsHealth}
                     style={{ justifySelf: 'start', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)', color: '#e8edf3', borderRadius: 6, padding: '6px 9px', fontSize: 11.5, fontWeight: 800, cursor: opsLoading ? 'wait' : 'pointer' }}
                   >
-                    {opsLoading ? 'Refreshing...' : 'Refresh diagnostics'}
+                    {opsLoading ? 'Refreshing...' : 'Refresh checks'}
                   </button>
                 </div>
               </details>
@@ -436,6 +444,11 @@ export default function RunHistoryDrawer({
                       {(run.progress_message || run.progress_step) && (
                         <div style={{ color: run.status === 'failed' ? '#ef4444' : 'rgba(255,255,255,0.5)', fontSize: 12.1, marginTop: 6 }}>
                           {run.progress_message ?? run.progress_step}
+                        </div>
+                      )}
+                      {run.status === 'queued' && run.execution_mode === 'async_placeholder' && (
+                        <div style={{ color: '#f59e0b', fontSize: 12.1, marginTop: 6 }}>
+                          This run is queued for the background worker and will not process until the worker is deployed. Use Run now for immediate re-underwriting.
                         </div>
                       )}
                       {run.status === 'failed' && run.error_message && (
@@ -488,6 +501,7 @@ export default function RunHistoryDrawer({
           documents={documents}
           sourceDocuments={sourceDocuments}
           initialSelectedIds={initialReunderwriteIds}
+          manualContextFields={manualContextFields}
           onClose={() => setReunderwriteOpen(false)}
           onComplete={async run => {
             setReunderwriteOpen(false)
@@ -497,7 +511,7 @@ export default function RunHistoryDrawer({
               run.status === 'completed'
                 ? `Run #${run.run_number} completed. Review it in Run History before promoting.`
                 : run.status === 'queued'
-                ? `Run #${run.run_number} queued. Review progress in Run History.`
+                ? `Run #${run.run_number} queued for the background worker. It will not process until the worker is deployed.`
                 : `Run #${run.run_number} finished with status ${run.status}.`
             )
             await load()

@@ -6,6 +6,12 @@ const priorityColor: Record<string, string> = {
   low: '#00b4a0',
 }
 
+function priorityLabel(priority: string): string {
+  if (priority === 'high') return 'Do first'
+  if (priority === 'medium') return 'This week'
+  return 'Before offer'
+}
+
 export default function DiligenceChecklist({ workflow }: { workflow: DealWorkflow }) {
   const items = workflow.diligence_checklist ?? workflow.diligence_requests ?? []
   if (!items.length) return null
@@ -23,7 +29,7 @@ export default function DiligenceChecklist({ workflow }: { workflow: DealWorkflo
                 {item.category}
               </span>
               <span style={{ fontSize: 11, color: priorityColor[item.priority] ?? '#94a3b8', fontFamily: 'IBM Plex Mono, monospace', textTransform: 'uppercase', fontWeight: 700 }}>
-                {item.priority}
+                {priorityLabel(item.priority)}
               </span>
             </div>
             <div style={{ fontFamily: 'IBM Plex Mono, monospace', color: '#00b4a0', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>

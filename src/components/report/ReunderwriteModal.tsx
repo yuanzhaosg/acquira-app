@@ -13,6 +13,10 @@ export interface ReunderwriteDocument {
   file_size?: number | null
 }
 
+export type ManualContextFields = {
+  asking_price?: number | string | null
+}
+
 function fmtDate(value?: string | null): string {
   if (!value) return 'Upload date unavailable'
   return new Date(value).toLocaleString('en-AU', {
@@ -92,6 +96,7 @@ export default function ReunderwriteModal({
   documents,
   sourceDocuments,
   initialSelectedIds,
+  manualContextFields,
   onClose,
   onComplete,
   onAttemptFinished,
@@ -100,6 +105,7 @@ export default function ReunderwriteModal({
   documents: ReunderwriteDocument[]
   sourceDocuments: DealSourceDocument[]
   initialSelectedIds?: string[]
+  manualContextFields?: ManualContextFields
   onClose: () => void
   onComplete: (run: UnderwritingRun) => void
   onAttemptFinished?: () => void | Promise<void>
@@ -119,8 +125,9 @@ export default function ReunderwriteModal({
 
   const sourceCount = selectedSourceIds.size
   const diligenceCount = selectedDiligenceIds.size
+  const hasManualContext = manualContextFields?.asking_price != null && manualContextFields.asking_price !== ''
   const selectedCount = sourceCount + diligenceCount
-  const canSubmit = selectedCount > 0 && !submitting
+  const canSubmit = (selectedCount > 0 || hasManualContext) && !submitting
   const allSourcesSelected = sourceDocuments.length > 0 && sourceDocuments.every(doc => selectedSourceIds.has(doc.id))
 
   function toggleSet(setter: Dispatch<SetStateAction<Set<string>>>, id: string) {
@@ -157,6 +164,8 @@ export default function ReunderwriteModal({
         body: JSON.stringify({
           diligence_document_ids: Array.from(selectedDiligenceIds),
           source_document_ids: Array.from(selectedSourceIds),
+          manual_context_fields: manualContextFields ?? {},
+          execution_mode: 'sync',
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -184,8 +193,13 @@ export default function ReunderwriteModal({
           <div>
             <h3 id="reunderwrite-title" style={{ margin: 0, color: '#fff', fontFamily: "'Space Grotesk', sans-serif", fontSize: 18 }}>Re-run with evidence</h3>
             <p style={{ margin: '5px 0 0', color: 'rgba(255,255,255,0.52)', fontSize: 12.5, lineHeight: 1.45 }}>
-              Select retained originals and/or uploaded diligence documents to queue a new immutable underwriting run. The current report will not change unless you promote the completed run.
+              Select retained originals and/or uploaded diligence documents to run immediate re-underwriting. The current report will not change unless you promote the completed run.
             </p>
+            {hasManualContext && (
+              <p style={{ margin: '7px 0 0', color: 'rgba(255,255,255,0.62)', fontSize: 12.2, lineHeight: 1.45 }}>
+                Manual context included: asking price. It will be treated as lower-confidence and needs broker/vendor verification.
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose} disabled={submitting} aria-label="Close re-underwrite modal" style={{ border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: '#e8edf3', borderRadius: 6, padding: '6px 9px', cursor: submitting ? 'not-allowed' : 'pointer' }}>
             Close
@@ -199,6 +213,9 @@ export default function ReunderwriteModal({
         )}
 
         <div style={{ maxHeight: '56vh', overflowY: 'auto', padding: 16, display: 'grid', gap: 16 }}>
+          <div style={{ border: '1px solid rgba(245,158,11,0.22)', background: 'rgba(245,158,11,0.08)', color: '#f59e0b', borderRadius: 8, padding: '9px 11px', fontSize: 12.5, lineHeight: 1.5 }}>
+            Uploaded documents are primary evidence. Notes/status attached to selected diligence documents are included as manual context with lower confidence and need verification.
+          </div>
           <section style={{ display: 'grid', gap: 9 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <h4 style={{ margin: 0, color: '#fff', fontSize: 13.5 }}>Retained original source documents</h4>
@@ -251,7 +268,7 @@ export default function ReunderwriteModal({
             {sourceCount} source doc{sourceCount === 1 ? '' : 's'}, {diligenceCount} diligence doc{diligenceCount === 1 ? '' : 's'} selected
           </div>
           <button type="button" disabled={!canSubmit} onClick={submit} style={{ border: '1px solid rgba(0,180,160,0.28)', background: canSubmit ? 'rgba(0,180,160,0.12)' : 'rgba(255,255,255,0.04)', color: canSubmit ? '#00b4a0' : 'rgba(255,255,255,0.32)', borderRadius: 6, padding: '8px 12px', fontSize: 12, fontWeight: 800, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
-            {submitting ? 'Queuing...' : 'Queue underwriting run'}
+            {submitting ? 'Running...' : 'Run now'}
           </button>
         </div>
       </div>

@@ -13,6 +13,12 @@ function confidenceColor(confidence: string | null | undefined): string {
 }
 
 function investorWarning(message: string): string {
+  if (/\b(42703|column .* does not exist|postgres|supabase|rpc|schema cache|PGRST|KeyError|Traceback|Exception|\{.*\})\b/i.test(message)) {
+    if (/competitor|acecqa|geospatial|service_approval/i.test(message)) {
+      return 'Competitor lookup failed due to market-data configuration. Postcode fallback was used; verify competitor methodology before relying on market score.'
+    }
+    return 'A data provider lookup failed. Review methodology before relying on this section.'
+  }
   const lower = message.toLowerCase()
   if (lower.includes('geospatial competitor supply differs materially')) {
     return 'Supply differs materially from postcode comparison — verify catchment methodology.'
@@ -42,6 +48,17 @@ function statusLabel(status: string | null | undefined): string {
   return (status ?? 'unknown').replace(/_/g, ' ')
 }
 
+function auditStatus(audit?: MarketAudit | null): 'complete' | 'partial' | 'missing' {
+  if (audit?.status === 'complete' || audit?.status === 'partial' || audit?.status === 'missing') return audit.status
+  if (!audit) return 'missing'
+  const hasCoreInput = audit.catchment_radius_km != null
+    || audit.kids_0_4?.value != null
+    || audit.competitor_count?.value != null
+    || audit.competitor_supply?.competitor_count != null
+    || audit.edr?.value != null
+  return hasCoreInput ? 'partial' : 'missing'
+}
+
 function projectSource(project: PipelineProject): string {
   return project.source_url || project.source_file || project.source_type || 'Manual'
 }
@@ -56,6 +73,9 @@ function supplySourceLabel(source: string | null | undefined): string {
 function supplySentence(audit?: MarketAudit | null): string | null {
   const supply = audit?.competitor_supply
   if (!supply) return null
+  if (supply.source === 'unavailable' && supply.compared_to_postcode) {
+    return `Geospatial competitor supply was unavailable. Postcode fallback found ${formatNumber(supply.compared_to_postcode.competitor_count)} centres / ${formatNumber(supply.compared_to_postcode.total_licensed_places)} places. Market score uses postcode fallback and should be reviewed.`
+  }
   if (supply.material_difference) return 'Competitor supply mismatch detected — verify methodology.'
   if (supply.source === 'geospatial_supabase') {
     return `Competitor supply: geospatial radius, ${supply.confidence ?? 'low'} confidence, ${formatNumber(supply.competitor_count)} centres / ${formatNumber(supply.total_licensed_places)} places.`
@@ -88,14 +108,15 @@ function CompetitorSupplySection({ audit }: { audit?: MarketAudit | null }) {
   if (!supply) return null
   const scoringSource = supplySourceLabel(supply.scoring_source ?? supply.source)
   const warnings = supply.warnings ?? []
+  const supplyUnavailable = supply.source === 'unavailable' || (supply.confidence === 'low' && supply.competitor_count == null && Boolean(supply.compared_to_postcode))
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 8 }}>
         <Metric label="Scoring source" value={scoringSource} note={supply.scoring_confidence ? `${supply.scoring_confidence} confidence` : undefined} />
         <Metric label="Supply source" value={supplySourceLabel(supply.source)} note={supply.confidence ? `${supply.confidence} confidence` : undefined} />
         <Metric label="Radius" value={formatNumber(supply.radius_km, 'km')} />
-        <Metric label="Competitors" value={formatNumber(supply.competitor_count)} />
-        <Metric label="Licensed places" value={formatNumber(supply.total_licensed_places)} />
+        <Metric label="Competitors" value={supplyUnavailable ? 'Not available' : formatNumber(supply.competitor_count)} />
+        <Metric label="Licensed places" value={supplyUnavailable ? 'Not available' : formatNumber(supply.total_licensed_places)} />
         <Metric label="Target geocode" value={supply.target_geocode_method ? statusLabel(supply.target_geocode_method) : 'Not available'} />
         {supply.exclusion_method && <Metric label="Target exclusion" value={statusLabel(supply.exclusion_method)} />}
       </div>
@@ -130,7 +151,6 @@ function CompetitorSupplySection({ audit }: { audit?: MarketAudit | null }) {
 }
 
 export function PipelineSummary({ audit, projects, compact = false }: { audit?: PipelineAudit | null; projects?: PipelineProject[]; compact?: boolean }) {
-  if (!audit && !(projects?.length)) return null
   const warnings = audit?.warnings ?? []
   return (
     <div style={{ display: 'grid', gap: 8 }}>
@@ -194,32 +214,72 @@ export function PipelineSummary({ audit, projects, compact = false }: { audit?: 
 }
 
 export function MarketAuditSummary({ audit, pipelineAudit, pipelineProjects }: { audit?: MarketAudit | null; pipelineAudit?: PipelineAudit | null; pipelineProjects?: PipelineProject[] }) {
-  if (!audit) return null
+  const status = auditStatus(audit)
   const warnings = audit?.warnings ?? []
+  const missingFields = audit?.missing_fields ?? [
+    'catchment radius',
+    'kids 0-4 count',
+    'competitor licensed places',
+    'geocode method',
+    'pipeline projects',
+    'EDR formula',
+  ]
   return (
     <div style={{ display: 'grid', gap: 12 }}>
+      {status !== 'complete' && (
+        <div style={{
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.22)',
+          borderRadius: 8, padding: '11px 12px', color: 'rgba(255,255,255,0.72)',
+          fontSize: 12.8, lineHeight: 1.55,
+        }}>
+          <strong style={{ color: '#f59e0b' }}>Market evidence {status === 'missing' ? 'unavailable' : 'partial'}: </strong>
+          {status === 'missing'
+            ? 'Required market inputs were not returned in this workflow. Request demographic source, competitor set, geocode method, and DA/pipeline evidence.'
+            : 'Some market inputs are missing or low confidence. Verify the catchment methodology before relying on the EDR.'}
+          {missingFields.length > 0 && (
+            <div style={{ marginTop: 7, color: 'rgba(255,255,255,0.5)' }}>
+              Missing inputs: {missingFields.slice(0, 8).join(', ')}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-        <Metric label="Radius" value={formatNumber(audit.catchment_radius_km, 'km')} note={audit.radius_reason ?? undefined} />
+        <Metric label="Audit status" value={statusLabel(status)} />
+        <Metric label="Radius" value={formatNumber(audit?.catchment_radius_km, 'km')} note={audit?.radius_reason ?? undefined} />
         <Metric
           label="Kids 0-4"
-          value={formatNumber(audit.kids_0_4?.value)}
-          note={[audit.kids_0_4?.source, audit.kids_0_4?.confidence ? `${audit.kids_0_4.confidence} confidence` : null].filter(Boolean).join(' · ')}
+          value={formatNumber(audit?.kids_0_4?.value)}
+          note={[audit?.kids_0_4?.source, audit?.kids_0_4?.confidence ? `${audit.kids_0_4.confidence} confidence` : null].filter(Boolean).join(' · ')}
         />
         <Metric
           label="LDC utilisation"
-          value={audit.ldc_utilisation_rate?.value != null ? `${Math.round(audit.ldc_utilisation_rate.value * 100)}%` : 'Not available'}
-          note={audit.ldc_utilisation_rate?.rationale ?? audit.ldc_utilisation_rate?.source ?? undefined}
+          value={audit?.ldc_utilisation_rate?.value != null ? `${Math.round(audit.ldc_utilisation_rate.value * 100)}%` : 'Not available'}
+          note={audit?.ldc_utilisation_rate?.rationale ?? audit?.ldc_utilisation_rate?.source ?? undefined}
         />
-        <Metric label="Licensed places" value={formatNumber(audit.licensed_places?.value)} note={audit.licensed_places?.source ?? undefined} />
-        <Metric label="Competitors" value={formatNumber(audit.competitor_count?.value)} note={audit.competitor_count?.source ?? undefined} />
+        <Metric label="Licensed places" value={formatNumber(audit?.licensed_places?.value)} note={audit?.licensed_places?.source ?? undefined} />
+        <Metric label="Competitors" value={audit?.competitor_supply?.source === 'unavailable' ? 'Not available' : formatNumber(audit?.competitor_count?.value)} note={audit?.competitor_supply?.source === 'unavailable' ? 'Geospatial supply unavailable; see postcode fallback.' : audit?.competitor_count?.source ?? undefined} />
+        <Metric label="Competitor places" value={audit?.competitor_supply?.source === 'unavailable' ? 'Not available' : formatNumber(audit?.competitor_supply?.total_licensed_places)} note={[supplySourceLabel(audit?.competitor_supply?.source), audit?.competitor_supply?.confidence ? `${audit.competitor_supply.confidence} confidence` : null].filter(Boolean).join(' · ')} />
+        <Metric label="Geocode method" value={audit?.competitor_supply?.target_geocode_method ? statusLabel(audit.competitor_supply.target_geocode_method) : 'Not available'} />
+        <Metric label="Exclusion method" value={audit?.competitor_supply?.exclusion_method ? statusLabel(audit.competitor_supply.exclusion_method) : 'Not available'} />
+        <Metric label="Postcode fallback" value={audit?.competitor_supply?.compared_to_postcode ? `${formatNumber(audit.competitor_supply.compared_to_postcode.competitor_count)} centres` : 'Not available'} note={audit?.competitor_supply?.compared_to_postcode ? `${formatNumber(audit.competitor_supply.compared_to_postcode.total_licensed_places)} places · EDR ${formatNumber(audit.competitor_supply.compared_to_postcode.edr)}` : undefined} />
         <Metric
           label="Pipeline"
-          value={formatNumber(audit.pipeline_places?.value)}
-          note={[audit.pipeline_places?.source, audit.pipeline_places?.confidence ? `${audit.pipeline_places.confidence} confidence` : null].filter(Boolean).join(' · ')}
+          value={formatNumber(audit?.pipeline_places?.value)}
+          note={[audit?.pipeline_places?.source, audit?.pipeline_places?.confidence ? `${audit.pipeline_places.confidence} confidence` : null].filter(Boolean).join(' · ')}
         />
-        <Metric label="EDR" value={formatNumber(audit.edr?.value)} note={[audit.edr?.interpretation, audit.edr?.formula].filter(Boolean).join(' · ')} />
+        <Metric label="EDR" value={formatNumber(audit?.edr?.value)} note={[audit?.edr?.interpretation, audit?.edr?.formula].filter(Boolean).join(' · ')} />
       </div>
       <CompetitorSupplyCompact audit={audit} />
+      {!audit?.competitor_supply && (
+        <div style={{
+          background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+          borderRadius: 8, padding: '9px 11px', color: 'rgba(255,255,255,0.66)',
+          fontSize: 12.5, lineHeight: 1.55,
+        }}>
+          <strong style={{ color: '#f59e0b' }}>Competitor supply warning: </strong>
+          Geospatial competitor data is unavailable. Use postcode fallback only as a temporary comparison until the competitor set and licensed places are verified.
+        </div>
+      )}
       {warnings.length > 0 && (
         <div style={{ display: 'grid', gap: 7 }}>
           {warnings.slice(0, 3).map((warning, index) => (
@@ -234,7 +294,7 @@ export function MarketAuditSummary({ audit, pipelineAudit, pipelineProjects }: {
           ))}
         </div>
       )}
-      {audit.competitor_supply && (
+      {audit?.competitor_supply && (
         <div style={{ paddingTop: 2 }}>
           <div style={{ fontFamily: 'IBM Plex Mono, monospace', color: 'rgba(255,255,255,0.36)', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
             Competitor Supply Source

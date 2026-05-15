@@ -284,7 +284,10 @@ export default function EvidenceRequestsPanel({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ diligence_document_ids: linkedIds }),
+        body: JSON.stringify({
+          diligence_document_ids: linkedIds,
+          execution_mode: 'sync',
+        }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -295,7 +298,7 @@ export default function EvidenceRequestsPanel({
         throw new Error(`${body.error || 'Re-underwrite failed'}${runSuffix}`)
       }
       setMessage(res.status === 202
-        ? 'Run queued. Review progress in Run History.'
+        ? 'Run queued for the background worker and will not process until the worker is deployed. Use Run now for immediate re-underwriting.'
         : 'Run completed. Review it in Run History before promoting.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to re-run underwriting')
@@ -433,7 +436,7 @@ export default function EvidenceRequestsPanel({
                     {request.status === 'received' && (
                       <div style={{ color: (request.linked_document_count ?? 0) > 0 ? '#00b4a0' : '#f59e0b', fontSize: 12, marginTop: 8 }}>
                         {(request.linked_document_count ?? 0) > 0
-                          ? 'Linked evidence is ready for a manual re-run.'
+                          ? 'Linked evidence is ready for Run now.'
                           : 'Marked received, but no uploaded document is linked yet.'}
                       </div>
                     )}
@@ -520,7 +523,7 @@ export default function EvidenceRequestsPanel({
                         onClick={() => rerunWithLinkedDocuments(request)}
                         style={smallButtonStyle(rerunningRequestId === request.id || request.status !== 'received' || (request.linked_document_count ?? 0) === 0)}
                       >
-                        {rerunningRequestId === request.id ? 'Running...' : 'Re-run with linked documents'}
+                        {rerunningRequestId === request.id ? 'Running...' : 'Run now with linked documents'}
                       </button>
                       {request.status !== 'sent' && request.status !== 'received' && request.status !== 'closed' && (
                         <button type="button" disabled={workingRequestId === request.id} onClick={() => patchRequest(request, { status: 'sent' })} style={smallButtonStyle(false)}>
