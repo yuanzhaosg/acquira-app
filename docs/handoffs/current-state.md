@@ -129,8 +129,8 @@ Add a second PDF export mode while preserving the existing IC Memo export.
 
 Export modes:
 
-- `Export IC Memo` = concise recommendation for sharing
-- `Export Full Report` = diligence/evidence review pack
+- `Print IC Pack` = concise recommendation for sharing
+- `Export Full Report PDF` = diligence/evidence review pack
 
 Full Report PDF follows:
 
@@ -142,6 +142,16 @@ Print rules:
 - drawer-only controls are not printed
 - no raw debug JSON is exported
 - IC Memo export remains separate
+
+## Active Export/Layout Bugfix
+
+Active bugfix task:
+
+`docs/tasks/2026-05-15-report-export-and-sidebar-layout-fix.md`
+
+Purpose:
+
+Make the Full Report PDF export visible in the report toolbar and fix the Report Journey sidebar so it cannot overlap active report content while scrolling.
 
 ## local_demand_supply
 
@@ -164,10 +174,10 @@ Do not add frontend behaviour that implies it is auto-attached.
 
 ## Active Frontend Task
 
-`docs/tasks/2026-05-15-full-report-pdf-export.md`
+`docs/tasks/2026-05-15-report-export-and-sidebar-layout-fix.md`
 
 Purpose:
 
-Add a Full Report PDF export option for diligence review, advisor review, Claude audit/critique, and internal evidence review while keeping the existing IC Memo export unchanged.
+Fix Full Report PDF export visibility and the Report Journey sidebar overlap.
 
-This is a frontend print/export slice only.
+This is a frontend visibility/layout bugfix only.

@@ -1172,13 +1172,30 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
         .ic-pack-export,
         .full-report-export { display: none; }
+        .report-content-workflow {
+          display: grid;
+          grid-template-columns: 280px minmax(0, 1fr);
+          column-gap: 24px;
+          align-items: start;
+        }
+        .report-content-workflow > :not(.report-mode-sidebar) {
+          grid-column: 2;
+          min-width: 0;
+        }
+        .report-content-workflow > .report-mode-sidebar {
+          grid-column: 1;
+          grid-row: 1 / span 12;
+        }
 
         /* ── Mobile responsiveness ── */
         @media (max-width: 768px) {
           .report-hero       { grid-template-columns: 1fr !important; padding: 28px 20px 24px !important; }
           .report-score-dial { min-width: unset !important; width: 100% !important; }
           .report-metrics    { grid-template-columns: repeat(2, 1fr) !important; }
-          .report-mode-sidebar { float: none !important; position: static !important; width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-right: 0 !important; }
+          .report-content-workflow { grid-template-columns: 1fr !important; }
+          .report-content-workflow > :not(.report-mode-sidebar) { grid-column: 1 !important; }
+          .report-content-workflow > .report-mode-sidebar { grid-column: 1 !important; grid-row: auto !important; }
+          .report-mode-sidebar { position: static !important; width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-right: 0 !important; }
           .report-content    { padding: 24px 20px !important; }
           .report-header     { padding: 0 16px !important; }
           .report-header-right { gap: 6px !important; flex-wrap: wrap !important; }
@@ -1634,15 +1651,15 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           )}
           <button
             onClick={() => printReport('ic')}
-            aria-label="Export IC Memo PDF"
-            title="Export IC Memo PDF: concise recommendation for sharing"
+            aria-label="Print IC Pack PDF"
+            title="Print IC Pack PDF: concise recommendation for sharing"
             style={{
               background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 6, padding: '6px 14px', color: 'rgba(255,255,255,0.7)',
               fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
             }}
           >
-            Export IC Memo
+            Print IC Pack
           </button>
           <button
             onClick={() => printReport('full')}
@@ -1654,7 +1671,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
             }}
           >
-            Export Full Report
+            Export Full Report PDF
           </button>
         </div>
       </header>
@@ -1731,7 +1748,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
       </section>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="report-content" style={{ padding: '40px', maxWidth: 1200 }}>
+      <div className={`report-content${workflow ? ' report-content-workflow' : ''}`} style={{ padding: '40px', maxWidth: workflow ? 1320 : 1200 }}>
 
         {workflow && (
           <>
@@ -1739,13 +1756,11 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               display: 'grid',
               gridTemplateColumns: '1fr',
               gap: 8,
-              width: 230,
-              float: 'left',
-              marginRight: 24,
+              width: 280,
               marginBottom: 24,
               position: 'sticky',
-              top: 18,
-              zIndex: 1,
+              top: 72,
+              zIndex: 2,
             }}>
               <div style={{
                 fontFamily: 'IBM Plex Mono, monospace',

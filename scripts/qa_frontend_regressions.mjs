@@ -130,8 +130,8 @@ assert(
 assert(
   /ICPackExport/.test(reportView)
     && /FullReportExport/.test(reportView)
-    && /Export IC Memo/.test(reportView)
-    && /Export Full Report/.test(reportView)
+    && /Print IC Pack/.test(reportView)
+    && /Export Full Report PDF/.test(reportView)
     && /printReport\('ic'\)/.test(reportView)
     && /printReport\('full'\)/.test(reportView)
     && /print-mode-full/.test(reportView)
@@ -254,6 +254,14 @@ assert(
   /\.has-ic-pack\.print-mode-ic > :not\(\.ic-pack-export\):not\(style\)/.test(reportView)
     && /\.has-ic-pack\.print-mode-full > :not\(\.full-report-export\):not\(style\)/.test(reportView),
   'ReportView print CSS must isolate the selected export instead of printing legacy report sections.',
+)
+assert(
+  /report-content-workflow/.test(reportView)
+    && /grid-template-columns: 280px minmax\(0, 1fr\)/.test(reportView)
+    && /report-content-workflow > :not\(\.report-mode-sidebar\)/.test(reportView)
+    && /grid-column: 2/.test(reportView)
+    && !/float: 'left'/.test(reportView),
+  'Report Journey sidebar must use a two-column grid layout and must not float over report content.',
 )
 assert(
   /REPORT_MODES/.test(reportView)
