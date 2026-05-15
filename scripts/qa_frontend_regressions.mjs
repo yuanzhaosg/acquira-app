@@ -21,6 +21,7 @@ const icMemo = read('src/components/report/ICMemoView.tsx')
 const marketAudit = read('src/components/report/MarketAuditPanel.tsx')
 const icPackExport = read('src/components/report/ICPackExport.tsx')
 const reportView = read('src/components/report/ReportView.tsx')
+const decisionDashboard = read('src/components/report/DecisionDashboard.tsx')
 
 assert(
   /execution_mode:\s*'sync'/.test(evidencePanel),
@@ -214,6 +215,7 @@ assert(
 )
 assert(
   /REPORT_MODES/.test(reportView)
+    && /report-mode-sidebar/.test(reportView)
     && /label: 'Decision'/.test(reportView)
     && /label: 'Memo'/.test(reportView)
     && /label: 'Underwriting'/.test(reportView)
@@ -222,7 +224,19 @@ assert(
     && /label: 'Run History'/.test(reportView)
     && /useState<ReportMode>\('decision'\)/.test(reportView)
     && /activeReportMode === 'decision'[\s\S]*DecisionDashboard/.test(reportView),
-  'ReportView must split the page into Decision, Memo, Underwriting, Evidence, Diligence, and Run History modes with Decision as the default.',
+  'ReportView must split the page into a sidebar journey for Decision, Memo, Underwriting, Evidence, Diligence, and Run History with Decision as the default.',
+)
+assert(
+  /export default function DecisionDashboard/.test(decisionDashboard)
+    && /Investment Decision Dashboard/.test(decisionDashboard)
+    && /Next best action/.test(decisionDashboard)
+    && /onNavigate\('diligence'\)/.test(decisionDashboard),
+  'DecisionDashboard must be a dedicated verdict-first component with a Diligence CTA.',
+)
+assert(
+  /RunVersionBanner[\s\S]*activeReportMode === 'decision'/.test(reportView)
+    && /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView),
+  'RunVersionBanner must be persistent across report screens while RunHistoryDrawer remains available in Run History.',
 )
 assert(
   /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView)
