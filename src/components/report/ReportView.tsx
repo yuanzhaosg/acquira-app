@@ -1956,6 +1956,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
                   extracted={extracted}
                   scored={currentScored}
                   onOpenEvidence={setEvidenceFact}
+                  onNavigate={setActiveReportMode}
                 />
               </>
             )}
@@ -2064,7 +2065,6 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
                   </div>
                 )}
                 <FactsReviewPanel workflow={workflow} onOpenEvidence={setEvidenceFact} />
-                {workflow.valuation_gate.status !== 'pass' && <ValuationGatePanel workflow={workflow} />}
               </div>
             )}
 
@@ -2086,15 +2086,27 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
         {(!workflow || activeReportMode === 'underwriting') && (
           <>
             {workflow && (
-              <SectionRoleGuide
-                title="Underwriting = decision logic"
-                description="Use this workspace to understand score drivers, valuation readiness, blockers, and what evidence changed confidence. Raw evidence remains in Evidence."
-                actions={[
-                  { label: 'View supporting evidence', onClick: () => setActiveReportMode('evidence') },
-                  { label: 'Open diligence item', onClick: () => setActiveReportMode('diligence') },
-                  { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
-                ]}
-              />
+              <>
+                <SectionRoleGuide
+                  title="Underwriting = decision logic"
+                  description="Use this workspace to understand score drivers, valuation readiness, blockers, and what evidence changed confidence. Raw evidence remains in Evidence."
+                  actions={[
+                    { label: 'View supporting evidence', onClick: () => setActiveReportMode('evidence') },
+                    { label: 'Open diligence actions', onClick: () => setActiveReportMode('diligence') },
+                    { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
+                  ]}
+                />
+                <div style={{
+                  background: 'rgba(255,255,255,0.025)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: 8,
+                  padding: '16px 18px',
+                  marginBottom: 28,
+                }}>
+                  <SectionTitle>Can we rely on this valuation?</SectionTitle>
+                  <ValuationGatePanel workflow={workflow} />
+                </div>
+              </>
             )}
 
         {/* IC VALUATION SUMMARY */}

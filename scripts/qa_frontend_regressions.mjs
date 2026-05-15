@@ -60,14 +60,20 @@ for (const title of [
   '5. Why This Deal Could Work',
   '6. Key Facts',
   '7. Derived Metrics and Recipes',
-  '8. Market & Competitive Position',
-  '9. What We Do Not Know / Valuation Gate',
+  '8. Market Context',
+  '9. What to verify before offer',
   '10. Broker / Seller Request List',
   '11. IC Decision & Deal Structure Recommendation',
   '12. Appendix / Extraction Ledger',
 ]) {
   assert(icMemo.includes(title), `IC memo missing section: ${title}`)
 }
+assert(
+  !/MarketAuditSummary/.test(icMemo)
+    && /View market evidence/.test(icMemo)
+    && /View underwriting logic/.test(icMemo),
+  'Memo must avoid raw market evidence panels and point users to Evidence and Underwriting instead.',
+)
 
 assert(
   /isHardFact[\s\S]*category === 'centre'/.test(icMemo)
@@ -252,6 +258,15 @@ assert(
     && /Diligence = next actions/.test(reportView)
     && /Run History = version history \/ audit trail/.test(reportView),
   'Report modes must explain their distinct roles in the decision workflow.',
+)
+assert(
+  /Can we rely on this valuation\?/.test(reportView)
+    && /activeReportMode === 'underwriting'[\s\S]*ValuationGatePanel/.test(reportView)
+    && !reportView.slice(
+      reportView.indexOf("activeReportMode === 'evidence'"),
+      reportView.indexOf("activeReportMode !== 'decision'")
+    ).includes('ValuationGatePanel'),
+  'Valuation readiness must be framed in buyer language inside Underwriting, not duplicated in Evidence.',
 )
 assert(
   /function PublicMarketContextPanel/.test(reportView)

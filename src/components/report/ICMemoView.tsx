@@ -1,7 +1,6 @@
 import type { ExtractedDeal } from '@/types/extracted'
 import type { ScoredDeal } from '@/types/scored'
 import type { DealWorkflow, WorkflowFact } from '@/types/workflow'
-import { MarketAuditSummary, PipelineSummary } from '@/components/report/MarketAuditPanel'
 
 type ScoredWithNextSteps = ScoredDeal & {
   next_steps?: {
@@ -212,16 +211,39 @@ function MemoSection({ title, children, tone = 'default' }: { title: string; chi
   )
 }
 
+function MemoActionButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        border: '1px solid rgba(0,180,160,0.24)',
+        background: 'rgba(0,180,160,0.08)',
+        color: '#00b4a0',
+        borderRadius: 6,
+        padding: '7px 10px',
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
 export default function ICMemoView({
   workflow,
   extracted,
   scored,
   onOpenEvidence,
+  onNavigate,
 }: {
   workflow: DealWorkflow
   extracted: ExtractedDeal
   scored: ScoredDeal
   onOpenEvidence: (fact: WorkflowFact) => void
+  onNavigate?: (mode: 'underwriting' | 'evidence' | 'diligence') => void
 }) {
   const scoredWithNext = scored as ScoredWithNextSteps
   const gate = workflow.valuation_gate
@@ -239,9 +261,7 @@ export default function ICMemoView({
   const risks = workflow.risks ?? []
   const warnings = workflow.extraction_warnings ?? []
   const requests = workflow.diligence_checklist ?? workflow.diligence_requests ?? []
-  const marketAudit = workflow.market_audit ?? scored.market_audit
   const pipelineAudit = workflow.pipeline_audit ?? scored.pipeline_audit
-  const pipelineProjects = workflow.pipeline_projects ?? scored.pipeline_projects
   const guard = workflow.narrative_guard
   const centreName = extracted.centre?.name ?? scored.centre_name ?? 'This centre'
   const verdictPlain = guard?.analyst_summary
@@ -254,7 +274,6 @@ export default function ICMemoView({
     ?? (gate.can_show_confident_valuation
       ? 'Proceed only after confirming source documents and updating the IC pack with final diligence evidence.'
       : 'Do not underwrite price yet. Use a conditional process: request evidence first, then revisit valuation and structure.')
-  const guardedValuationNote = guard?.valuation_note
   const guardedPipelineNote = guard?.pipeline_note
   const icDecision = guard?.recommendation ?? (gate.status === 'blocked'
     ? 'Pass unless financial evidence is provided. Authorise broker follow-up only.'
@@ -400,25 +419,17 @@ export default function ICMemoView({
           )}
         </MemoSection>
 
-        <MemoSection title="8. Market & Competitive Position">
-          <MarketAuditSummary audit={marketAudit} pipelineAudit={pipelineAudit} pipelineProjects={pipelineProjects} />
+        <MemoSection title="8. Market Context">
+          <p style={{ color: 'rgba(255,255,255,0.64)', fontSize: 13.5, lineHeight: 1.7, margin: '0 0 10px' }}>
+            Market evidence is treated as context for the investment story, not as target-level proof. Use the Evidence screen to inspect the market benchmark, realised CCS usage, capacity screen, competitive map, and source quality.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {onNavigate && <MemoActionButton onClick={() => onNavigate('evidence')}>View market evidence</MemoActionButton>}
+            {onNavigate && <MemoActionButton onClick={() => onNavigate('underwriting')}>View underwriting logic</MemoActionButton>}
+          </div>
         </MemoSection>
 
-        <MemoSection title="9. What We Do Not Know / Valuation Gate" tone={gate.can_show_confident_valuation ? 'default' : 'missing'}>
-          <div style={{
-            background: gate.status === 'blocked' ? 'rgba(239,68,68,0.1)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.07)' : 'rgba(245,158,11,0.08)',
-            border: `1px solid ${gate.status === 'blocked' ? 'rgba(239,68,68,0.34)' : gate.can_show_confident_valuation ? 'rgba(34,197,94,0.22)' : 'rgba(245,158,11,0.22)'}`,
-            borderRadius: 8, padding: '14px 16px', color: 'rgba(255,255,255,0.78)', fontSize: 14, lineHeight: 1.65, marginBottom: 12,
-          }}>
-            {gate.status === 'blocked'
-              ? guardedValuationNote ?? 'Financial evidence may be observed, but valuation remains guarded until the blocked evidence items are resolved.'
-              : guardedValuationNote ?? gate.message}
-            {!gate.can_show_confident_valuation && (
-              <div style={{ marginTop: 8, color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', fontSize: 11, textTransform: 'uppercase' }}>
-                Illustrative only - not underwritten
-              </div>
-            )}
-          </div>
+        <MemoSection title="9. What to verify before offer" tone={gate.can_show_confident_valuation ? 'default' : 'missing'}>
           <div style={{ display: 'grid', gap: 8 }}>
             {gate.blockers.map(b => (
               <div key={b.field} style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 8, padding: '10px 12px', color: 'rgba(255,255,255,0.68)', fontSize: 13, lineHeight: 1.55 }}>
@@ -437,6 +448,9 @@ export default function ICMemoView({
               </div>
             )}
           </div>
+          <p style={{ color: 'rgba(255,255,255,0.52)', fontSize: 12.5, lineHeight: 1.6, margin: '12px 0 0' }}>
+            Valuation readiness is explained in Underwriting. This memo keeps the buyer-facing story focused on what needs to be verified before an offer.
+          </p>
         </MemoSection>
 
         <MemoSection title="10. Broker / Seller Request List" tone="action">

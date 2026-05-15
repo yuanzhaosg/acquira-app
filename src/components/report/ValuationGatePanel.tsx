@@ -13,7 +13,7 @@ export default function ValuationGatePanel({ workflow }: { workflow: DealWorkflo
   return (
     <section style={{ marginBottom: 32 }}>
       <h2 style={{ fontSize: 18, color: '#fff', marginBottom: 14, fontFamily: "'Space Grotesk', sans-serif" }}>
-        Valuation Gate
+        What this means for your purchase
       </h2>
       <div style={{ background: bg, border: `1px solid ${color}55`, borderRadius: 8, padding: '16px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
