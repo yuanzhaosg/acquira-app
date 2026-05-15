@@ -27,6 +27,7 @@ const runHistoryScreen = read('src/components/report/RunHistoryScreen.tsx')
 const diligenceActionScreen = read('src/components/report/DiligenceActionScreen.tsx')
 const diligenceChecklist = read('src/components/report/DiligenceChecklist.tsx')
 const diligenceWorkspace = read('src/components/diligence/DiligenceWorkspace.tsx')
+const fullReportExport = read('src/components/report/FullReportExport.tsx')
 
 assert(
   /execution_mode:\s*'sync'/.test(evidencePanel),
@@ -127,6 +128,35 @@ assert(
   'IC Pack export must include temporary ledger-v2 print marker for deployment verification.',
 )
 assert(
+  /ICPackExport/.test(reportView)
+    && /FullReportExport/.test(reportView)
+    && /Print IC Pack/.test(reportView)
+    && /Export Full Report PDF/.test(reportView)
+    && /printReport\('ic'\)/.test(reportView)
+    && /printReport\('full'\)/.test(reportView)
+    && /print-mode-full/.test(reportView)
+    && /full-report-export/.test(reportView),
+  'ReportView must expose separate IC Memo and Full Report PDF export actions.',
+)
+assert(
+  /export default function FullReportExport/.test(fullReportExport)
+    && /Decision Dashboard/.test(fullReportExport)
+    && /Memo/.test(fullReportExport)
+    && /Underwriting/.test(fullReportExport)
+    && /Evidence/.test(fullReportExport)
+    && /Diligence/.test(fullReportExport)
+    && /Run History/.test(fullReportExport),
+  'Full Report PDF export must include all six report journey sections.',
+)
+assert(
+  /Interactive map is summarized, not reproduced/.test(fullReportExport)
+    && /Supply\/pipeline map is summarized for print/.test(fullReportExport)
+    && !/CompetitiveMap/.test(fullReportExport)
+    && !/EvidenceDrawer/.test(fullReportExport)
+    && !/RunHistoryDrawer/.test(fullReportExport),
+  'Full Report PDF export must use print-safe summaries instead of interactive maps or drawers.',
+)
+assert(
   /ValuationGateRows/.test(icPackExport)
     && /Review required/.test(icPackExport)
     && !/value=\{valuationBlocked \|\| gate \? \(evidenceState\.revenue \? 'Present' : 'Missing'\)/.test(icPackExport),
@@ -221,8 +251,17 @@ assert(
   'Broker requests must be specific and deduped.',
 )
 assert(
-  /\.has-ic-pack > :not\(\.ic-pack-export\):not\(style\)/.test(reportView),
-  'ReportView print CSS must isolate the IC Pack export instead of printing legacy report sections.',
+  /\.has-ic-pack\.print-mode-ic > :not\(\.ic-pack-export\):not\(style\)/.test(reportView)
+    && /\.has-ic-pack\.print-mode-full > :not\(\.full-report-export\):not\(style\)/.test(reportView),
+  'ReportView print CSS must isolate the selected export instead of printing legacy report sections.',
+)
+assert(
+  /report-content-workflow/.test(reportView)
+    && /grid-template-columns: 280px minmax\(0, 1fr\)/.test(reportView)
+    && /report-content-workflow > :not\(\.report-mode-sidebar\)/.test(reportView)
+    && /grid-column: 2/.test(reportView)
+    && !/float: 'left'/.test(reportView),
+  'Report Journey sidebar must use a two-column grid layout and must not float over report content.',
 )
 assert(
   /REPORT_MODES/.test(reportView)

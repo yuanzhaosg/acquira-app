@@ -7,6 +7,7 @@ import DecisionDashboard, { type ReportMode } from '@/components/report/Decision
 import EvidenceScreen from '@/components/report/EvidenceScreen'
 import EvidenceDrawer from '@/components/report/EvidenceDrawer'
 import ICPackExport from '@/components/report/ICPackExport'
+import FullReportExport from '@/components/report/FullReportExport'
 import DiligenceActionScreen from '@/components/report/DiligenceActionScreen'
 import RunHistoryScreen from '@/components/report/RunHistoryScreen'
 import RunVersionBanner from '@/components/report/RunVersionBanner'
@@ -603,6 +604,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
   const [staleRunDocumentCount, setStaleRunDocumentCount] = useState(0)
   const [viewedRunSnapshot, setViewedRunSnapshot] = useState<{ run: UnderwritingRun; summary: UnderwritingRunSummary; currentRun?: UnderwritingRunSummary | null } | null>(null)
   const [promotingViewedRun, setPromotingViewedRun] = useState(false)
+  const [printMode, setPrintMode] = useState<'ic' | 'full'>('ic')
 
   // Chinese translation
   const [translating, setTranslating]   = useState(false)
@@ -634,6 +636,17 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
   const tx = (key: string, original: string | null | undefined): string => {
     if (!original) return ''
     return (isChinese && translations?.[key]) ? translations[key] : (original ?? '')
+  }
+
+  useEffect(() => {
+    const handleAfterPrint = () => setPrintMode('ic')
+    window.addEventListener('afterprint', handleAfterPrint)
+    return () => window.removeEventListener('afterprint', handleAfterPrint)
+  }, [])
+
+  function printReport(mode: 'ic' | 'full') {
+    setPrintMode(mode)
+    window.setTimeout(() => window.print(), 0)
   }
 
   // Decision Checklist state
@@ -1116,7 +1129,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
     .filter(project => Boolean(project.address?.trim()))
 
   return (
-    <div className="has-ic-pack" style={{
+    <div className={`has-ic-pack print-mode-${printMode}`} style={{
       background: '#0d1b2a', color: '#e8edf3',
       fontFamily: 'IBM Plex Sans, sans-serif',
       minHeight: '100vh', fontSize: 14, lineHeight: 1.6
@@ -1157,14 +1170,32 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0d1b2a; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-        .ic-pack-export { display: none; }
+        .ic-pack-export,
+        .full-report-export { display: none; }
+        .report-content-workflow {
+          display: grid;
+          grid-template-columns: 280px minmax(0, 1fr);
+          column-gap: 24px;
+          align-items: start;
+        }
+        .report-content-workflow > :not(.report-mode-sidebar) {
+          grid-column: 2;
+          min-width: 0;
+        }
+        .report-content-workflow > .report-mode-sidebar {
+          grid-column: 1;
+          grid-row: 1 / span 12;
+        }
 
         /* ── Mobile responsiveness ── */
         @media (max-width: 768px) {
           .report-hero       { grid-template-columns: 1fr !important; padding: 28px 20px 24px !important; }
           .report-score-dial { min-width: unset !important; width: 100% !important; }
           .report-metrics    { grid-template-columns: repeat(2, 1fr) !important; }
-          .report-mode-sidebar { float: none !important; position: static !important; width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-right: 0 !important; }
+          .report-content-workflow { grid-template-columns: 1fr !important; }
+          .report-content-workflow > :not(.report-mode-sidebar) { grid-column: 1 !important; }
+          .report-content-workflow > .report-mode-sidebar { grid-column: 1 !important; grid-row: auto !important; }
+          .report-mode-sidebar { position: static !important; width: 100% !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-right: 0 !important; }
           .report-content    { padding: 24px 20px !important; }
           .report-header     { padding: 0 16px !important; }
           .report-header-right { gap: 6px !important; flex-wrap: wrap !important; }
@@ -1217,7 +1248,8 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           .print-flag-red     { background-color: #fef2f2 !important; border-color: #fca5a5 !important; }
           .print-flag-amber   { background-color: #fffbeb !important; border-color: #fcd34d !important; }
           .print-flag-green   { background-color: #f0fdf4 !important; border-color: #86efac !important; }
-          .ic-pack-export     { display: block !important; }
+          .ic-pack-export,
+          .full-report-export { display: none !important; }
 
           /* Typography */
           h1, h2, h3 { color: #0d1b2a !important; font-family: 'Space Grotesk','Segoe UI',Arial,sans-serif !important; }
@@ -1239,7 +1271,8 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           .report-hero   { padding: 16px 0 12px !important; display: block !important; border-bottom: 2px solid #00b4a0 !important; }
           .report-content { padding: 0 !important; max-width: 100% !important; }
           .report-metrics { grid-template-columns: repeat(4,1fr) !important; gap: 8px !important; }
-          .ic-pack-export {
+          .ic-pack-export,
+          .full-report-export {
             color: #172033 !important;
             font-family: 'IBM Plex Sans', 'Inter', 'Segoe UI', Arial, sans-serif !important;
             font-size: 9.6pt !important;
@@ -1500,10 +1533,18 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
 
           /* ── FOOTER ── */
           footer { border-top: 1px solid #e2e8f0 !important; color: #94a3b8 !important; font-size: 8pt !important; padding: 8px 0 !important; }
-          .has-ic-pack > :not(.ic-pack-export):not(style) {
+          .has-ic-pack.print-mode-ic > :not(.ic-pack-export):not(style),
+          .has-ic-pack:not(.print-mode-full) > :not(.ic-pack-export):not(style) {
             display: none !important;
           }
-          .has-ic-pack > .ic-pack-export {
+          .has-ic-pack.print-mode-ic > .ic-pack-export,
+          .has-ic-pack:not(.print-mode-full) > .ic-pack-export {
+            display: block !important;
+          }
+          .has-ic-pack.print-mode-full > :not(.full-report-export):not(style) {
+            display: none !important;
+          }
+          .has-ic-pack.print-mode-full > .full-report-export {
             display: block !important;
           }
         }
@@ -1518,6 +1559,14 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
         staleDocumentCount={staleRunDocumentCount}
         isSavedDeal={Boolean(dealId)}
         runMetadataLoaded={runMetadataLoaded}
+      />
+      <FullReportExport
+        extracted={extracted}
+        scored={currentScored}
+        workflow={workflow}
+        currentRun={currentRunSummary}
+        currentRunSnapshot={currentRunSnapshot}
+        staleDocumentCount={staleRunDocumentCount}
       />
 
       {/* ── PRINT-ONLY HEADER ── */}
@@ -1601,9 +1650,9 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             <span style={{ fontSize: 11, color: '#ef4444' }}>{translateError}</span>
           )}
           <button
-            onClick={() => window.print()}
-            aria-label="Print or save the IC memo pack as PDF"
-            title="Print or save the IC memo pack as PDF"
+            onClick={() => printReport('ic')}
+            aria-label="Print IC Pack PDF"
+            title="Print IC Pack PDF: concise recommendation for sharing"
             style={{
               background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 6, padding: '6px 14px', color: 'rgba(255,255,255,0.7)',
@@ -1611,6 +1660,18 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             }}
           >
             Print IC Pack
+          </button>
+          <button
+            onClick={() => printReport('full')}
+            aria-label="Export Full Report PDF"
+            title="Export Full Report PDF: diligence/evidence review pack"
+            style={{
+              background: 'rgba(0,180,160,0.1)', border: '1px solid rgba(0,180,160,0.25)',
+              borderRadius: 6, padding: '6px 14px', color: '#00b4a0',
+              fontSize: 12, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontWeight: 700,
+            }}
+          >
+            Export Full Report PDF
           </button>
         </div>
       </header>
@@ -1687,7 +1748,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
       </section>
 
       {/* ── MAIN CONTENT ── */}
-      <div className="report-content" style={{ padding: '40px', maxWidth: 1200 }}>
+      <div className={`report-content${workflow ? ' report-content-workflow' : ''}`} style={{ padding: '40px', maxWidth: workflow ? 1320 : 1200 }}>
 
         {workflow && (
           <>
@@ -1695,13 +1756,11 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               display: 'grid',
               gridTemplateColumns: '1fr',
               gap: 8,
-              width: 230,
-              float: 'left',
-              marginRight: 24,
+              width: 280,
               marginBottom: 24,
               position: 'sticky',
-              top: 18,
-              zIndex: 1,
+              top: 72,
+              zIndex: 2,
             }}>
               <div style={{
                 fontFamily: 'IBM Plex Mono, monospace',
