@@ -117,6 +117,32 @@ Review focus:
 - keep Run History as the change trail
 - do not add features or change backend/product semantics
 
+## Full Report PDF Export
+
+Active export task:
+
+`docs/tasks/2026-05-15-full-report-pdf-export.md`
+
+Purpose:
+
+Add a second PDF export mode while preserving the existing IC Memo export.
+
+Export modes:
+
+- `Export IC Memo` = concise recommendation for sharing
+- `Export Full Report` = diligence/evidence review pack
+
+Full Report PDF follows:
+
+`Decision -> Memo -> Underwriting -> Evidence -> Diligence -> Run History`
+
+Print rules:
+
+- interactive maps are summarized rather than reproduced
+- drawer-only controls are not printed
+- no raw debug JSON is exported
+- IC Memo export remains separate
+
 ## local_demand_supply
 
 Current behaviour:
@@ -138,10 +164,10 @@ Do not add frontend behaviour that implies it is auto-attached.
 
 ## Active Frontend Task
 
-`docs/tasks/2026-05-14-report-ux-review-and-polish.md`
+`docs/tasks/2026-05-15-full-report-pdf-export.md`
 
 Purpose:
 
-Review the completed report UX journey end-to-end and fix only clear UX regressions, confusing labels, broken navigation, or spacing/readability issues.
+Add a Full Report PDF export option for diligence review, advisor review, Claude audit/critique, and internal evidence review while keeping the existing IC Memo export unchanged.
 
-This is a frontend UX review, labelling, navigation, spacing, and readability slice only.
+This is a frontend print/export slice only.
