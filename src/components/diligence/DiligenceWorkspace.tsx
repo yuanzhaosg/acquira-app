@@ -21,6 +21,12 @@ const PRIORITY_COLOR: Record<string, string> = {
   low: '#00b4a0',
 }
 
+function priorityLabel(priority: string): string {
+  if (priority === 'high') return 'Do first'
+  if (priority === 'medium') return 'This week'
+  return 'Before offer'
+}
+
 const MAX_DILIGENCE_FILE_BYTES = 100 * 1024 * 1024
 
 function safeFilename(name: string): string {
@@ -334,7 +340,7 @@ export default function DiligenceWorkspace({
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
                         <span style={{ color: PRIORITY_COLOR[item.priority] ?? '#94a3b8', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', fontWeight: 800 }}>
-                          {item.priority}
+                          {priorityLabel(item.priority)}
                         </span>
                         <span style={{ color: 'rgba(255,255,255,0.34)', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase' }}>
                           {item.category}

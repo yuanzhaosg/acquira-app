@@ -42,15 +42,19 @@ function fmtBytes(value?: number | null): string {
 export default function RunHistoryDrawer({
   dealId,
   manualContextFields,
+  defaultOpen = false,
+  screenMode = false,
   onPromoted,
   onViewSnapshot,
 }: {
   dealId?: string | null
   manualContextFields?: ManualContextFields
+  defaultOpen?: boolean
+  screenMode?: boolean
   onPromoted?: () => void
   onViewSnapshot?: (run: UnderwritingRun, summary: UnderwritingRunSummary, currentRun?: UnderwritingRunSummary | null) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [runs, setRuns] = useState<UnderwritingRunSummary[]>([])
   const [documents, setDocuments] = useState<DiligenceDocumentSummary[]>([])
   const [sourceDocuments, setSourceDocuments] = useState<DealSourceDocument[]>([])
@@ -315,23 +319,25 @@ export default function RunHistoryDrawer({
           >
             Re-run with evidence
           </button>
-          <button
-            type="button"
-            disabled={!dealId}
-            onClick={() => setOpen(prev => !prev)}
-            style={{
-              border: '1px solid rgba(255,255,255,0.14)',
-              background: 'rgba(255,255,255,0.04)',
-              color: dealId ? '#e8edf3' : 'rgba(255,255,255,0.3)',
-              borderRadius: 6,
-              padding: '8px 12px',
-              fontWeight: 800,
-              cursor: dealId ? 'pointer' : 'not-allowed',
-              fontSize: 12,
-            }}
-          >
-            {open ? 'Hide run history' : 'Run history'}
-          </button>
+          {!screenMode && (
+            <button
+              type="button"
+              disabled={!dealId}
+              onClick={() => setOpen(prev => !prev)}
+              style={{
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.04)',
+                color: dealId ? '#e8edf3' : 'rgba(255,255,255,0.3)',
+                borderRadius: 6,
+                padding: '8px 12px',
+                fontWeight: 800,
+                cursor: dealId ? 'pointer' : 'not-allowed',
+                fontSize: 12,
+              }}
+            >
+              {open ? 'Hide run history' : 'Run history'}
+            </button>
+          )}
         </div>
       </div>
 

@@ -23,6 +23,10 @@ const icPackExport = read('src/components/report/ICPackExport.tsx')
 const reportView = read('src/components/report/ReportView.tsx')
 const decisionDashboard = read('src/components/report/DecisionDashboard.tsx')
 const evidenceScreen = read('src/components/report/EvidenceScreen.tsx')
+const runHistoryScreen = read('src/components/report/RunHistoryScreen.tsx')
+const diligenceActionScreen = read('src/components/report/DiligenceActionScreen.tsx')
+const diligenceChecklist = read('src/components/report/DiligenceChecklist.tsx')
+const diligenceWorkspace = read('src/components/diligence/DiligenceWorkspace.tsx')
 
 assert(
   /execution_mode:\s*'sync'/.test(evidencePanel),
@@ -242,12 +246,12 @@ assert(
 )
 assert(
   /RunVersionBanner[\s\S]*activeReportMode === 'decision'/.test(reportView)
-    && /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView),
-  'RunVersionBanner must be persistent across report screens while RunHistoryDrawer remains available in Run History.',
+    && /activeReportMode === 'runs'[\s\S]*RunHistoryScreen/.test(reportView),
+  'RunVersionBanner must be persistent across report screens while RunHistoryScreen remains available in Run History.',
 )
 assert(
-  /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView)
-    && /activeReportMode === 'diligence'[\s\S]*DiligenceWorkspace/.test(reportView)
+  /activeReportMode === 'runs'[\s\S]*RunHistoryScreen/.test(reportView)
+    && /activeReportMode === 'diligence'[\s\S]*DiligenceActionScreen/.test(reportView)
     && /activeReportMode === 'evidence'[\s\S]*EvidenceScreen/.test(reportView)
     && /activeReportMode === 'memo'[\s\S]*ICMemoView/.test(reportView),
   'Operational workflow panels must live outside the Decision dashboard and Memo story modes.',
@@ -318,6 +322,47 @@ assert(
 assert(
   icPackExport.indexOf('Appendix / Audit Trail') > icPackExport.indexOf('Broker / Seller Request List'),
   'IC Pack export appendix must appear after the broker/seller request list.',
+)
+
+assert(
+  /export default function RunHistoryScreen/.test(runHistoryScreen)
+    && /What changed since last run/.test(runHistoryScreen)
+    && /Version history and change trail/.test(runHistoryScreen)
+    && /RunHistoryDrawer/.test(runHistoryScreen)
+    && /defaultOpen/.test(runHistoryScreen)
+    && /screenMode/.test(runHistoryScreen),
+  'Run History must have a full-screen wrapper while reusing the existing drawer mechanics.',
+)
+assert(
+  /defaultOpen = false/.test(runHistory)
+    && /screenMode = false/.test(runHistory)
+    && /useState\(defaultOpen\)/.test(runHistory)
+    && /!screenMode/.test(runHistory),
+  'RunHistoryDrawer must keep drawer behavior intact while supporting an open full-screen rendering path.',
+)
+assert(
+  /export default function DiligenceActionScreen/.test(diligenceActionScreen)
+    && /What to verify before offer/.test(diligenceActionScreen)
+    && /Diligence action workspace/.test(diligenceActionScreen)
+    && /What should I ask for next|request broker evidence/.test(diligenceActionScreen)
+    && /DiligenceWorkspace/.test(diligenceActionScreen)
+    && /DiligenceChecklist/.test(diligenceActionScreen),
+  'Diligence must render as a next-action workspace composed from the existing operational panels.',
+)
+assert(
+  /EvidenceRequestsPanel/.test(diligenceWorkspace),
+  'EvidenceRequestsPanel must remain a sub-section of DiligenceWorkspace.',
+)
+assert(
+  /function priorityLabel/.test(diligenceChecklist)
+    && /Do first/.test(diligenceChecklist)
+    && /This week/.test(diligenceChecklist)
+    && /Before offer/.test(diligenceChecklist)
+    && /function priorityLabel/.test(diligenceWorkspace)
+    && /Do first/.test(diligenceWorkspace)
+    && /This week/.test(diligenceWorkspace)
+    && /Before offer/.test(diligenceWorkspace),
+  'Diligence priority labels must be buyer-facing and display-only.',
 )
 
 console.log('Frontend regression checks passed.')

@@ -2,14 +2,13 @@
 import CompetitiveMap from '@/components/map/CompetitiveMap'
 import ICSummary from '@/components/report/ICSummary'
 import ValuationGatePanel from '@/components/report/ValuationGatePanel'
-import DiligenceChecklist from '@/components/report/DiligenceChecklist'
 import ICMemoView from '@/components/report/ICMemoView'
 import DecisionDashboard, { type ReportMode } from '@/components/report/DecisionDashboard'
 import EvidenceScreen from '@/components/report/EvidenceScreen'
 import EvidenceDrawer from '@/components/report/EvidenceDrawer'
 import ICPackExport from '@/components/report/ICPackExport'
-import DiligenceWorkspace from '@/components/diligence/DiligenceWorkspace'
-import RunHistoryDrawer from '@/components/report/RunHistoryDrawer'
+import DiligenceActionScreen from '@/components/report/DiligenceActionScreen'
+import RunHistoryScreen from '@/components/report/RunHistoryScreen'
 import RunVersionBanner from '@/components/report/RunVersionBanner'
 import RunSnapshotView from '@/components/report/RunSnapshotView'
 import { useState, useEffect } from 'react'
@@ -1785,7 +1784,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
                     { label: 'View evidence', onClick: () => setActiveReportMode('evidence') },
                   ]}
                 />
-                <RunHistoryDrawer
+                <RunHistoryScreen
                   dealId={dealId}
                   manualContextFields={{ asking_price: overrides.asking_price ?? effectiveAskPrice ?? null }}
                   onViewSnapshot={(run, summary, currentRun) => {
@@ -1810,10 +1809,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
                     { label: 'View logic', onClick: () => setActiveReportMode('underwriting') },
                   ]}
                 />
-                <DiligenceWorkspace dealId={dealId} workflow={workflow} />
-                <div style={{ marginBottom: 34 }}>
-                  <DiligenceChecklist workflow={workflow} />
-                </div>
+                <DiligenceActionScreen dealId={dealId} workflow={workflow} />
               </>
             )}
 
