@@ -277,7 +277,7 @@ assert(
   /export default function EvidenceScreen/.test(evidenceScreen)
     && /How to read market evidence/.test(evidenceScreen)
     && /Public Market Benchmark/.test(evidenceScreen)
-    && /Local Demand-Supply Screen/.test(evidenceScreen)
+    && /Local Capacity Screen/.test(evidenceScreen)
     && /FactsReviewPanel/.test(evidenceScreen)
     && /MarketAuditPanel/.test(evidenceScreen)
     && /ExtractionWarnings/.test(evidenceScreen)
@@ -307,10 +307,17 @@ for (const forbiddenPublicMarketCopy of [
 }
 assert(
   !/Public Market Benchmark/.test(icMemo)
-    && !/Local Demand-Supply Screen/.test(icMemo)
+    && !/Local Capacity Screen/.test(icMemo)
     && !/Public Market Benchmark/.test(icPackExport)
-    && !/Local Demand-Supply Screen/.test(icPackExport),
+    && !/Local Capacity Screen/.test(icPackExport),
   'Public market context must not appear in Memo or IC Pack export yet.',
+)
+assert(
+  !/Run diagnostics/.test(runHistory)
+    && !/Refresh diagnostics/.test(runHistory)
+    && /Run checks/.test(runHistory)
+    && /Refresh checks/.test(runHistory),
+  'Run History must use buyer-facing run check labels instead of diagnostics language.',
 )
 assert(
   /Market & Competitive Position/.test(icPackExport)

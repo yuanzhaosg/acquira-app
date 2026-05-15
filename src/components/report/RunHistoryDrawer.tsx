@@ -117,15 +117,15 @@ export default function RunHistoryDrawer({
     setOpsLoading(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) throw new Error('Sign in again to load run diagnostics.')
+      if (!session?.access_token) throw new Error('Sign in again to load run checks.')
       const res = await fetch(`/api/deals/${dealId}/ops/health`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body.error || 'Failed to load run diagnostics')
+      if (!res.ok) throw new Error(body.error || 'Failed to load run checks')
       setOpsHealth(body.health ?? null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load run diagnostics')
+      setError(e instanceof Error ? e.message : 'Failed to load run checks')
     } finally {
       setOpsLoading(false)
     }
@@ -335,7 +335,7 @@ export default function RunHistoryDrawer({
                 fontSize: 12,
               }}
             >
-              {open ? 'Hide run history' : 'Run history'}
+              {open ? 'Hide Run History' : 'Run History'}
             </button>
           )}
         </div>
@@ -344,7 +344,7 @@ export default function RunHistoryDrawer({
       {open && (
         <div style={{ marginTop: 10, border: '1px solid rgba(255,255,255,0.09)', background: '#132338', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-            <h3 style={{ margin: 0, color: '#fff', fontFamily: "'Space Grotesk', sans-serif", fontSize: 18 }}>Run history</h3>
+            <h3 style={{ margin: 0, color: '#fff', fontFamily: "'Space Grotesk', sans-serif", fontSize: 18 }}>Run History</h3>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button
                 type="button"
@@ -398,7 +398,7 @@ export default function RunHistoryDrawer({
             <div style={{ display: 'grid', gap: 10, padding: 14 }}>
               <details style={{ border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.025)', borderRadius: 8, padding: 12 }}>
                 <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.78)', fontSize: 13, fontWeight: 800 }}>
-                  Run diagnostics
+                  Run checks
                 </summary>
                 <div style={{ display: 'grid', gap: 8, marginTop: 10, color: 'rgba(255,255,255,0.55)', fontSize: 12.3, lineHeight: 1.5 }}>
                   <div>Stale running runs: {opsHealth?.stale_running_runs?.length ?? 0}</div>
@@ -417,7 +417,7 @@ export default function RunHistoryDrawer({
                     onClick={loadOpsHealth}
                     style={{ justifySelf: 'start', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.04)', color: '#e8edf3', borderRadius: 6, padding: '6px 9px', fontSize: 11.5, fontWeight: 800, cursor: opsLoading ? 'wait' : 'pointer' }}
                   >
-                    {opsLoading ? 'Refreshing...' : 'Refresh diagnostics'}
+                    {opsLoading ? 'Refreshing...' : 'Refresh checks'}
                   </button>
                 </div>
               </details>

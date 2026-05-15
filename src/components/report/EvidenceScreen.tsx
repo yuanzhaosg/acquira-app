@@ -150,7 +150,7 @@ function PublicMarketContextPanel({ marketAudit }: { marketAudit?: MarketAudit |
         {localDemandSupply && (
           <div style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 14 }}>
             <div style={{ color: '#f59e0b', fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-              Local Demand-Supply Screen
+              Local Capacity Screen
             </div>
             <div style={{ color: '#fff', fontSize: 14, fontWeight: 800, lineHeight: 1.35, marginBottom: 8 }}>
               {localDemandSupply.market_capacity_signal ?? 'Capacity screen'}

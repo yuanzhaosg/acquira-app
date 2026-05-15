@@ -1,6 +1,6 @@
 # Acquira Frontend Current State
 
-Last updated: 2026-05-14
+Last updated: 2026-05-15
 
 ## Current Frontend Repo
 
@@ -83,6 +83,40 @@ Expected Evidence mode behaviour:
 - Do not affect scoring, valuation gate, or recommendation.
 - Can display benchmark context attached from explicit manual/admin SA3 context.
 
+## Current Report UX Baseline
+
+Completed frontend UX redesign commits:
+
+- `5f3bc47 feat: add decision-first report navigation`
+- `f2e039a refactor: reduce memo and underwriting repetition`
+- `2693279 feat: promote evidence to full report screen`
+- `e027511 feat: add full run history and diligence action screens`
+
+The report journey is now:
+
+`Decision -> Memo -> Underwriting -> Evidence -> Diligence -> Run History`
+
+Section roles:
+
+- Decision = verdict first
+- Memo = investment story
+- Underwriting = judgement logic
+- Evidence = proof layer
+- Diligence = next actions
+- Run History = change trail
+
+Review-and-polish task:
+
+`docs/tasks/2026-05-14-report-ux-review-and-polish.md`
+
+Review focus:
+
+- keep labels buyer-friendly
+- keep market evidence explanations compliant
+- keep Diligence as the action workspace
+- keep Run History as the change trail
+- do not add features or change backend/product semantics
+
 ## local_demand_supply
 
 Current behaviour:
@@ -104,12 +138,10 @@ Do not add frontend behaviour that implies it is auto-attached.
 
 ## Active Frontend Task
 
-`docs/tasks/2026-05-14-report-ux-navigation-redesign.md`
+`docs/tasks/2026-05-14-report-ux-review-and-polish.md`
 
 Purpose:
 
-Redesign report navigation and section relationships so the report feels like a guided investment decision workflow:
+Review the completed report UX journey end-to-end and fix only clear UX regressions, confusing labels, broken navigation, or spacing/readability issues.
 
-`Decision -> Story -> Logic -> Proof -> Action -> Version history`
-
-This is a frontend UX / information architecture slice.
+This is a frontend UX review, labelling, navigation, spacing, and readability slice only.
