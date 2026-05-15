@@ -22,6 +22,7 @@ const marketAudit = read('src/components/report/MarketAuditPanel.tsx')
 const icPackExport = read('src/components/report/ICPackExport.tsx')
 const reportView = read('src/components/report/ReportView.tsx')
 const decisionDashboard = read('src/components/report/DecisionDashboard.tsx')
+const evidenceScreen = read('src/components/report/EvidenceScreen.tsx')
 
 assert(
   /execution_mode:\s*'sync'/.test(evidencePanel),
@@ -247,7 +248,7 @@ assert(
 assert(
   /activeReportMode === 'runs'[\s\S]*RunHistoryDrawer/.test(reportView)
     && /activeReportMode === 'diligence'[\s\S]*DiligenceWorkspace/.test(reportView)
-    && /activeReportMode === 'evidence'[\s\S]*FactsReviewPanel/.test(reportView)
+    && /activeReportMode === 'evidence'[\s\S]*EvidenceScreen/.test(reportView)
     && /activeReportMode === 'memo'[\s\S]*ICMemoView/.test(reportView),
   'Operational workflow panels must live outside the Decision dashboard and Memo story modes.',
 )
@@ -269,20 +270,25 @@ assert(
   'Valuation readiness must be framed in buyer language inside Underwriting, not duplicated in Evidence.',
 )
 assert(
-  /function PublicMarketContextPanel/.test(reportView)
-    && /Public Market Benchmark/.test(reportView)
-    && /Local Demand-Supply Screen/.test(reportView)
-    && /activeReportMode === 'evidence'[\s\S]*PublicMarketContextPanel/.test(reportView),
+  /export default function EvidenceScreen/.test(evidenceScreen)
+    && /How to read market evidence/.test(evidenceScreen)
+    && /Public Market Benchmark/.test(evidenceScreen)
+    && /Local Demand-Supply Screen/.test(evidenceScreen)
+    && /FactsReviewPanel/.test(evidenceScreen)
+    && /MarketAuditPanel/.test(evidenceScreen)
+    && /ExtractionWarnings/.test(evidenceScreen)
+    && /CompetitiveMap/.test(evidenceScreen),
   'Public market context must render in Evidence mode only.',
 )
 assert(
-  /public_market_benchmark/.test(reportView)
-    && /local_demand_supply/.test(reportView)
-    && /public aggregate market evidence/.test(reportView)
-    && /realised CCS usage/.test(reportView)
-    && /estimated realised-demand \/ supply-capacity screen/.test(reportView)
-    && /child \/ approved place/.test(reportView)
-    && /new entrant plausibility/i.test(reportView),
+  /public_market_benchmark/.test(evidenceScreen)
+    && /local_demand_supply/.test(evidenceScreen)
+    && /public aggregate market evidence/.test(evidenceScreen)
+    && /realised CCS usage/.test(evidenceScreen)
+    && /capacity screen/.test(evidenceScreen)
+    && /local supply context/.test(evidenceScreen)
+    && /future supply pressure/.test(evidenceScreen)
+    && /not interchangeable/.test(evidenceScreen),
   'Evidence mode public market context must use careful evidence-screen wording.',
 )
 for (const forbiddenPublicMarketCopy of [
@@ -293,7 +299,7 @@ for (const forbiddenPublicMarketCopy of [
   'true demand',
   'Definitive unmet demand',
 ]) {
-  assert(!reportView.includes(forbiddenPublicMarketCopy), `Evidence mode public market copy contains forbidden phrase: ${forbiddenPublicMarketCopy}`)
+  assert(!evidenceScreen.includes(forbiddenPublicMarketCopy), `Evidence mode public market copy contains forbidden phrase: ${forbiddenPublicMarketCopy}`)
 }
 assert(
   !/Public Market Benchmark/.test(icMemo)

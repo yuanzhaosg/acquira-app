@@ -1,15 +1,13 @@
 'use client'
 import CompetitiveMap from '@/components/map/CompetitiveMap'
 import ICSummary from '@/components/report/ICSummary'
-import FactsReviewPanel from '@/components/report/FactsReviewPanel'
 import ValuationGatePanel from '@/components/report/ValuationGatePanel'
 import DiligenceChecklist from '@/components/report/DiligenceChecklist'
-import ExtractionWarnings from '@/components/report/ExtractionWarnings'
 import ICMemoView from '@/components/report/ICMemoView'
 import DecisionDashboard, { type ReportMode } from '@/components/report/DecisionDashboard'
+import EvidenceScreen from '@/components/report/EvidenceScreen'
 import EvidenceDrawer from '@/components/report/EvidenceDrawer'
 import ICPackExport from '@/components/report/ICPackExport'
-import MarketAuditPanel from '@/components/report/MarketAuditPanel'
 import DiligenceWorkspace from '@/components/diligence/DiligenceWorkspace'
 import RunHistoryDrawer from '@/components/report/RunHistoryDrawer'
 import RunVersionBanner from '@/components/report/RunVersionBanner'
@@ -20,7 +18,7 @@ import type {
   ScoredDeal, DimensionId, Conditional, DealBreakerFlag,
 } from '@/types/scored'
 import type { ExtractedDeal } from '@/types/extracted'
-import type { DealWorkflow, LocalDemandSupplyScreen, MarketAudit, PublicMarketBenchmark, WorkflowFact } from '@/types/workflow'
+import type { DealWorkflow, WorkflowFact } from '@/types/workflow'
 import type { UnderwritingRun, UnderwritingRunSummary } from '@/types/runs'
 import { getPublicBackendUrl } from '@/lib/backendUrls'
 
@@ -60,42 +58,6 @@ function fmtM(n: number | null | undefined): string {
   if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
   if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
   return `$${n.toLocaleString()}`
-}
-
-function fmtOptionalNumber(n: number | null | undefined, decimals = 0): string {
-  if (n == null || Number.isNaN(n)) return 'Not available'
-  return n.toLocaleString('en-AU', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-}
-
-function fmtOptionalPercent(n: number | null | undefined, decimals = 1): string {
-  if (n == null || Number.isNaN(n)) return 'Not available'
-  return `${n.toLocaleString('en-AU', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}%`
-}
-
-function fmtOptionalMoney(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return 'Not available'
-  return `$${n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function humanizeEvidenceToken(token: string): string {
-  const labels: Record<string, string> = {
-    market_depth_benchmark: 'Market depth benchmark',
-    cbdc_pricing_benchmark: 'CBDC pricing benchmark',
-    fee_cap_pressure_screen: 'Fee-cap pressure screen',
-    new_entrant_plausibility_context: 'New entrant plausibility context',
-    local_demand_supply_screen: 'Local demand-supply screen',
-    new_entrant_plausibility: 'New entrant plausibility',
-    occupancy_upside_plausibility: 'Occupancy upside plausibility',
-    supply_pressure_benchmark: 'Supply pressure benchmark',
-    target_occupancy: 'Target occupancy',
-    target_waitlist: 'Target waitlist',
-    target_revenue: 'Target revenue',
-    target_ebitda: 'Target EBITDA',
-    definitive_unmet_demand: 'Conclusive market gap claim',
-    licensed_place_capacity: 'Licensed-place capacity',
-    actual_vacancies: 'Available vacancies',
-  }
-  return labels[token] ?? token.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())
 }
 
 const REPORT_MODES: Array<{ id: ReportMode; label: string; description: string }> = [
@@ -498,154 +460,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
       marginBottom: 20, paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.07)'
     }}>
       {children}
-    </div>
-  )
-}
-
-function EvidenceMiniRow({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'minmax(155px, 0.45fr) minmax(0, 1fr)',
-      gap: 12,
-      padding: '9px 0',
-      borderBottom: '1px solid rgba(255,255,255,0.055)',
-    }}>
-      <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: 'rgba(255,255,255,0.36)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        {label}
-      </div>
-      <div style={{ color: 'rgba(255,255,255,0.68)', fontSize: 13, lineHeight: 1.5, minWidth: 0 }}>
-        {value}
-      </div>
-    </div>
-  )
-}
-
-function EvidenceTokenList({ items }: { items?: string[] | null }) {
-  if (!items?.length) return <span>Not available</span>
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-      {items.map(item => (
-        <span key={item} style={{
-          fontFamily: 'IBM Plex Mono, monospace',
-          fontSize: 10.5,
-          color: 'rgba(232,237,243,0.68)',
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 4,
-          padding: '3px 7px',
-        }}>
-          {humanizeEvidenceToken(item)}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function EvidenceBulletList({ items }: { items?: string[] | null }) {
-  if (!items?.length) return <span>Not available</span>
-  return (
-    <ul style={{ margin: 0, paddingLeft: 17, display: 'flex', flexDirection: 'column', gap: 5 }}>
-      {items.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
-      ))}
-    </ul>
-  )
-}
-
-function PublicMarketContextPanel({ marketAudit }: { marketAudit?: MarketAudit | null }) {
-  const benchmark = marketAudit?.public_market_benchmark
-  const local = marketAudit?.local_demand_supply
-  if (!benchmark && !local) return null
-
-  return (
-    <div style={{ marginBottom: 34 }}>
-      {benchmark && <PublicMarketBenchmarkPanel benchmark={benchmark} />}
-      {local && <LocalDemandSupplyPanel screen={local} />}
-    </div>
-  )
-}
-
-function PublicMarketBenchmarkPanel({ benchmark }: { benchmark: PublicMarketBenchmark }) {
-  return (
-    <div style={{
-      background: 'rgba(0,180,160,0.045)',
-      border: '1px solid rgba(0,180,160,0.16)',
-      borderRadius: 8,
-      padding: 18,
-      marginBottom: 16,
-    }}>
-      <SectionTitle>Public Market Benchmark</SectionTitle>
-      <p style={{ margin: '0 0 16px', color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 1.6 }}>
-        CCS data is public aggregate market evidence. It benchmarks realised CCS usage and CBDC pricing at SA3 level, but it is not target-level evidence.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0 24px' }}>
-        <EvidenceMiniRow label="As of quarter" value={benchmark.as_of_quarter ?? 'Not available'} />
-        <EvidenceMiniRow label="SA3" value={[benchmark.sa3_name, benchmark.sa3_code].filter(Boolean).join(' / ') || 'Not available'} />
-        <EvidenceMiniRow label="Source" value={benchmark.source ?? 'Not available'} />
-        <EvidenceMiniRow label="Source quality" value={humanizeEvidenceToken(benchmark.source_quality ?? 'Not available')} />
-        <EvidenceMiniRow label="0-5 CCS children" value={fmtOptionalNumber(benchmark.children_0_5_using_care)} />
-        <EvidenceMiniRow label="CBDC services" value={fmtOptionalNumber(benchmark.cbdc_services)} />
-        <EvidenceMiniRow label="0-5 CCS children / CBDC service" value={fmtOptionalNumber(benchmark.children_0_5_per_cbdc_service, 2)} />
-        <EvidenceMiniRow label="Total children / all service" value={fmtOptionalNumber(benchmark.total_children_per_all_service, 2)} />
-        <EvidenceMiniRow label="CBDC density / 1,000" value={fmtOptionalNumber(benchmark.cbdc_density_per_1000_children_0_5, 2)} />
-        <EvidenceMiniRow label="CBDC mean fee/hr" value={fmtOptionalMoney(benchmark.cbdc_mean_fee_per_hour)} />
-        <EvidenceMiniRow label="CBDC fee growth YoY" value={fmtOptionalPercent(benchmark.cbdc_fee_growth_yoy_pct, 1)} />
-        <EvidenceMiniRow label="Services above CCS cap" value={fmtOptionalPercent(benchmark.cbdc_services_above_cap_pct, 1)} />
-      </div>
-      <EvidenceMiniRow label="Caveats" value={<EvidenceBulletList items={benchmark.caveats} />} />
-      <EvidenceMiniRow label="Underwriting use" value={<EvidenceTokenList items={benchmark.underwriting_use} />} />
-      <EvidenceMiniRow label="Not underwriting use" value={<EvidenceTokenList items={benchmark.not_underwriting_use} />} />
-    </div>
-  )
-}
-
-function LocalDemandSupplyPanel({ screen }: { screen: LocalDemandSupplyScreen }) {
-  const ledger = screen.evidence_ledger_entry
-  return (
-    <div style={{
-      background: 'rgba(255,255,255,0.028)',
-      border: '1px solid rgba(255,255,255,0.09)',
-      borderRadius: 8,
-      padding: 18,
-    }}>
-      <SectionTitle>Local Demand-Supply Screen</SectionTitle>
-      <p style={{ margin: '0 0 16px', color: 'rgba(255,255,255,0.62)', fontSize: 13, lineHeight: 1.6 }}>
-        This is an estimated realised-demand / supply-capacity screen. It does not prove available vacancies, occupancy, waitlist, revenue, or a conclusive market gap.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0 24px' }}>
-        <EvidenceMiniRow label="Estimated realised CCS demand 0-5" value={fmtOptionalNumber(screen.estimated_realised_ccs_demand_0_5, 2)} />
-        <EvidenceMiniRow label="Current CBDC approved places" value={fmtOptionalNumber(screen.current_cbdc_approved_places)} />
-        <EvidenceMiniRow label="Current child / approved place" value={fmtOptionalNumber(screen.current_child_per_place, 2)} />
-        <EvidenceMiniRow label="Proposed new places" value={fmtOptionalNumber(screen.proposed_new_places)} />
-        <EvidenceMiniRow label="Post-entry child / approved place" value={fmtOptionalNumber(screen.post_entry_child_per_place, 2)} />
-        <EvidenceMiniRow label="Supply dilution" value={fmtOptionalPercent(screen.supply_dilution_pct, 1)} />
-        <EvidenceMiniRow label="Future supply places" value={fmtOptionalNumber(screen.future_supply_places)} />
-        <EvidenceMiniRow label="Future child / approved place" value={fmtOptionalNumber(screen.future_child_per_place, 2)} />
-        <EvidenceMiniRow label="Market capacity signal" value={humanizeEvidenceToken(screen.market_capacity_signal ?? 'Not available')} />
-        <EvidenceMiniRow label="Market capacity confidence" value={humanizeEvidenceToken(screen.market_capacity_confidence ?? 'Not available')} />
-      </div>
-      <EvidenceMiniRow label="Signal reasons" value={<EvidenceBulletList items={screen.signal_reasons} />} />
-      <EvidenceMiniRow label="Caveats" value={<EvidenceBulletList items={screen.caveats} />} />
-      {ledger && (
-        <div style={{
-          marginTop: 14,
-          padding: 14,
-          borderRadius: 8,
-          border: '1px solid rgba(255,255,255,0.08)',
-          background: 'rgba(0,0,0,0.12)',
-        }}>
-          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, color: 'rgba(255,255,255,0.32)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-            Evidence ledger entry
-          </div>
-          <EvidenceMiniRow label="Provenance" value={ledger.provenance ? humanizeEvidenceToken(ledger.provenance) : 'Not available'} />
-          <EvidenceMiniRow label="Source quality" value={ledger.source_quality ? humanizeEvidenceToken(ledger.source_quality) : 'Not available'} />
-          <EvidenceMiniRow label="Trust" value={ledger.trust ? humanizeEvidenceToken(ledger.trust) : 'Not available'} />
-          <EvidenceMiniRow label="Underwriting use" value={<EvidenceTokenList items={ledger.underwriting_use} />} />
-          <EvidenceMiniRow label="Not underwriting use" value={<EvidenceTokenList items={ledger.not_underwriting_use} />} />
-          {ledger.reason && <EvidenceMiniRow label="Reason" value={ledger.reason} />}
-        </div>
-      )}
     </div>
   )
 }
@@ -2004,13 +1818,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             )}
 
             {activeReportMode === 'evidence' && (
-              <div style={{
-                marginBottom: 34,
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 8,
-                padding: 18,
-              }}>
+              <>
                 <SectionRoleGuide
                   title="Evidence = proof layer"
                   description="Use this workspace to verify what is known, where it came from, whether it can be trusted, and where it affects the decision."
@@ -2020,52 +1828,15 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
                     { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
                   ]}
                 />
-                <ExtractionWarnings workflow={workflow} />
-                <MarketAuditPanel
-                  audit={workflow.market_audit ?? currentScored.market_audit}
-                  pipelineAudit={workflow.pipeline_audit ?? currentScored.pipeline_audit}
-                  pipelineProjects={workflow.pipeline_projects ?? currentScored.pipeline_projects}
+                <EvidenceScreen
+                  workflow={workflow}
+                  extracted={extracted}
+                  scored={currentScored}
+                  canonicalScore={canonicalScore}
+                  mapPipelineProjects={mapPipelineProjects}
+                  onOpenEvidence={setEvidenceFact}
                 />
-                <PublicMarketContextPanel marketAudit={workflow.market_audit ?? currentScored.market_audit} />
-                {extracted.centre?.address && (
-                  <div style={{ marginBottom: 34 }}>
-                    <SectionTitle>Competitive Map</SectionTitle>
-                    <CompetitiveMap
-                      address={extracted.centre.address}
-                      suburb={extracted.centre.suburb || ''}
-                      state={extracted.centre.state || ''}
-                      postcode={extracted.centre.postcode || ''}
-                      licensed_places={extracted.centre.licensed_places || 0}
-                      centre_name={scored.centre_name || ''}
-                      overall_score={canonicalScore}
-                      marketAudit={workflow.market_audit ?? currentScored.market_audit}
-                      legacyMarket={{
-                        ...((currentScored as any).market_context ?? {}),
-                        ...((currentScored as any).demand_context ?? {}),
-                        source: (currentScored as any).market_context ? 'scored market context' : 'scored demand context',
-                      }}
-                      pipelineIntel={mapPipelineProjects.length ? {
-                        applications: mapPipelineProjects.map(project => ({
-                          address: project.address || '',
-                          description: project.notes || project.name || `${project.source_type === 'manual_legacy_count' ? 'Legacy count placeholder' : 'Underwriting-backed'} pipeline project`,
-                          status: project.status === 'approved' || project.status === 'under_construction'
-                            ? 'approved'
-                            : project.status === 'lodged'
-                            ? 'lodged'
-                            : project.status === 'refused' || project.status === 'withdrawn'
-                            ? 'refused'
-                            : 'unknown',
-                          places: project.proposed_places ?? null,
-                          distance_km: project.distance_km ?? null,
-                          date: project.source_date ?? undefined,
-                          info_url: project.source_url ?? undefined,
-                        })),
-                      } : ((currentScored as any).pipeline_intel ?? null)}
-                    />
-                  </div>
-                )}
-                <FactsReviewPanel workflow={workflow} onOpenEvidence={setEvidenceFact} />
-              </div>
+              </>
             )}
 
             {activeReportMode !== 'decision' && activeReportMode !== 'memo' && activeReportMode !== 'underwriting' && (
@@ -2299,8 +2070,8 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           )
         })()}
 
-        {/* COMPETITIVE MAP */}
-        {extracted.centre?.address && (
+        {/* COMPETITIVE MAP - legacy non-workflow report only. Workflow reports render this inside Evidence. */}
+        {!workflow && extracted.centre?.address && (
           <div style={{ marginBottom: 40 }}>
             <SectionTitle>Competitive Map</SectionTitle>
             <CompetitiveMap
@@ -2311,7 +2082,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               licensed_places={extracted.centre.licensed_places || 0}
               centre_name={scored.centre_name || ''}
               overall_score={canonicalScore}
-              marketAudit={workflow?.market_audit ?? currentScored.market_audit}
+              marketAudit={currentScored.market_audit}
               legacyMarket={{
                 ...((currentScored as any).market_context ?? {}),
                 ...((currentScored as any).demand_context ?? {}),
