@@ -900,12 +900,15 @@ export default function CompetitiveMap({
           </div>
         </div>
 
-        {/* Methodology disclaimer */}
+        {/* Footnotes — how to read market evidence */}
         <div style={{ padding: '8px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa' }}>
+          <div style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 4 }}>
+            Footnotes · how to read market evidence
+          </div>
           <p style={{ margin: 0, fontSize: 10, color: '#94a3b8', lineHeight: 1.5 }}>
-            <strong style={{ color: '#64748b' }}>Adjusted kids per place</strong> = ABS 2021 Census 0–4 population (catchment-adjusted, growth-indexed) × LDC utilisation rate (40–55% metro / 35–45% regional, DoE 2024) ÷ ACECQA licensed places within radius.
-            Zones: &gt;1.0 Undersupplied · 0.5–1.0 Balanced · &lt;0.5 Oversupplied (LDC-adjusted). Raw ratio shown for reference.
-            Indicative only — not a substitute for site-specific due diligence.
+            <strong style={{ color: '#64748b' }}>F1 · Geography.</strong> Supply, licensed places and EDR above use the {mapData?.stats.radius_km ?? 3}km radius catchment — the canonical geometry. Any postcode-fallback count is a reconciliation only.{' '}
+            <strong style={{ color: '#64748b' }}>F2 · EDR (adjusted kids per place)</strong> = ABS 2021 Census 0–4 population (catchment-adjusted, growth-indexed) × LDC utilisation rate (40–55% metro / 35–45% regional, DoE 2024) ÷ ACECQA licensed places within radius. Zones: &gt;1.0 Undersupplied · 0.5–1.0 Balanced · &lt;0.5 Oversupplied (LDC-adjusted). Raw ratio shown for reference.{' '}
+            <strong style={{ color: '#64748b' }}>F3.</strong> A capacity screen, not proof of demand — indicative only, not a substitute for site-specific due diligence.
           </p>
         </div>
 
