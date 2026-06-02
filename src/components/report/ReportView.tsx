@@ -5,6 +5,7 @@ import ValuationGatePanel from '@/components/report/ValuationGatePanel'
 import ICMemoView from '@/components/report/ICMemoView'
 import DecisionDashboard, { type ReportMode } from '@/components/report/DecisionDashboard'
 import EvidenceScreen from '@/components/report/EvidenceScreen'
+import ValuationScenarios from '@/components/report/ValuationScenarios'
 import EvidenceDrawer from '@/components/report/EvidenceDrawer'
 import ICPackExport from '@/components/report/ICPackExport'
 import FullReportExport from '@/components/report/FullReportExport'
@@ -1061,6 +1062,39 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
     ? parseFloat(((rentPaNum / baseRevForRatios) * 100).toFixed(1))
     : (fy25?.rent_ratio_pct ?? ratios?.rent_ratio_fy25_pct)
 
+  // ── Leasehold valuation inputs (scenarios + factor trail, decision tab) ──
+  const leaseYearsRemaining = lease?.remaining_term_years
+    ?? (lease?.days_remaining != null ? Math.round((lease.days_remaining / 365) * 10) / 10 : null)
+  const leaseOptionsYears = (() => {
+    const tot = (scored.dimensions as any)?.lease_tail?.detail?.total_potential_tenure
+    if (tot != null && leaseYearsRemaining != null) return Math.max(0, tot - leaseYearsRemaining)
+    // Parse "2x10yr" / "two further terms of 10 years" style strings if present
+    const opt = lease?.options
+    if (typeof opt === 'string') {
+      const m = opt.match(/(\d+)\s*[x×]\s*(\d+)/i)
+      if (m) return parseInt(m[1]) * parseInt(m[2])
+    }
+    return null
+  })()
+  const occupancyDeclining = Boolean(
+    (occupancy as any)?.trend === 'declining'
+    || (financials?.revenue_trend && /declin|down|falling/i.test(financials.revenue_trend))
+  )
+  const leaseInputs = {
+    licensedPlaces: effectiveLicensedPlaces ?? null,
+    occupancyPct: effectiveOccupancy ?? null,
+    occupancyDeclining,
+    nqsRating: effectiveNqsRating ?? null,
+    leaseYearsRemaining,
+    leaseOptionsYears,
+    ownerOperated: Boolean((scored.dimensions as any)?.operator_quality?.detail?.owner_operated
+      ?? (extracted as any)?.staffing?.owner_operated ?? null),
+    rentToRevenuePct: effectiveRentRatioPct ?? null,
+    growthCorridor: Boolean((scored as any)?.demand_context?.growth_factor
+      && (scored as any).demand_context.growth_factor >= 1.08),
+  }
+  const leaseOptionsConfirmed = Boolean((scored.dimensions as any)?.lease_tail?.detail?.options_confirmed)
+
   const metrics = [
     {
       label: 'Revenue (FY25)',
@@ -1997,6 +2031,20 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
             />
           ))}
         </div>
+
+        {/* VALUATION SCENARIOS — leasehold going concern, decision tab */}
+        {(!workflow || activeReportMode === 'decision') && (
+          <div className="no-print-keep">
+            <SectionTitle>Valuation — upside / base / downside</SectionTitle>
+            <ValuationScenarios
+              ebitda={effectiveEbitda ?? null}
+              askingPrice={effectiveAskPrice ?? null}
+              inputs={leaseInputs}
+              leaseOptionsConfirmed={leaseOptionsConfirmed}
+              apiResult={(workflow?.valuation_multiple as Record<string, any> | undefined) ?? null}
+            />
+          </div>
+        )}
 
         {/* RESCORE BAR */}
         {hasOverrides && (
