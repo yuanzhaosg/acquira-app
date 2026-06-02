@@ -5,7 +5,9 @@ import type { ScoredDeal } from '@/types/scored'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = 'claude-sonnet-4-20250514'
-export const maxDuration = 60
+// Streamed below so Vercel never sees the function as idle; 300s ceiling
+// requires Pro + Fluid Compute (Project Settings → Functions → Fluid Compute).
+export const maxDuration = 300
 
 // ─── Dimension weights (single source of truth) ──────────────────────────────
 // IMPORTANT: Must sum to 1.0. Server recalculates total_score — never trust Claude's sum.
@@ -315,13 +317,17 @@ export async function POST(req: NextRequest) {
     const scoringPrompt = buildScoringPrompt(extracted, overrideNote)
 
     // temperature: 0 — same IM always produces identical scores
-    const scoringResponse = await client.messages.create({
+    // Streamed: keeps the serverless connection active during a long (8k-token)
+    // generation so Vercel does not kill it as idle, and lets us start as soon
+    // as the model does. We accumulate the full text, then parse as before.
+    const stream = await client.messages.stream({
       model: MODEL,
       max_tokens: 8000,
       temperature: 0,
       system: SCORING_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: scoringPrompt }],
     })
+    const scoringResponse = await stream.finalMessage()
 
     const rawText = scoringResponse.content[0].type === 'text'
       ? scoringResponse.content[0].text
