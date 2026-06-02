@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const MODEL = 'claude-sonnet-4-20250514'  // haiku not available; sonnet is fast enough for translation
-export const maxDuration = 60
+export const maxDuration = 300
 
 /**
  * Translates Acquira report narrative text to Simplified Chinese.
@@ -94,12 +94,13 @@ Rules:
 Input:
 ${JSON.stringify(toTranslate, null, 2)}`
 
-    const response = await client.messages.create({
+    const stream = await client.messages.stream({
       model: MODEL,
       max_tokens: 4000,
       temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     })
+    const response = await stream.finalMessage()
 
     const rawText = response.content[0].type === 'text' ? response.content[0].text : ''
     const jsonMatch = rawText.match(/\{[\s\S]*\}/)
