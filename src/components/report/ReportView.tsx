@@ -61,12 +61,9 @@ function fmtM(n: number | null | undefined): string {
 }
 
 const REPORT_MODES: Array<{ id: ReportMode; label: string; description: string }> = [
-  { id: 'decision', label: 'Decision', description: 'Answer, confidence, blockers, and next action' },
-  { id: 'memo', label: 'Memo', description: 'Decision story for IC review' },
-  { id: 'underwriting', label: 'Underwriting', description: 'Decision logic, score drivers, and valuation readiness' },
+  { id: 'decision', label: 'Decision', description: 'Answer, confidence, score logic, and next action' },
   { id: 'evidence', label: 'Evidence', description: 'Proof layer, source refs, warnings, and market data' },
   { id: 'diligence', label: 'Diligence', description: 'Broker requests, blockers, uploads, and next actions' },
-  { id: 'runs', label: 'Run History', description: 'Version history, comparisons, and promotion' },
 ]
 
 // Score ring: input is 0–100
@@ -1608,6 +1605,10 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
           }, {
             label: '🗺️ Supply Map', action: onMap,
           }, {
+            label: '📝 Memo', action: () => setActiveReportMode('memo'),
+          }, {
+            label: '🕓 Run History', action: () => setActiveReportMode('runs'),
+          }, {
             label: '💳 Pricing', action: () => window.open('/pricing', '_blank'),
           }].map(({ label, action }) => action ? (
             <button key={label} onClick={action} style={{
@@ -1894,34 +1895,24 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
               </>
             )}
 
-            {activeReportMode !== 'decision' && activeReportMode !== 'memo' && activeReportMode !== 'underwriting' && (
-              <div style={{
-                color: 'rgba(255,255,255,0.42)',
-                fontSize: 12.5,
-                lineHeight: 1.55,
-                marginBottom: 30,
-                borderTop: '1px solid rgba(255,255,255,0.08)',
-                paddingTop: 14,
-              }}>
-                Memo narrative is intentionally kept out of this workspace mode. Switch back to Memo for the investor-facing view.
-              </div>
-            )}
           </>
         )}
 
-        {(!workflow || activeReportMode === 'underwriting') && (
+        {(!workflow || activeReportMode === 'underwriting' || activeReportMode === 'decision') && (
           <>
             {workflow && (
               <>
-                <SectionRoleGuide
-                  title="Underwriting = decision logic"
-                  description="Use this workspace to understand score drivers, valuation readiness, blockers, and what evidence changed confidence. Raw evidence remains in Evidence."
-                  actions={[
-                    { label: 'View supporting evidence', onClick: () => setActiveReportMode('evidence') },
-                    { label: 'Open diligence actions', onClick: () => setActiveReportMode('diligence') },
-                    { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
-                  ]}
-                />
+                {activeReportMode === 'underwriting' && (
+                  <SectionRoleGuide
+                    title="Underwriting = decision logic"
+                    description="Use this workspace to understand score drivers, valuation readiness, blockers, and what evidence changed confidence. Raw evidence remains in Evidence."
+                    actions={[
+                      { label: 'View supporting evidence', onClick: () => setActiveReportMode('evidence') },
+                      { label: 'Open diligence actions', onClick: () => setActiveReportMode('diligence') },
+                      { label: 'Return to decision', onClick: () => setActiveReportMode('decision') },
+                    ]}
+                  />
+                )}
                 <div style={{
                   background: 'rgba(255,255,255,0.025)',
                   border: '1px solid rgba(255,255,255,0.08)',
@@ -2632,7 +2623,7 @@ export default function ReportView({ extracted, scored, workflow, dealId, saving
       </div>{/* end report-content */}
 
       {/* ── SCORE INTERPRETATION ── */}
-      {(!workflow || activeReportMode === 'underwriting') && <div className="score-interpretation" style={{
+      {(!workflow || activeReportMode === 'underwriting' || activeReportMode === 'decision') && <div className="score-interpretation" style={{
         margin: '0 40px 40px',
         background: 'rgba(255,255,255,0.02)',
         border: '1px solid rgba(255,255,255,0.07)',

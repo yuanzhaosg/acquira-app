@@ -256,12 +256,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'DB query failed' }, { status: 500 })
     }
 
-    // Filter out the target centre itself
-    const filtered = ((competitors ?? []) as NearbyCentreRow[]).filter(c =>
-      !c.service_name?.toLowerCase().includes(
+    // Site-mode inclusion rule:
+    // - Report pages pass the subject centre's licensed_places, so exclude the likely
+    //   target from the competitor list and add known subject places back via analyseSupply().
+    // - Public try-map searches pass licensed_places = 0, so keep all ACECQA centres
+    //   returned in the radius. This makes "Licensed places / catchment total" include
+    //   the searched centre when the searched address is itself an operating centre.
+    const shouldExcludeTarget = (licensed_places || 0) > 0
+
+    const filtered = ((competitors ?? []) as NearbyCentreRow[]).filter(c => {
+      if (!shouldExcludeTarget) return true
+
+      return !c.service_name?.toLowerCase().includes(
         address.toLowerCase().split(' ')[0] || '__'
       )
-    )
+    })
 
     // ── 4. Supply analysis ─────────────────────────────────────────────────────
     const supply = analyseSupply(filtered, licensed_places || 0)
