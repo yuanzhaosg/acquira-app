@@ -39,70 +39,35 @@ function formatMarketNumber(value: number | null | undefined, suffix = ''): stri
   return `${value.toLocaleString('en-AU', { maximumFractionDigits: 2 })}${suffix}`
 }
 
-function EvidenceLensCard({ title, body, note }: { title: string; body: string; note: string }) {
+
+function MarketEvidenceFootnotes({ marketAudit }: { marketAudit?: MarketAudit | null }) {
+  const publicBenchmark = marketAudit?.public_market_benchmark
+  const localDemandSupply = marketAudit?.local_demand_supply
+  const edr = marketAudit?.edr?.value
+  const note: React.CSSProperties = { display: 'flex', gap: 10, fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.55, marginBottom: 8 }
+  const id: React.CSSProperties = { fontFamily: 'IBM Plex Mono, monospace', fontSize: 10.5, fontWeight: 600, minWidth: 26, color: '#00b4a0' }
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 8,
-      padding: '14px 15px',
-      minHeight: 146,
-    }}>
-      <div style={{ color: '#e8edf3', fontSize: 13.5, fontWeight: 800, marginBottom: 7 }}>
-        {title}
+    <div style={{ marginBottom: 34, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+      <SectionTitle>Footnotes · how to read market evidence</SectionTitle>
+      <div style={note}>
+        <span style={id}>F2</span>
+        <span><strong style={{ color: 'rgba(255,255,255,0.72)' }}>EDR (internal capacity screen). </strong>
+          Children 0-4 × LDC utilisation midpoint ÷ licensed places; ≥1.0 undersupplied · 0.5–1.0 balanced · &lt;0.5 oversupplied. Current value: {formatMarketNumber(edr)}. A market-pressure screen, not target-level occupancy evidence.</span>
       </div>
-      <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: 12.5, lineHeight: 1.6, marginBottom: 8 }}>
-        {body}
+      <div style={note}>
+        <span style={id}>F3</span>
+        <span><strong style={{ color: 'rgba(255,255,255,0.72)' }}>Public CCS benchmark. </strong>
+          Public aggregate market evidence for {publicBenchmark?.sa3_name ?? 'the selected SA3'} (realised CCS usage, CBDC pricing) — a different dataset from the internal screen, not interchangeable with it. Quarter: {publicBenchmark?.as_of_quarter ?? 'not available'}.</span>
       </div>
-      <div style={{ color: 'rgba(255,255,255,0.38)', fontSize: 11.5, lineHeight: 1.45 }}>
-        {note}
+      <div style={note}>
+        <span style={id}>F4</span>
+        <span><strong style={{ color: 'rgba(255,255,255,0.72)' }}>Supply &amp; pipeline. </strong>
+          The competitive map plots the same supply set scored above (local supply context) — it is not a second count. The future supply pressure signal is {localDemandSupply?.market_capacity_signal ?? 'not available'}; check pipeline against source documents.</span>
       </div>
     </div>
   )
 }
 
-function MarketEvidenceGuide({ marketAudit }: { marketAudit?: MarketAudit | null }) {
-  const publicBenchmark = marketAudit?.public_market_benchmark
-  const localDemandSupply = marketAudit?.local_demand_supply
-  const edr = marketAudit?.edr?.value
-
-  return (
-    <section style={{
-      background: 'rgba(0,180,160,0.055)',
-      border: '1px solid rgba(0,180,160,0.16)',
-      borderRadius: 8,
-      padding: '16px 18px',
-      marginBottom: 26,
-    }}>
-      <SectionTitle>How to read market evidence</SectionTitle>
-      <p style={{ color: 'rgba(255,255,255,0.68)', fontSize: 13.5, lineHeight: 1.7, margin: '0 0 14px' }}>
-        These metrics are not interchangeable. EDR is an internal capacity screen, while CCS benchmark data shows public aggregate market evidence and realised CCS usage at SA3 level. Competitive Map data shows local supply context. Use them together to understand market pressure; do not treat any one metric as target-level occupancy evidence.
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
-        <EvidenceLensCard
-          title="EDR / internal screen"
-          body={`Internal capacity screen based on available children, utilisation assumptions, and licensed or approved places. Current value: ${formatMarketNumber(edr)}.`}
-          note="Useful for market pressure context, not a standalone target claim."
-        />
-        <EvidenceLensCard
-          title="Public CCS benchmark"
-          body={`Public aggregate market evidence for ${publicBenchmark?.sa3_name ?? 'the selected SA3'} showing realised CCS usage and CBDC pricing benchmark context.`}
-          note={`Quarter: ${publicBenchmark?.as_of_quarter ?? 'not available'}. CBDC services: ${formatMarketNumber(publicBenchmark?.cbdc_services)}.`}
-        />
-        <EvidenceLensCard
-          title="Competitive Map"
-          body="Local competitor and supply context around the target address, where mapping inputs are available."
-          note="Use this to review nearby operators, supply density, and catchment assumptions."
-        />
-        <EvidenceLensCard
-          title="Supply Map / pipeline"
-          body={`Local supply and future supply pressure from approved, lodged, or risk-adjusted pipeline places. Current signal: ${localDemandSupply?.market_capacity_signal ?? 'not available'}.`}
-          note="Pipeline evidence helps explain future pressure and should be checked against source documents."
-        />
-      </div>
-    </section>
-  )
-}
 
 function PublicMarketContextPanel({ marketAudit }: { marketAudit?: MarketAudit | null }) {
   const publicBenchmark = marketAudit?.public_market_benchmark
@@ -219,17 +184,15 @@ export default function EvidenceScreen({
       borderRadius: 8,
       padding: 18,
     }}>
-      <MarketEvidenceGuide marketAudit={marketAudit} />
       <ExtractionWarnings workflow={workflow} />
       <MarketAuditPanel
         audit={marketAudit}
         pipelineAudit={workflow.pipeline_audit ?? scored.pipeline_audit}
         pipelineProjects={workflow.pipeline_projects ?? scored.pipeline_projects}
       />
-      <PublicMarketContextPanel marketAudit={marketAudit} />
       {extracted.centre?.address && (
         <div style={{ marginBottom: 34 }}>
-          <SectionTitle>Competitive Map</SectionTitle>
+          <SectionTitle>Competitive map — the supply set above, not a second count</SectionTitle>
           <CompetitiveMap
             address={extracted.centre.address}
             suburb={extracted.centre.suburb || ''}
@@ -250,6 +213,8 @@ export default function EvidenceScreen({
           />
         </div>
       )}
+      <PublicMarketContextPanel marketAudit={marketAudit} />
+      <MarketEvidenceFootnotes marketAudit={marketAudit} />
       <FactsReviewPanel workflow={workflow} onOpenEvidence={onOpenEvidence} />
     </div>
   )

@@ -77,7 +77,7 @@ type ResolvedSupply = {
 }
 
 function resolveSupply(audit?: MarketAudit | null): ResolvedSupply | null {
-  if (!audit) return null
+  if (audit == null) return null
   const cs = audit.competitor_supply
   const radiusKm = cs?.radius_km ?? audit.catchment_radius_km ?? null
   const geoOk = cs?.source === 'geospatial_supabase'

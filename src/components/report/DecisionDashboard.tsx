@@ -225,12 +225,10 @@ export default function DecisionDashboard({
             {status.label}
           </h2>
           <p style={{ margin: 0, color: 'rgba(255,255,255,0.58)', maxWidth: 720, lineHeight: 1.65 }}>
-            {status.reason} Use this dashboard first, then move through Memo, Underwriting, Evidence, Diligence, and Run History.
+            {status.reason} Use this dashboard first — score logic is below — then move through Evidence and Diligence. Memo and Run History are in the top bar.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignContent: 'flex-start' }}>
-          <SmallActionButton onClick={() => onNavigate('memo')}>Read memo</SmallActionButton>
-          <SmallActionButton onClick={() => onNavigate('underwriting')}>View logic</SmallActionButton>
           <SmallActionButton onClick={() => onNavigate('evidence')}>Check evidence</SmallActionButton>
           <SmallActionButton onClick={() => onNavigate('diligence')}>Open actions</SmallActionButton>
         </div>

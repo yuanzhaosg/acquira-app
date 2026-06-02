@@ -293,14 +293,19 @@ assert(
   /REPORT_MODES/.test(reportView)
     && /report-mode-sidebar/.test(reportView)
     && /label: 'Decision'/.test(reportView)
-    && /label: 'Memo'/.test(reportView)
-    && /label: 'Underwriting'/.test(reportView)
     && /label: 'Evidence'/.test(reportView)
     && /label: 'Diligence'/.test(reportView)
-    && /label: 'Run History'/.test(reportView)
+    && !/label: 'Memo'/.test(reportView)
+    && !/label: 'Underwriting'/.test(reportView)
+    && !/label: 'Run History'/.test(reportView)
     && /useState<ReportMode>\('decision'\)/.test(reportView)
     && /activeReportMode === 'decision'[\s\S]*DecisionDashboard/.test(reportView),
-  'ReportView must split the page into a sidebar journey for Decision, Memo, Underwriting, Evidence, Diligence, and Run History with Decision as the default.',
+  'ReportView primary journey must be the three consolidated tabs (Decision, Evidence, Diligence) with Decision as default; Memo, Underwriting, and Run History are no longer primary tabs.',
+)
+assert(
+  /label: '📝 Memo', action: \(\) => setActiveReportMode\('memo'\)/.test(reportView)
+    && /label: '🕓 Run History', action: \(\) => setActiveReportMode\('runs'\)/.test(reportView),
+  'Memo and Run History must be reachable as header controls.',
 )
 assert(
   /export default function DecisionDashboard/.test(decisionDashboard)
@@ -331,23 +336,25 @@ assert(
 )
 assert(
   /Can we rely on this valuation\?/.test(reportView)
-    && /activeReportMode === 'underwriting'[\s\S]*ValuationGatePanel/.test(reportView)
+    && /activeReportMode === 'underwriting' \|\| activeReportMode === 'decision'[\s\S]*ValuationGatePanel/.test(reportView)
     && !reportView.slice(
       reportView.indexOf("activeReportMode === 'evidence'"),
-      reportView.indexOf("activeReportMode !== 'decision'")
+      reportView.indexOf("activeReportMode === 'diligence'")
     ).includes('ValuationGatePanel'),
-  'Valuation readiness must be framed in buyer language inside Underwriting, not duplicated in Evidence.',
+  'Valuation readiness must be framed in buyer language inside the Decision/Underwriting logic, not duplicated in Evidence.',
 )
 assert(
   /export default function EvidenceScreen/.test(evidenceScreen)
-    && /How to read market evidence/.test(evidenceScreen)
+    && /Footnotes · how to read market evidence/.test(evidenceScreen)
+    && !/<SectionTitle>How to read market evidence<\/SectionTitle>/.test(evidenceScreen)
+    && /the supply set above, not a second count/.test(evidenceScreen)
     && /Public Market Benchmark/.test(evidenceScreen)
     && /Local Capacity Screen/.test(evidenceScreen)
     && /FactsReviewPanel/.test(evidenceScreen)
     && /MarketAuditPanel/.test(evidenceScreen)
     && /ExtractionWarnings/.test(evidenceScreen)
     && /CompetitiveMap/.test(evidenceScreen),
-  'Public market context must render in Evidence mode only.',
+  'Evidence must consolidate: how-to-read demoted to footnotes, competitive map recaptioned as the same supply set (not a second count), public context retained.',
 )
 assert(
   /public_market_benchmark/.test(evidenceScreen)
