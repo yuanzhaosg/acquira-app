@@ -383,6 +383,7 @@ export interface DealWorkflow {
   run_id?: string | null
   base_run_id?: string | null
   deal_summary?: Record<string, unknown>
+  valuation_multiple?: Record<string, unknown>
   facts: WorkflowFact[]
   extracted_facts?: WorkflowFact[]
   missing_fields: string[]
